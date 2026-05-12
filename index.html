@@ -1,0 +1,977 @@
+﻿<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>СТМ: план, выпуск и отгрузки</title>
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --text: #17202a;
+      --muted: #667085;
+      --line: #d7dde7;
+      --blue: #2f6fed;
+      --green: #168a5b;
+      --amber: #b7791f;
+      --red: #c2412d;
+      --ink: #263445;
+      --soft-blue: #eaf1ff;
+      --soft-green: #e8f6ef;
+      --soft-amber: #fff4df;
+      --soft-red: #fff0ec;
+      --radius: 8px;
+      --shadow: 0 12px 34px rgba(15, 23, 42, 0.08);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); font-family: Inter, "Segoe UI", Arial, sans-serif; letter-spacing: 0; }
+    body { padding: 24px; }
+    button, input, select { font: inherit; }
+    .shell { max-width: 1480px; margin: 0 auto; display: grid; gap: 18px; }
+    .topbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+    .title h1 { margin: 0; font-size: 28px; line-height: 1.15; font-weight: 760; color: var(--ink); }
+    .title p { margin: 8px 0 0; color: var(--muted); font-size: 14px; }
+    .top-controls { display: grid; gap: 10px; justify-items: end; }
+    .month-toggle { display: inline-flex; padding: 3px; background: #e9edf3; border: 1px solid var(--line); border-radius: var(--radius); gap: 2px; }
+    .month-toggle button { border: 0; background: transparent; color: #334155; padding: 9px 16px; border-radius: 6px; cursor: pointer; min-width: 82px; }
+    .month-toggle button.active { background: var(--panel); color: var(--blue); box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12); font-weight: 700; }
+    .report-toggle button { min-width: 112px; }
+    .report-view { display: grid; gap: 18px; }
+    .report-view[hidden] { display: none; }
+    .filters { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px; display: grid; grid-template-columns: 1.4fr repeat(4, minmax(150px, 1fr)); gap: 12px; align-items: end; }
+    .field label { display: block; color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+    .field input, .field select { width: 100%; height: 38px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--text); padding: 0 10px; outline: none; }
+    .field input:focus, .field select:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(47, 111, 237, 0.12); }
+    .kpis { display: grid; grid-template-columns: repeat(5, minmax(160px, 1fr)); gap: 12px; }
+    .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; box-shadow: var(--shadow); min-height: 112px; }
+    .kpi .label { color: var(--muted); font-size: 12px; margin-bottom: 9px; }
+    .kpi .value { font-size: 23px; font-weight: 760; color: var(--ink); white-space: nowrap; }
+    .kpi .sub { margin-top: 9px; color: var(--muted); font-size: 12px; }
+    .progress { height: 7px; background: #e7ecf3; border-radius: 999px; overflow: hidden; margin-top: 11px; }
+    .progress span { display: block; height: 100%; width: 0; background: var(--blue); border-radius: inherit; }
+    .margin-strip { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 10px 14px; color: #334155; display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+    .margin-strip strong { color: var(--ink); }
+    .margin-strip span::before { content: "•"; color: #94a3b8; margin-right: 10px; }
+    .margin-strip span:first-child::before { content: ""; margin: 0; }
+    .potential-breakdown { gap: 8px; }
+    .potential-breakdown span { border-radius: 999px; padding: 5px 10px; background: #f8fafc; border: 1px solid #edf0f5; }
+    .potential-breakdown span::before { content: ""; margin: 0; }
+    .potential-breakdown .manual { background: var(--soft-red); border-color: #ffd6cc; }
+    .potential-breakdown .total { background: var(--soft-blue); border-color: #d7e5ff; }
+    .grid-two { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr); gap: 12px; }
+    .section { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px; min-width: 0; }
+    .section-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .section h2 { margin: 0; font-size: 16px; color: var(--ink); }
+    .section .hint { color: var(--muted); font-size: 12px; }
+    .link-button { border: 1px solid var(--line); background: #fff; color: var(--blue); border-radius: 6px; min-height: 28px; padding: 0 10px; font-size: 12px; font-weight: 700; cursor: pointer; }
+    .link-button:hover { background: var(--soft-blue); }
+    .bars { display: grid; gap: 10px; }
+    .bar-row { display: grid; grid-template-columns: minmax(120px, 220px) 1fr minmax(90px, auto); gap: 12px; align-items: center; }
+    .bar-row.clickable { cursor: pointer; border-radius: 6px; padding: 3px 4px; margin: -3px -4px; }
+    .bar-row.clickable:hover { background: #f1f5f9; }
+    .bar-row.active-manager { background: var(--soft-blue); }
+    .bar-row.active-manager-plan { background: #eef7f2; }
+    .bar-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #334155; font-size: 13px; }
+    .bar-track { height: 12px; background: #edf1f6; border-radius: 999px; overflow: hidden; cursor: pointer; }
+    .bar-fill { height: 100%; background: var(--green); border-radius: inherit; }
+    .bar-value { font-size: 12px; color: var(--muted); text-align: right; white-space: nowrap; }
+    .split-list { display: grid; gap: 10px; }
+    .split-item { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; border-bottom: 1px solid #edf0f5; padding-bottom: 9px; }
+    .split-item:last-child { border-bottom: 0; padding-bottom: 0; }
+    .split-item.clickable { cursor: pointer; border-radius: 8px; padding: 7px 8px; margin: -7px -8px 2px; transition: background .15s ease; }
+    .split-item.clickable:hover { background: #f4f7fb; }
+    .split-item.active-quality { background: #eef7f2; }
+    .badge { display: inline-flex; align-items: center; min-height: 22px; padding: 3px 8px; border-radius: 999px; font-size: 12px; font-weight: 650; }
+    .badge.green { color: var(--green); background: var(--soft-green); }
+    .badge.blue { color: var(--blue); background: var(--soft-blue); }
+    .badge.amber { color: var(--amber); background: var(--soft-amber); }
+    .badge.red { color: var(--red); background: var(--soft-red); }
+    .table-wrap { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+    .table-head { padding: 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); }
+    .table-head h2 { margin: 0; font-size: 16px; color: var(--ink); }
+    .table-head span { color: var(--muted); font-size: 12px; }
+    .table-actions { display: flex; align-items: center; gap: 10px; }
+    .column-panel { position: absolute; right: 0; top: 34px; z-index: 35; width: 280px; background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 18px 48px rgba(15, 23, 42, 0.18); padding: 10px; display: grid; gap: 8px; }
+    .column-panel[hidden] { display: none; }
+    .column-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 12px; }
+    .icon-button { border: 1px solid var(--line); background: #fff; color: #475467; border-radius: 6px; width: 28px; height: 28px; cursor: pointer; font-size: 18px; line-height: 1; }
+    .icon-button:hover { background: #f1f5f9; }
+    .column-panel-wrap { position: relative; }
+    .column-list { display: grid; gap: 6px; max-height: 360px; overflow: auto; }
+    .column-list label { display: flex; gap: 8px; align-items: center; font-size: 13px; color: #334155; }
+    .column-actions { display: flex; gap: 6px; }
+    .column-actions button { flex: 1; min-height: 28px; border: 1px solid #cbd5e1; background: #f8fafc; border-radius: 5px; cursor: pointer; font-size: 12px; }
+    .scroll { overflow: auto; max-height: 620px; }
+    table { width: 100%; border-collapse: collapse; min-width: 1420px; }
+    th, td { padding: 10px 12px; border-bottom: 1px solid #edf0f5; text-align: left; vertical-align: top; font-size: 13px; }
+    th { position: sticky; z-index: 1; background: #f8fafc; color: #475467; font-size: 12px; font-weight: 760; }
+    .header-labels th { top: 0; }
+    .header-filters th { top: 37px; padding: 6px 8px; background: #eef3f9; z-index: 2; }
+    .table-filter-btn { width: 100%; height: 28px; border: 1px solid #cbd5e1; border-radius: 5px; background: #fff; color: #334155; padding: 0 7px; font-size: 12px; outline: none; display: flex; align-items: center; justify-content: space-between; gap: 6px; cursor: pointer; }
+    .table-filter-btn.active { border-color: var(--blue); background: var(--soft-blue); color: var(--blue); font-weight: 700; }
+    .filter-arrow { color: #64748b; font-size: 10px; }
+    .filter-menu { position: fixed; z-index: 50; width: 270px; max-width: calc(100vw - 20px); max-height: calc(100vh - 24px); background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 18px 48px rgba(15, 23, 42, 0.22); padding: 10px; display: grid; gap: 8px; }
+    .filter-menu input[type="search"] { width: 100%; height: 30px; border: 1px solid #cbd5e1; border-radius: 5px; padding: 0 8px; font-size: 12px; }
+    .filter-actions, .filter-footer { display: flex; gap: 6px; }
+    .filter-actions button, .filter-footer button { border: 1px solid #cbd5e1; background: #f8fafc; color: #334155; border-radius: 5px; min-height: 28px; padding: 0 8px; font-size: 12px; cursor: pointer; }
+    .filter-footer button.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+    .filter-options { max-height: min(240px, calc(100vh - 190px)); overflow: auto; border: 1px solid #edf0f5; border-radius: 6px; padding: 4px; display: grid; gap: 2px; }
+    .filter-option { display: flex; align-items: center; gap: 7px; min-height: 26px; padding: 3px 5px; border-radius: 4px; font-size: 12px; font-weight: 500; color: #334155; }
+    .filter-option:hover { background: #f1f5f9; }
+    .filter-option input { margin: 0; }
+    td.num, th.num { text-align: right; white-space: nowrap; }
+    td.name { max-width: 360px; color: #263445; }
+    tr:hover td { background: #fbfcff; }
+    .empty { padding: 40px; text-align: center; color: var(--muted); }
+    .potential-kpis { grid-template-columns: repeat(4, minmax(160px, 1fr)); }
+    .potential-table table { min-width: 1320px; }
+    .manager-potential-table table { min-width: 1040px; }
+    .manager-potential-table .manual-cell { color: var(--red); font-weight: 700; }
+    @media (max-width: 1100px) {
+      body { padding: 14px; }
+      .topbar { display: grid; }
+      .filters { grid-template-columns: 1fr 1fr; }
+      .kpis { grid-template-columns: 1fr 1fr; }
+      .grid-two { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 680px) {
+      .filters, .kpis { grid-template-columns: 1fr; }
+      .title h1 { font-size: 23px; }
+      .month-toggle { width: 100%; }
+      .month-toggle button { flex: 1; }
+    }
+    #auth-overlay{position:fixed;inset:0;z-index:9999;background:var(--bg);display:flex;align-items:center;justify-content:center}
+    #auth-box{background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:40px 36px;width:320px;text-align:center}
+    #auth-box h2{margin:0 0 6px;font-size:20px;color:var(--ink)}
+    #auth-box p{margin:0 0 22px;color:var(--muted);font-size:13px}
+    #auth-box input{width:100%;height:40px;border:1px solid var(--line);border-radius:8px;padding:0 12px;font-size:15px;letter-spacing:2px;text-align:center;margin-bottom:14px;outline:none}
+    #auth-box input:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(47,111,237,.12)}
+    #auth-box input.shake{animation:shake .35s}
+    @keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
+    #auth-box button{width:100%;height:40px;background:var(--blue);color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer}
+    #auth-box button:hover{background:#1d4ed8}
+    #auth-error{color:var(--red);font-size:13px;margin-top:10px;min-height:18px}
+  </style>
+</head>
+<body>
+<div id="auth-overlay">
+  <div id="auth-box">
+    <h2>СТМ Дашборд</h2>
+    <p>План, выпуск и отгрузки</p>
+    <input id="auth-input" type="password" placeholder="Введите пароль" autocomplete="current-password">
+    <button id="auth-btn">Войти</button>
+    <div id="auth-error"></div>
+  </div>
+</div>
+<script>
+(function(){
+  const PASS='STM12345',KEY='stm_auth',overlay=document.getElementById('auth-overlay');
+  function unlock(){overlay.style.display='none';sessionStorage.setItem(KEY,'1');}
+  if(sessionStorage.getItem(KEY)==='1'){unlock();return;}
+  function attempt(){
+    const inp=document.getElementById('auth-input');
+    if(inp.value===PASS){unlock();}
+    else{
+      document.getElementById('auth-error').textContent='Неверный пароль';
+      inp.value='';inp.classList.remove('shake');void inp.offsetWidth;inp.classList.add('shake');
+    }
+  }
+  document.getElementById('auth-btn').addEventListener('click',attempt);
+  document.getElementById('auth-input').addEventListener('keydown',e=>{if(e.key==='Enter')attempt();});
+})();
+</script>
+  <main class="shell">
+    <div class="topbar">
+      <div class="title">
+        <h1>СТМ: план, выпуск и продажи</h1>
+        <p>Оперативная версия: план и выпуск из отчета производства, отгрузки и выручка из 1С, валовка управленческая.</p>
+      </div>
+      <div class="top-controls">
+        <div class="month-toggle report-toggle" aria-label="Выбор отчета">
+          <button data-view="main" class="active">План-факт</button>
+          <button data-view="potential">Потенциал</button>
+        </div>
+        <div class="month-toggle" aria-label="Выбор месяца">
+          <button data-month="Май" class="active">Май</button>
+          <button data-month="Июнь">Июнь</button>
+        </div>
+      </div>
+    </div>
+
+    <section id="mainReport" class="report-view">
+    <section class="filters">
+      <div class="field">
+        <label for="search">Поиск</label>
+        <input id="search" type="search" placeholder="Артикул, заказ, наименование">
+      </div>
+      <div class="field">
+        <label for="manager">Менеджер</label>
+        <select id="manager"></select>
+      </div>
+      <div class="field">
+        <label for="newness">Новинка</label>
+        <select id="newness">
+          <option value="">Все</option>
+          <option value="Да">Да</option>
+          <option value="Нет">Нет</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="priceSource">Источник цены</label>
+        <select id="priceSource"></select>
+      </div>
+      <div class="field">
+        <label for="status">Статус</label>
+        <select id="status">
+          <option value="">Все строки</option>
+          <option value="shipped">Есть отгрузка</option>
+          <option value="not-shipped">Без отгрузки</option>
+          <option value="out-of-plan">Отгружено вне плана</option>
+          <option value="no-price">Цена не найдена</option>
+        </select>
+      </div>
+    </section>
+
+    <section class="kpis" id="kpis"></section>
+    <section class="margin-strip" id="marginStrip"></section>
+
+    <section class="grid-two">
+      <div class="section">
+        <div class="section-head">
+          <h2>Валовка по менеджерам</h2>
+          <button type="button" class="link-button" id="clearManagerFilter">Все менеджеры</button>
+        </div>
+        <div class="bars" id="managerBars"></div>
+      </div>
+      <div class="section">
+        <div class="section-head">
+          <h2>Контроль данных</h2>
+          <button type="button" class="link-button" id="clearQualityFilter">Все строки</button>
+        </div>
+        <div class="split-list" id="dataQuality"></div>
+      </div>
+    </section>
+
+    <section class="table-wrap">
+      <div class="table-head">
+        <h2>SKU в отчете</h2>
+        <div class="table-actions">
+          <span id="rowCount"></span>
+          <div class="column-panel-wrap">
+            <button type="button" class="link-button" id="columnsButton">Колонки</button>
+            <div class="column-panel" id="columnsPanel" hidden>
+              <div class="column-panel-head">
+                <span>Показать в таблице</span>
+                <button type="button" class="icon-button" id="columnsClose" aria-label="Закрыть">×</button>
+              </div>
+              <div class="column-actions">
+                <button type="button" id="columnsAll">Все</button>
+                <button type="button" id="columnsDefault">По умолчанию</button>
+              </div>
+              <div class="column-list" id="columnsList"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="scroll">
+        <table>
+          <thead id="thead"></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </section>
+    </section>
+
+    <section id="potentialReport" class="report-view" hidden>
+      <section class="kpis potential-kpis" id="potentialKpis"></section>
+      <section class="margin-strip" id="potentialStrip"></section>
+      <section class="table-wrap manager-potential-table">
+        <div class="table-head">
+          <h2>Потенциал по менеджерам</h2>
+          <span id="potentialManagerCount"></span>
+        </div>
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr class="header-labels">
+                <th>Менеджер</th>
+                <th class="num">План выручка</th>
+                <th class="num">План валовка</th>
+                <th class="num">План маржа</th>
+                <th class="num">Потенциал выручка</th>
+                <th class="num">Потенциал валовка</th>
+                <th class="num">Потенциал маржа</th>
+                <th class="num">Итого выручка</th>
+                <th class="num">Итого валовка</th>
+                <th class="num">Итого маржа</th>
+              </tr>
+            </thead>
+            <tbody id="potentialManagerTbody"></tbody>
+          </table>
+        </div>
+      </section>
+      <section class="table-wrap potential-table">
+        <div class="table-head">
+          <h2>Потенциал</h2>
+          <span id="potentialRowCount"></span>
+        </div>
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr class="header-labels">
+                <th>Артикул</th>
+                <th>Наименование</th>
+                <th>Клиент</th>
+                <th>Менеджер</th>
+                <th class="num">Количество</th>
+                <th class="num">ЦФ</th>
+                <th class="num">ЦК</th>
+                <th class="num">Выручка</th>
+                <th class="num">Валовка</th>
+                <th class="num">Маржа</th>
+                <th>Статус</th>
+                <th>Комментарий</th>
+                <th>Источник</th>
+              </tr>
+            </thead>
+            <tbody id="potentialTbody"></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    const DATA = [{"month":"Май","sku":"RELF6","isNew":"","name":"305 Miami SPA Пенка для умывания, 160 мл,","order":"","planQty":3000,"releaseQty":0,"shippedQty":0,"remainingQty":3000,"manager":"","factoryPrice":0,"clientPrice":0,"actualClientPrice":0,"plannedRevenue":0,"actualRevenue":0,"plannedGp":0,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"ждем ДС ориентир 12 мая","priceSource":"Цена не найдена","operation":"","salesRows":0},{"month":"Май","sku":"FACT100643","isNew":"Нет","name":"ART\u0026FACT Точечный крем для лица (Azelaic Acid + Salicylic Acid + Zinc PCA), 20 мл,","order":"00ЦБ-000086","planQty":3000,"releaseQty":0,"shippedQty":0,"remainingQty":3000,"manager":"Лигостаева Елена Александровна","factoryPrice":94.06,"clientPrice":150.93,"actualClientPrice":0,"plannedRevenue":452790,"actualRevenue":0,"plannedGp":170610,"actualGp":0,"margin":0,"shipDate":"","cookDate":"07.05.2026","comment":"азелаинка - оплата 28.04, поставка - 30.04, предварительно","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"BEST007","isNew":"Нет","name":"BESTLAND Крем-воск для ног, 150 мл,","order":"00ЦБ-000028; 00ЦБ-000116","planQty":5000,"releaseQty":0,"shippedQty":0,"remainingQty":5000,"manager":"Темрина Наталья","factoryPrice":86.54,"clientPrice":92.63,"actualClientPrice":0,"plannedRevenue":463167.55,"actualRevenue":0,"plannedGp":30467.55,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"упаковка поступила, отдушки нет","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"BEST018","isNew":"Нет","name":"BESTLAND Матирующий крем-флюид для лица SPF30, 50 мл,","order":"00ЦБ-000116","planQty":10000,"releaseQty":0,"shippedQty":0,"remainingQty":10000,"manager":"Темрина Наталья","factoryPrice":35.96,"clientPrice":54.28,"actualClientPrice":0,"plannedRevenue":542800,"actualRevenue":0,"plannedGp":183200,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"raw1328 - не хватит, уточнить срок поставки 04.05","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"BEST019","isNew":"Нет","name":"BESTLAND Солнцезащитный крем для лица SPF 50, 50 мл,","order":"00ЦБ-000116","planQty":15000,"releaseQty":0,"shippedQty":0,"remainingQty":15000,"manager":"Темрина Наталья","factoryPrice":44.57,"clientPrice":67.26,"actualClientPrice":0,"plannedRevenue":1008900,"actualRevenue":0,"plannedGp":340350,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"raw1328 - не хватит, уточнить срок поставки 04.05","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"PUR009","isNew":"Нет","name":"CHAUKAO  ⁠Маска для лица OCCULT DESIRE, 50 мл,","order":"00ЦБ-000026","planQty":2000,"releaseQty":0,"shippedQty":0,"remainingQty":2000,"manager":"Ягнакова Надежда","factoryPrice":96.06,"clientPrice":38.09,"actualClientPrice":0,"plannedRevenue":76180,"actualRevenue":0,"plannedGp":-115940,"actualGp":0,"margin":0,"shipDate":"","cookDate":"07.05.2026","comment":"","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"СК02716","isNew":"","name":"CHAUKAO Антиоксидантная маска для лица ENERGY BOOSTER face mask, 50 мл,","order":"","planQty":10000,"releaseQty":0,"shippedQty":0,"remainingQty":10000,"manager":"","factoryPrice":30.98,"clientPrice":0,"actualClientPrice":0,"plannedRevenue":0,"actualRevenue":0,"plannedGp":-309800,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"только фасовка","priceSource":"Цена не найдена","operation":"","salesRows":0},{"month":"Май","sku":"PUR025","isNew":"Да","name":"CHAUKAO Лимфодренажная маска для лица LIMFO BOOSTER, 50 мл,","order":"00ЦБ-000026","planQty":6495,"releaseQty":0,"shippedQty":0,"remainingQty":6495,"manager":"Ягнакова Надежда","factoryPrice":57.32,"clientPrice":68.16,"actualClientPrice":0,"plannedRevenue":442699.2,"actualRevenue":0,"plannedGp":70405.8,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"инцидент, масса вытекает из тубы, ждем решение","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"PUR024","isNew":"Нет","name":"CHAUKAO Увлажняющая маска для лица AQUA BOOSTER, 50 мл,","order":"00ЦБ-000026","planQty":8000,"releaseQty":0,"shippedQty":0,"remainingQty":8000,"manager":"Ягнакова Надежда","factoryPrice":50.01,"clientPrice":54.41,"actualClientPrice":0,"plannedRevenue":435280,"actualRevenue":0,"plannedGp":35200,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"нет коробок","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"PUR027","isNew":"","name":"CHAUKAO Угольная маска для лица DARK CLEAN, 50 мл,","order":"","planQty":2200,"releaseQty":0,"shippedQty":0,"remainingQty":2200,"manager":"","factoryPrice":0,"clientPrice":0,"actualClientPrice":0,"plannedRevenue":0,"actualRevenue":0,"plannedGp":0,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"тубная","priceSource":"Цена не найдена","operation":"","salesRows":0},{"month":"Май","sku":"EUR001","isNew":"","name":"EUROFOOT Флюид для ногтей, 10 мл,","order":"","planQty":5040,"releaseQty":0,"shippedQty":0,"remainingQty":5040,"manager":"","factoryPrice":48.41,"clientPrice":0,"actualClientPrice":0,"plannedRevenue":0,"actualRevenue":0,"plannedGp":-243986.4,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"инцидент с коробкой и этк","priceSource":"Цена не найдена","operation":"","salesRows":0},{"month":"Май","sku":"FLAX001","isNew":"Нет","name":"FLEX Сыворотка с SPF Serum, 30 мл,","order":"00ЦБ-000034; 00ЦБ-000078","planQty":3000,"releaseQty":0,"shippedQty":0,"remainingQty":3000,"manager":"Темрина Наталья","factoryPrice":88.14,"clientPrice":172.54,"actualClientPrice":0,"plannedRevenue":517620,"actualRevenue":0,"plannedGp":253200,"actualGp":0,"margin":0,"shipDate":"","cookDate":"08.05.2026","comment":"ждем коробки, форма поступления есть, самих коробок нет","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"IQ005","isNew":"Нет","name":"IQCARE Увлажняющий тоник, 200 мл,","order":"00ЦБ-000089","planQty":5500,"releaseQty":0,"shippedQty":0,"remainingQty":5500,"manager":"Лигостаева Елена Александровна","factoryPrice":107.47,"clientPrice":142.97,"actualClientPrice":0,"plannedRevenue":786335,"actualRevenue":0,"plannedGp":195250,"actualGp":0,"margin":0,"shipDate":"","cookDate":"05.05.2026","comment":"нет raw0035_1, нйден аналог, счет в оплате","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"DEL001","isNew":"Нет","name":"IRLE Шампунь глубоко увлажняющий для сухих волос , 1000 мл,","order":"00ЦБ-000075","planQty":2000,"releaseQty":0,"shippedQty":0,"remainingQty":2000,"manager":"Лигостаева Елена Александровна","factoryPrice":136.61,"clientPrice":170.71,"actualClientPrice":0,"plannedRevenue":341420,"actualRevenue":0,"plannedGp":68200,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"11-12 мая","priceSource":"Заказы месяца","operation":"","salesRows":0},{"month":"Май","sku":"JELAI001","isNew":"Да","name":"JELAI Тонирующий мусс для лица и тела, 150 мл,","order":"00ЦБ-000112","planQty":3000,"releaseQty":0,"shippedQty":0,"remainingQty":3000,"manager":"Лигостаева Елена Александровна","factoryPrice":38.5,"clientPrice":67.84,"actualClientPrice":0,"plannedRevenue":203520,"actualRevenue":0,"plannedGp":88020,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"11-12 мая","priceSource":"Заказы месяца","operation":"","salesRows":0},{"month":"Май","sku":"JM092","isNew":"Нет","name":"JOMO Увлажняющий мусс-автозагар для тела с соком алое вера, витамином Е  и спирулиной (светлый золотистый), 150 мл,","order":"00ЦБ-000098","planQty":3000,"releaseQty":0,"shippedQty":0,"remainingQty":3000,"manager":"Темрина Наталья","factoryPrice":57.36,"clientPrice":101.65,"actualClientPrice":0,"plannedRevenue":304950,"actualRevenue":0,"plannedGp":132870,"actualGp":0,"margin":0,"shipDate":"","cookDate":"05.05.2026","comment":"","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"KMPP","isNew":"Нет","name":"KATIEMUR Пенка для умывания Anti-Acne, 150 мл,","order":"00ЦБ-000127","planQty":15000,"releaseQty":0,"shippedQty":0,"remainingQty":15000,"manager":"Темрина Наталья","factoryPrice":43.91,"clientPrice":64.67,"actualClientPrice":0,"plannedRevenue":970050,"actualRevenue":0,"plannedGp":311400,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"","priceSource":"Заказы месяца","operation":"","salesRows":0},{"month":"Май","sku":"KMPU","isNew":"Нет","name":"KATIEMUR Пенка для умывания Увлажняющая, 150 мл,","order":"00ЦБ-000127","planQty":5000,"releaseQty":0,"shippedQty":0,"remainingQty":5000,"manager":"Темрина Наталья","factoryPrice":44.87,"clientPrice":69.59,"actualClientPrice":0,"plannedRevenue":347950,"actualRevenue":0,"plannedGp":123600,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"","priceSource":"Заказы месяца","operation":"","salesRows":0},{"month":"Май","sku":"KMSC","isNew":"Нет","name":"KATIEMUR Сыворотка для лица с витамином С, 30 мл,","order":"00ЦБ-000127","planQty":10000,"releaseQty":0,"shippedQty":0,"remainingQty":10000,"manager":"Темрина Наталья","factoryPrice":28.12,"clientPrice":55.1,"actualClientPrice":0,"plannedRevenue":551000,"actualRevenue":0,"plannedGp":269800,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"","priceSource":"Заказы месяца","operation":"","salesRows":0},{"month":"Май","sku":"HEALTH002","isNew":"Нет","name":"KOTTUR  Крем для лица увлажняющий, 50 мл,","order":"00ЦБ-000024","planQty":6869,"releaseQty":0,"shippedQty":0,"remainingQty":6869,"manager":"Ягнакова Надежда","factoryPrice":30.08,"clientPrice":40.5,"actualClientPrice":0,"plannedRevenue":278194.5,"actualRevenue":0,"plannedGp":71574.98,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"stmLABELhlh003 - 5900, флакон - 1300, дозатор -756 шт и еще 640 в карантине","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"HEALTH001","isNew":"Нет","name":"KOTTUR Крем воск от трещин с секретом мягкости, 100 мл,","order":"00ЦБ-000076","planQty":18500,"releaseQty":0,"shippedQty":0,"remainingQty":18500,"manager":"Ягнакова Надежда","factoryPrice":77.52,"clientPrice":82.21,"actualClientPrice":0,"plannedRevenue":1520885,"actualRevenue":0,"plannedGp":86765,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"выпускаем 2800 и ждем поставку банок","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"LIK005","isNew":"Да","name":"LIKATO PROFESSIONAL  Комплект для ecom Сыворотка для лица против жирности кожи и постакне POST ACNE, 30 мл,","order":"00ЦБ-000015; 00ЦБ-000105","planQty":8000,"releaseQty":0,"shippedQty":0,"remainingQty":8000,"manager":"Темрина Наталья","factoryPrice":28.5,"clientPrice":44.13,"actualClientPrice":0,"plannedRevenue":353040,"actualRevenue":0,"plannedGp":125040,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"LIK006","isNew":"Да","name":"LIKATO PROFESSIONAL  Комплект для ecomСыворотка для проблемной кожи лица SOS CONTROL, 30 мл,","order":"00ЦБ-000015; 00ЦБ-000105","planQty":9500,"releaseQty":0,"shippedQty":0,"remainingQty":9500,"manager":"Темрина Наталья","factoryPrice":31.94,"clientPrice":47.04,"actualClientPrice":0,"plannedRevenue":446880,"actualRevenue":0,"plannedGp":143450,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"LIK005_1","isNew":"Да","name":"LIKATO PROFESSIONAL  Сыворотка для лица против жирности кожи и постакне POST ACNE, 30 мл,","order":"00ЦБ-000015; 00ЦБ-000105","planQty":5000,"releaseQty":0,"shippedQty":0,"remainingQty":5000,"manager":"Темрина Наталья","factoryPrice":28.44,"clientPrice":44.13,"actualClientPrice":0,"plannedRevenue":220650,"actualRevenue":0,"plannedGp":78450,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"LIK006_1","isNew":"Да","name":"LIKATO PROFESSIONAL  Сыворотка для проблемной кожи лица SOS CONTROL, 30 мл,","order":"00ЦБ-000015; 00ЦБ-000105","planQty":18500,"releaseQty":0,"shippedQty":0,"remainingQty":18500,"manager":"Темрина Наталья","factoryPrice":31.88,"clientPrice":47.04,"actualClientPrice":0,"plannedRevenue":870240,"actualRevenue":0,"plannedGp":280460,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"WAX014","isNew":"Нет","name":"MasterWax Крем для тела Табак, 5 л,","order":"00ЦБ-000080","planQty":50,"releaseQty":0,"shippedQty":46,"remainingQty":50,"manager":"Лигостаева Елена Александровна","factoryPrice":983.73,"clientPrice":1948.79,"actualClientPrice":1948.79,"plannedRevenue":97439.5,"actualRevenue":89644.2,"plannedGp":48253,"actualGp":44392.62,"margin":0.4952,"shipDate":"04.05.2026","cookDate":"29.04.2026","comment":"обеспечено","priceSource":"Заказы другого месяца","operation":"ОтчетДавальцу2_5","salesRows":1},{"month":"Май","sku":"MILL009","isNew":"Нет","name":"MILLIMO  Крем SPF 50, 50 мл,","order":"00ЦБ-000053","planQty":8000,"releaseQty":0,"shippedQty":0,"remainingQty":8000,"manager":"Ягнакова Надежда","factoryPrice":49.36,"clientPrice":102.52,"actualClientPrice":0,"plannedRevenue":820160,"actualRevenue":0,"plannedGp":425280,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"упаковки на 5000 шт","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"MILL006","isNew":"Нет","name":"MILLIMO Гидрофильное масло для лица, 110 мл,","order":"00ЦБ-000114","planQty":3000,"releaseQty":0,"shippedQty":0,"remainingQty":3000,"manager":"Ягнакова Надежда","factoryPrice":64.35,"clientPrice":103.57,"actualClientPrice":0,"plannedRevenue":310710,"actualRevenue":0,"plannedGp":117660,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"нужен к концу мая","priceSource":"Заказы месяца","operation":"","salesRows":0},{"month":"Май","sku":"MRL003","isNew":"Нет","name":"MOREL Спрей солевой текстурирующий для волос с ароматом «Fanta», 250 мл,","order":"00ЦБ-000058","planQty":2000,"releaseQty":0,"shippedQty":2040,"remainingQty":2000,"manager":"Ягнакова Надежда","factoryPrice":61.08,"clientPrice":95.3,"actualClientPrice":95.3,"plannedRevenue":190600,"actualRevenue":194418.69,"plannedGp":68440,"actualGp":69815.49,"margin":0.3591,"shipDate":"07.05.2026","cookDate":"","comment":"ждем TOP00059","priceSource":"Заказы другого месяца","operation":"ОтчетДавальцу2_5","salesRows":1},{"month":"Май","sku":"MYSL011","isNew":"Нет","name":"MTEN Груминг спрей, 250 мл,","order":"00ЦБ-000056","planQty":2000,"releaseQty":0,"shippedQty":0,"remainingQty":2000,"manager":"Ягнакова Надежда","factoryPrice":47.43,"clientPrice":73.57,"actualClientPrice":0,"plannedRevenue":147140,"actualRevenue":0,"plannedGp":52280,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"ждем TOP00059","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"NUDI00072","isNew":"Да","name":"NUDIBRANCHES  Защитный стик от солнца с ароматом мангового смузи SPF 50,","order":"00ЦБ-000103","planQty":10000,"releaseQty":0,"shippedQty":0,"remainingQty":10000,"manager":"Темрина Наталья","factoryPrice":185.31,"clientPrice":227.52,"actualClientPrice":0,"plannedRevenue":2275200,"actualRevenue":0,"plannedGp":422100,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"Стики поставка с 27 по 30 апреля. Стикеры получены. Коробочки получены,. Этикетка  -поставка предварительно 6 мая.","priceSource":"Заказы месяца","operation":"","salesRows":0},{"month":"Май","sku":"NUDI00052","isNew":"","name":"NUDIBRANCHES  Нежная пенка для чистки зубов со вкусом жвачки NO TROUBLE BUBBLE, 50 мл,","order":"","planQty":10000,"releaseQty":0,"shippedQty":0,"remainingQty":10000,"manager":"","factoryPrice":0,"clientPrice":0,"actualClientPrice":0,"plannedRevenue":0,"actualRevenue":0,"plannedGp":0,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"возможно июнь, ждем сырье","priceSource":"Цена не найдена","operation":"","salesRows":0},{"month":"Май","sku":"OKEA019","isNew":"Да","name":"O’CARE Детокс-гель для очищения кожи HERO\u0027S,","order":"00ЦБ-000006","planQty":1300,"releaseQty":0,"shippedQty":0,"remainingQty":1300,"manager":"Лигостаева Елена Александровна","factoryPrice":38.12,"clientPrice":64.93,"actualClientPrice":0,"plannedRevenue":84409,"actualRevenue":0,"plannedGp":34853,"actualGp":0,"margin":0,"shipDate":"","cookDate":"06.05.2026","comment":"11-12 мая","priceSource":"Заказы месяца","operation":"","salesRows":0},{"month":"Май","sku":"OPF002","isNew":"Нет","name":"OPEN FACE Антивозрастной крем для тела с ретинолом Bodyguard, 250 мл,","order":"00ЦБ-000073","planQty":1200,"releaseQty":0,"shippedQty":1259,"remainingQty":1200,"manager":"Темрина Наталья","factoryPrice":79.5,"clientPrice":163.9,"actualClientPrice":163.9,"plannedRevenue":196680,"actualRevenue":206352.16,"plannedGp":101280,"actualGp":106261.66,"margin":0.515,"shipDate":"06.05.2026","cookDate":"29.04.2026","comment":"обеспечено","priceSource":"Заказы другого месяца","operation":"ОтчетДавальцу2_5","salesRows":1},{"month":"Май","sku":"OPF011","isNew":"Да","name":"OPENFACE Антивозрастная сыворотка с ретинолом RETINOL AND ALL 0,5%, 30 мл,","order":"00ЦБ-000085","planQty":3000,"releaseQty":0,"shippedQty":2710,"remainingQty":3000,"manager":"Темрина Наталья","factoryPrice":16.81,"clientPrice":30.62,"actualClientPrice":30.62,"plannedRevenue":91860,"actualRevenue":82988.2,"plannedGp":41430,"actualGp":37433.1,"margin":0.4511,"shipDate":"06.05.2026","cookDate":"29.04.2026","comment":"обеспечено","priceSource":"Заказы другого месяца","operation":"ОтчетДавальцу2_5","salesRows":2},{"month":"Май","sku":"OPF021","isNew":"Да","name":"OPENFACE Легкий увлажняющий матирующий крем, 50 мл,","order":"00ЦБ-000110","planQty":5000,"releaseQty":0,"shippedQty":0,"remainingQty":5000,"manager":"Темрина Наталья","factoryPrice":17.47,"clientPrice":38.52,"actualClientPrice":0,"plannedRevenue":192600,"actualRevenue":0,"plannedGp":105250,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"нет тубы и сырья заказчика","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"OPF015","isNew":"Да","name":"OPENFACE Лосьон для сияния с тремя формами витамина С GENERATION C, 150 мл,","order":"00ЦБ-000072","planQty":300,"releaseQty":0,"shippedQty":0,"remainingQty":300,"manager":"Темрина Наталья","factoryPrice":38,"clientPrice":59.13,"actualClientPrice":0,"plannedRevenue":17739,"actualRevenue":0,"plannedGp":6339,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"нет stmrawopen066, на 19 неделе","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"OPF015_1","isNew":"Да","name":"OPENFACE Лосьон для сияния с тремя формами витамина С GENERATION C, 150 мл с термоусадкой,","order":"00ЦБ-000072","planQty":1700,"releaseQty":0,"shippedQty":0,"remainingQty":1700,"manager":"Темрина Наталья","factoryPrice":50.34,"clientPrice":73.25,"actualClientPrice":0,"plannedRevenue":124525,"actualRevenue":0,"plannedGp":38947,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"нет stmrawopen066","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"OPF007","isNew":"Нет","name":"OPENFACE Шампунь с кислотами, 100 мл,","order":"00ЦБ-000071","planQty":2000,"releaseQty":0,"shippedQty":0,"remainingQty":2000,"manager":"Темрина Наталья","factoryPrice":44.81,"clientPrice":60.18,"actualClientPrice":0,"plannedRevenue":120360,"actualRevenue":0,"plannedGp":30740,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"нет этк","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"SM0097","isNew":"Да","name":"Semily Гель для умывания с витамином С и экстрактом юзду для сияния кожи С-VIT CLEANSING GEL, 200 мл,","order":"00ЦБ-000065","planQty":7245,"releaseQty":0,"shippedQty":0,"remainingQty":7245,"manager":"Темрина Наталья","factoryPrice":59.4,"clientPrice":66.76,"actualClientPrice":0,"plannedRevenue":483676.2,"actualRevenue":0,"plannedGp":53323.2,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"stmTOPsm005 - 1575 на складе и 1000 в карантине","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"SM0100","isNew":"Да","name":"Semily Крем для лица с витамином С и экстрактом юзду для сияния кожи C-VIT CREAM, 50 мл,","order":"00ЦБ-000065","planQty":6000,"releaseQty":0,"shippedQty":0,"remainingQty":6000,"manager":"Темрина Наталья","factoryPrice":44.42,"clientPrice":47.47,"actualClientPrice":0,"plannedRevenue":284820,"actualRevenue":0,"plannedGp":18300,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"нет stmLABELsm003 на 04.05","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"SM0099","isNew":"Да","name":"Semily Сыворотка для лица с витамином С и экстрактом юзду для сияния кожи C-VIT SERUM , 30 мл,","order":"00ЦБ-000065","planQty":11692,"releaseQty":0,"shippedQty":0,"remainingQty":11692,"manager":"Темрина Наталья","factoryPrice":36.33,"clientPrice":56.29,"actualClientPrice":0,"plannedRevenue":658142.68,"actualRevenue":0,"plannedGp":233372.32,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"нет этк на 04.05, флаконов на 5000 шт","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"STRD003_1","isNew":"Да","name":"Skin PRO Крем для шеи и декольте с трипептидом-5 и пробиотиками skin secret, кг,","order":"00ЦБ-000109","planQty":50,"releaseQty":0,"shippedQty":0,"remainingQty":50,"manager":"Лигостаева Елена Александровна","factoryPrice":2069.94,"clientPrice":4710.02,"actualClientPrice":0,"plannedRevenue":235501,"actualRevenue":0,"plannedGp":132004,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"SKIN021","isNew":"Нет","name":"SKINJESTIQUE Многофункциональный крем Better than makeup, 50 мл,","order":"00ЦБ-000079","planQty":2000,"releaseQty":0,"shippedQty":0,"remainingQty":2000,"manager":"Ягнакова Надежда","factoryPrice":39.69,"clientPrice":199.73,"actualClientPrice":0,"plannedRevenue":399460,"actualRevenue":0,"plannedGp":320080,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"stmSK016308 - нет, stmPACsk016392 - нет","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"SKIN034","isNew":"Нет","name":"SKINJESTIQUE Ночная маска с тремя кислотами Skinjestique Triple Acid Sleeping Pack, 50 мл,","order":"00ЦБ-000079","planQty":4000,"releaseQty":0,"shippedQty":0,"remainingQty":4000,"manager":"Ягнакова Надежда","factoryPrice":79.78,"clientPrice":170.22,"actualClientPrice":0,"plannedRevenue":680880,"actualRevenue":0,"plannedGp":361760,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"stmBOXsk016377 - нет, stmPACsk016387 - нет","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"SKIN029","isNew":"Нет","name":"SKINJESTIQUE Очищающая маска с глиной Renaissance Clay Mask, 60 мл,","order":"00ЦБ-000079","planQty":2000,"releaseQty":0,"shippedQty":0,"remainingQty":2000,"manager":"Ягнакова Надежда","factoryPrice":62.18,"clientPrice":159.52,"actualClientPrice":0,"plannedRevenue":319040,"actualRevenue":0,"plannedGp":194680,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"нет дав. сырья вообще, stmPACSK016367 - нет, stmBOXsk016368 - нет","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"SKIN020","isNew":"Нет","name":"SKINJESTIQUE Пептидный крем с лифтинг эффектом Absolute Gorgeous firming, 50 мл,","order":"00ЦБ-000054","planQty":2000,"releaseQty":0,"shippedQty":0,"remainingQty":2000,"manager":"Ягнакова Надежда","factoryPrice":35.26,"clientPrice":180.83,"actualClientPrice":0,"plannedRevenue":361660,"actualRevenue":0,"plannedGp":291140,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"SKIN018","isNew":"Нет","name":"SKINJESTIQUE Увлажняющая маска для упругости кожи Hydrating Queen Mask, 60 мл,","order":"00ЦБ-000054","planQty":2000,"releaseQty":0,"shippedQty":0,"remainingQty":2000,"manager":"Ягнакова Надежда","factoryPrice":47.59,"clientPrice":130.7,"actualClientPrice":0,"plannedRevenue":261400,"actualRevenue":0,"plannedGp":166220,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"STRD005","isNew":"Нет","name":"SkinProbiotic Пенка для умывания Skin Secret, кг,","order":"00ЦБ-000109","planQty":150,"releaseQty":0,"shippedQty":0,"remainingQty":150,"manager":"Лигостаева Елена Александровна","factoryPrice":327.71,"clientPrice":924.01,"actualClientPrice":0,"plannedRevenue":138601.5,"actualRevenue":0,"plannedGp":89445,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"SOINT009","isNew":"Нет","name":"SOINTERA Восстановление Парфюмерный спрей для восстановления волос, 200 мл,","order":"00ЦБ-000064","planQty":3000,"releaseQty":0,"shippedQty":0,"remainingQty":3000,"manager":"Темрина Наталья","factoryPrice":63.92,"clientPrice":119.87,"actualClientPrice":0,"plannedRevenue":359610,"actualRevenue":0,"plannedGp":167850,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"ждем этикетку","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"SOINT029","isNew":"Нет","name":"SOINTERA Сыворотка для кожи головы с кислотами, 150 мл,","order":"00ЦБ-000047","planQty":3000,"releaseQty":0,"shippedQty":0,"remainingQty":3000,"manager":"Темрина Наталья","factoryPrice":75.02,"clientPrice":130.53,"actualClientPrice":0,"plannedRevenue":391590,"actualRevenue":0,"plannedGp":166530,"actualGp":0,"margin":0,"shipDate":"","cookDate":"05.05.2026","comment":"ждем raw0035_1 - 08.05","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"SOINT028","isNew":"Нет","name":"SOINTERA Тоник для волос с ментолом, 150 мл,","order":"00ЦБ-000047","planQty":3000,"releaseQty":0,"shippedQty":0,"remainingQty":3000,"manager":"Темрина Наталья","factoryPrice":80.54,"clientPrice":148.88,"actualClientPrice":0,"plannedRevenue":446640,"actualRevenue":0,"plannedGp":205020,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"ждем кераскальп, пока нет даты","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"SK021","isNew":"Да","name":"SOKOLOV Масло для ногтей и кутикулы, 20 мл,","order":"00ЦБ-000019","planQty":20000,"releaseQty":0,"shippedQty":0,"remainingQty":20000,"manager":"Темрина Наталья","factoryPrice":83.49,"clientPrice":113.52,"actualClientPrice":0,"plannedRevenue":2270400,"actualRevenue":0,"plannedGp":600600,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"ждем тубу - конец мая","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"SK023","isNew":"Да","name":"SOKOLOV Румяна для лица Charming, 20 мл,","order":"00ЦБ-000040","planQty":10000,"releaseQty":0,"shippedQty":0,"remainingQty":10000,"manager":"Темрина Наталья","factoryPrice":96.05,"clientPrice":149.68,"actualClientPrice":0,"plannedRevenue":1496800,"actualRevenue":0,"plannedGp":536300,"actualGp":0,"margin":0,"shipDate":"","cookDate":"06.06.2026","comment":"флаконы - 28.04","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"SK025","isNew":"Да","name":"SOKOLOV Румяна для лица Darling, 20 мл,","order":"00ЦБ-000040","planQty":10000,"releaseQty":0,"shippedQty":0,"remainingQty":10000,"manager":"Темрина Наталья","factoryPrice":96.05,"clientPrice":150.92,"actualClientPrice":0,"plannedRevenue":1509200,"actualRevenue":0,"plannedGp":548700,"actualGp":0,"margin":0,"shipDate":"","cookDate":"04.05.2026","comment":"флаконы - 28.04","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"SK026","isNew":"Да","name":"SOKOLOV Румяна для лица Extraordinary, 20 мл,","order":"00ЦБ-000040","planQty":10000,"releaseQty":0,"shippedQty":0,"remainingQty":10000,"manager":"Темрина Наталья","factoryPrice":99.11,"clientPrice":156.35,"actualClientPrice":0,"plannedRevenue":1563500,"actualRevenue":0,"plannedGp":572400,"actualGp":0,"margin":0,"shipDate":"","cookDate":"05.04.2026","comment":"флаконы - 28.04","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"SK024","isNew":"Да","name":"SOKOLOV Румяна для лица Fatal, 20 мл,","order":"00ЦБ-000040","planQty":10000,"releaseQty":0,"shippedQty":0,"remainingQty":10000,"manager":"Темрина Наталья","factoryPrice":103.22,"clientPrice":156.35,"actualClientPrice":0,"plannedRevenue":1563500,"actualRevenue":0,"plannedGp":531300,"actualGp":0,"margin":0,"shipDate":"","cookDate":"04.05.2026","comment":"флаконы - 28.04","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"SK028","isNew":"Да","name":"SOKOLOV Румяна для лица Posh, 20 мл,","order":"00ЦБ-000040","planQty":10000,"releaseQty":0,"shippedQty":0,"remainingQty":10000,"manager":"Темрина Наталья","factoryPrice":105.13,"clientPrice":164.5,"actualClientPrice":0,"plannedRevenue":1645000,"actualRevenue":0,"plannedGp":593700,"actualGp":0,"margin":0,"shipDate":"","cookDate":"06.06.2026","comment":"флаконы - 28.04","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"SK027","isNew":"Да","name":"SOKOLOV Румяна для лица Wild, 20 мл,","order":"00ЦБ-000040","planQty":10000,"releaseQty":0,"shippedQty":0,"remainingQty":10000,"manager":"Темрина Наталья","factoryPrice":97.57,"clientPrice":153.39,"actualClientPrice":0,"plannedRevenue":1533900,"actualRevenue":0,"plannedGp":558200,"actualGp":0,"margin":0,"shipDate":"","cookDate":"05.05.2026","comment":"флаконы - 28.04","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"VKVL004","isNew":"","name":"Вкус Вилл  Масло для волос парфюмированное \"Бергамот и древесная карамель\", 30 мл,","order":"","planQty":6940,"releaseQty":0,"shippedQty":0,"remainingQty":6940,"manager":"","factoryPrice":26.85,"clientPrice":0,"actualClientPrice":0,"plannedRevenue":0,"actualRevenue":0,"plannedGp":-186339,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"коробки и этк - к концу мая","priceSource":"Цена не найдена","operation":"","salesRows":0},{"month":"Май","sku":"VKVL008","isNew":"","name":"Вкус Вилл Маска увлажняющая для кудрявых волос с аминокислотами, 250 мл,","order":"","planQty":1051,"releaseQty":0,"shippedQty":0,"remainingQty":1051,"manager":"","factoryPrice":119.52,"clientPrice":0,"actualClientPrice":0,"plannedRevenue":0,"actualRevenue":0,"plannedGp":-125615.52,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"ждем одушку raw1229 - 30.04","priceSource":"Цена не найдена","operation":"","salesRows":0},{"month":"Май","sku":"MTEN2","isNew":"Нет","name":"МTEN Энергетический тоник Scalp Stimulating Sensation несмываемый, 50 мл. ,","order":"00ЦБ-000056","planQty":2000,"releaseQty":0,"shippedQty":0,"remainingQty":2000,"manager":"Ягнакова Надежда","factoryPrice":22.91,"clientPrice":52.03,"actualClientPrice":0,"plannedRevenue":104060,"actualRevenue":0,"plannedGp":58240,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"ждем упаковку","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"MYSL006","isNew":"Нет","name":"МТЕN Бальзам для бороды, 150 мл,","order":"00ЦБ-000005; 00ЦБ-000056","planQty":1700,"releaseQty":0,"shippedQty":0,"remainingQty":1700,"manager":"Ягнакова Надежда","factoryPrice":75.18,"clientPrice":130.34,"actualClientPrice":0,"plannedRevenue":221578,"actualRevenue":0,"plannedGp":93772,"actualGp":0,"margin":0,"shipDate":"","cookDate":"27.04.2026","comment":"обеспечено","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Май","sku":"MYSL008","isNew":"Нет","name":"МТЕN Масло для бороды, 50 мл,","order":"00ЦБ-000108","planQty":3000,"releaseQty":0,"shippedQty":0,"remainingQty":3000,"manager":"Ягнакова Надежда","factoryPrice":52.09,"clientPrice":84.82,"actualClientPrice":0,"plannedRevenue":254460,"actualRevenue":0,"plannedGp":98190,"actualGp":0,"margin":0,"shipDate":"","cookDate":"04.05.2026","comment":"обеспечено","priceSource":"Заказы месяца","operation":"","salesRows":0},{"month":"Май","sku":"MYSL003","isNew":"Нет","name":"МТЕN Спрей с морской солью, 110 мл,","order":"00ЦБ-000108","planQty":2000,"releaseQty":0,"shippedQty":0,"remainingQty":2000,"manager":"Ягнакова Надежда","factoryPrice":45.07,"clientPrice":68.84,"actualClientPrice":0,"plannedRevenue":137680,"actualRevenue":0,"plannedGp":47540,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"TOP00059 - в приемке","priceSource":"Заказы месяца","operation":"","salesRows":0},{"month":"Май","sku":"ALT005","isNew":"Да","name":"АЛТЕЯ Крем для лица Ретинайт, 50 мл","order":"00ЦБ-000039","planQty":20000,"releaseQty":0,"shippedQty":0,"remainingQty":20000,"manager":"Темрина Наталья","factoryPrice":0,"clientPrice":83.09,"actualClientPrice":0,"plannedRevenue":1661800,"actualRevenue":0,"plannedGp":1661800,"actualGp":0,"margin":0,"shipDate":"","cookDate":"27.04.2026","comment":"","priceSource":"Заказы месяца","operation":"","salesRows":0},{"month":"Май","sku":"OPF009","isNew":"Нет","name":"OPENFACE Выравнивающий крем для тела с гликолевой кислотой Peel Me Please, 250 мл","order":"00ЦБ-000070","planQty":500,"releaseQty":0,"shippedQty":503,"remainingQty":500,"manager":"Темрина Наталья","factoryPrice":125.77,"clientPrice":221.02,"actualClientPrice":229.34,"plannedRevenue":110510,"actualRevenue":115360.16,"plannedGp":47625,"actualGp":52097.85,"margin":0.4516,"shipDate":"08.05.2026","cookDate":"27.04.2026","comment":"","priceSource":"Заказы месяца","operation":"ОтчетДавальцу2_5","salesRows":1},{"month":"Май","sku":"MYSL008_1","isNew":"","name":"МТЕN Масло для бороды, 5 л","order":"","planQty":12,"releaseQty":0,"shippedQty":0,"remainingQty":12,"manager":"","factoryPrice":0,"clientPrice":0,"actualClientPrice":0,"plannedRevenue":0,"actualRevenue":0,"plannedGp":0,"actualGp":0,"margin":0,"shipDate":"","cookDate":"26.04.2026","comment":"","priceSource":"Цена не найдена","operation":"","salesRows":0},{"month":"Май","sku":"OKEA019_1","isNew":"Да","name":"O’CARE Детокс-гель для очищения кожи HERO\u0027S, кг","order":"00ЦБ-000006","planQty":1,"releaseQty":0,"shippedQty":0,"remainingQty":1,"manager":"Лигостаева Елена Александровна","factoryPrice":105.53,"clientPrice":340.86,"actualClientPrice":0,"plannedRevenue":340.86,"actualRevenue":0,"plannedGp":235.33,"actualGp":0,"margin":0,"shipDate":"","cookDate":"06.05.2026","comment":"11-12 мая","priceSource":"Заказы месяца","operation":"","salesRows":0},{"month":"Май","sku":"OPF009_1","isNew":"","name":"OPENFACE Выравнивающий крем для тела с гликолевой кислотой Peel Me Please, 250 мл с термоусадкой","order":"","planQty":2500,"releaseQty":0,"shippedQty":0,"remainingQty":2500,"manager":"","factoryPrice":118.27,"clientPrice":0,"actualClientPrice":0,"plannedRevenue":0,"actualRevenue":0,"plannedGp":-295675,"actualGp":0,"margin":0,"shipDate":"","cookDate":"27.04.2026","comment":"","priceSource":"Цена не найдена","operation":"","salesRows":0},{"month":"Май","sku":"LOKB003","isNew":"","name":"MARVIRINO gallery  Пенка фиксирующая для укладки кудрявых волос, 150 мл","order":"","planQty":3000,"releaseQty":0,"shippedQty":0,"remainingQty":3000,"manager":"","factoryPrice":25.47,"clientPrice":0,"actualClientPrice":0,"plannedRevenue":0,"actualRevenue":0,"plannedGp":-76410,"actualGp":0,"margin":0,"shipDate":"","cookDate":"26.04.2026","comment":"","priceSource":"Цена не найдена","operation":"","salesRows":0},{"month":"Май","sku":"COS009003","isNew":"Нет","name":"COSMEYA Лосьон-автозагар для лица и тела SunGlazed, 150 мл","order":"00ЦБ-000067","planQty":0,"releaseQty":0,"shippedQty":3172,"remainingQty":0,"manager":"Лигостаева Елена Александровна","factoryPrice":89.51,"clientPrice":138.22,"actualClientPrice":138.22,"plannedRevenue":0,"actualRevenue":438438,"plannedGp":0,"actualGp":154512.28,"margin":0.3524,"shipDate":"07.05.2026","cookDate":"","comment":"Есть отгрузка в 1С, но SKU не найден в плане производства месяца","priceSource":"Заказы другого месяца","operation":"ОтчетДавальцу2_5","salesRows":2},{"month":"Май","sku":"PKP03","isNew":"Да","name":"Natural Curls Шампунь для кудрявых волос. Увлажнение и питание, 250 мл","order":"00ЦБ-000111","planQty":0,"releaseQty":0,"shippedQty":1697,"remainingQty":0,"manager":"Лигостаева Елена Александровна","factoryPrice":46.53,"clientPrice":98.35,"actualClientPrice":98.35,"plannedRevenue":0,"actualRevenue":166904.12,"plannedGp":0,"actualGp":87942.71,"margin":0.5269,"shipDate":"04.05.2026","cookDate":"","comment":"Есть отгрузка в 1С, но SKU не найден в плане производства месяца","priceSource":"Заказы другого месяца","operation":"ОтчетДавальцу2_5","salesRows":1},{"month":"Май","sku":"LES002","isNew":"Нет","name":"LESIENNIS Парфюмированный крем для вьющихся волос Lost Cherry, 250 мл","order":"00ЦБ-000096","planQty":0,"releaseQty":0,"shippedQty":3053,"remainingQty":0,"manager":"Темрина Наталья","factoryPrice":76.63,"clientPrice":153.43,"actualClientPrice":153.43,"plannedRevenue":0,"actualRevenue":468410.28,"plannedGp":0,"actualGp":234458.89,"margin":0.5005,"shipDate":"07.05.2026","cookDate":"","comment":"Есть отгрузка в 1С, но SKU не найден в плане производства месяца","priceSource":"Заказы другого месяца","operation":"ОтчетДавальцу2_5","salesRows":2},{"month":"Май","sku":"OPF012","isNew":"Да","name":"OPENFACE Себорегулирующая сыворотка с ниацинамидом NIACE PERSON 30 мл","order":"00ЦБ-000074","planQty":0,"releaseQty":0,"shippedQty":1881,"remainingQty":0,"manager":"Темрина Наталья","factoryPrice":29.97,"clientPrice":43.1,"actualClientPrice":43.1,"plannedRevenue":0,"actualRevenue":81068.02,"plannedGp":0,"actualGp":24694.45,"margin":0.3046,"shipDate":"06.05.2026","cookDate":"","comment":"Есть отгрузка в 1С, но SKU не найден в плане производства месяца","priceSource":"Заказы другого месяца","operation":"ОтчетДавальцу2_5","salesRows":2},{"month":"Май","sku":"PKP04","isNew":"Да","name":"Natural Curls Бальзам для кудрявых волос. Увлажнение и питание, 250 мл","order":"00ЦБ-000113","planQty":0,"releaseQty":0,"shippedQty":1685,"remainingQty":0,"manager":"Лигостаева Елена Александровна","factoryPrice":47.72,"clientPrice":100.35,"actualClientPrice":100.35,"plannedRevenue":0,"actualRevenue":169093.89,"plannedGp":0,"actualGp":88685.69,"margin":0.5245,"shipDate":"04.05.2026","cookDate":"","comment":"Есть отгрузка в 1С, но SKU не найден в плане производства месяца","priceSource":"Заказы месяца","operation":"ОтчетДавальцу2_5","salesRows":1},{"month":"Июнь","sku":"KMSPFC5040","isNew":"Нет","name":"KATIEMUR Солнцезащитный крем для лица Витамин С (50 SPF), 50 мл,","order":"00ЦБ-000088","planQty":5000,"releaseQty":0,"shippedQty":0,"remainingQty":5000,"manager":"Темрина Наталья","factoryPrice":40.78,"clientPrice":76.88,"actualClientPrice":0,"plannedRevenue":384400,"actualRevenue":0,"plannedGp":180500,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"","priceSource":"Заказы месяца","operation":"","salesRows":0},{"month":"Июнь","sku":"KMSPFU5040","isNew":"Нет","name":"KATIEMUR Солнцезащитный крем для лица Увлажняющий (50 SPF), 50 мл,","order":"00ЦБ-000088","planQty":5000,"releaseQty":0,"shippedQty":0,"remainingQty":5000,"manager":"Темрина Наталья","factoryPrice":40.62,"clientPrice":76.52,"actualClientPrice":0,"plannedRevenue":382600,"actualRevenue":0,"plannedGp":179500,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"","priceSource":"Заказы месяца","operation":"","salesRows":0},{"month":"Июнь","sku":"LIK005","isNew":"Да","name":"LIKATO PROFESSIONAL  Комплект для ecom Сыворотка для лица против жирности кожи и постакне POST ACNE, 30 мл,","order":"00ЦБ-000105","planQty":17000,"releaseQty":0,"shippedQty":0,"remainingQty":17000,"manager":"Темрина Наталья","factoryPrice":28.5,"clientPrice":44.13,"actualClientPrice":0,"plannedRevenue":750210,"actualRevenue":0,"plannedGp":265710,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"","priceSource":"Заказы месяца","operation":"","salesRows":0},{"month":"Июнь","sku":"LIK006","isNew":"Да","name":"LIKATO PROFESSIONAL  Комплект для ecomСыворотка для проблемной кожи лица SOS CONTROL, 30 мл,","order":"00ЦБ-000105","planQty":15000,"releaseQty":0,"shippedQty":0,"remainingQty":15000,"manager":"Темрина Наталья","factoryPrice":31.94,"clientPrice":47.04,"actualClientPrice":0,"plannedRevenue":705600,"actualRevenue":0,"plannedGp":226500,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"","priceSource":"Заказы месяца","operation":"","salesRows":0},{"month":"Июнь","sku":"LIK005_1","isNew":"Да","name":"LIKATO PROFESSIONAL  Сыворотка для лица против жирности кожи и постакне POST ACNE, 30 мл,","order":"00ЦБ-000105","planQty":3000,"releaseQty":0,"shippedQty":0,"remainingQty":3000,"manager":"Темрина Наталья","factoryPrice":28.44,"clientPrice":44.13,"actualClientPrice":0,"plannedRevenue":132390,"actualRevenue":0,"plannedGp":47070,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"","priceSource":"Заказы месяца","operation":"","salesRows":0},{"month":"Июнь","sku":"LIK006_1","isNew":"Да","name":"LIKATO PROFESSIONAL  Сыворотка для проблемной кожи лица SOS CONTROL, 30 мл,","order":"00ЦБ-000105","planQty":4000,"releaseQty":0,"shippedQty":0,"remainingQty":4000,"manager":"Темрина Наталья","factoryPrice":31.88,"clientPrice":47.04,"actualClientPrice":0,"plannedRevenue":188160,"actualRevenue":0,"plannedGp":60640,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"","priceSource":"Заказы месяца","operation":"","salesRows":0},{"month":"Июнь","sku":"STRD005","isNew":"Нет","name":"SkinProbiotic Пенка для умывания Skin Secret, кг,","order":"00ЦБ-000109","planQty":150,"releaseQty":0,"shippedQty":0,"remainingQty":150,"manager":"Лигостаева Елена Александровна","factoryPrice":327.71,"clientPrice":924.01,"actualClientPrice":0,"plannedRevenue":138601.5,"actualRevenue":0,"plannedGp":89445,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Июнь","sku":"SUB002","isNew":"","name":"SUBOTA Восстанавливающий бальзам, 250 мл,","order":"","planQty":350,"releaseQty":0,"shippedQty":0,"remainingQty":350,"manager":"","factoryPrice":79.8,"clientPrice":0,"actualClientPrice":0,"plannedRevenue":0,"actualRevenue":0,"plannedGp":-27930,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"","priceSource":"Цена не найдена","operation":"","salesRows":0},{"month":"Июнь","sku":"SUB001","isNew":"","name":"SUBOTA Восстанавливающий шампунь, 250 мл,","order":"","planQty":1200,"releaseQty":0,"shippedQty":0,"remainingQty":1200,"manager":"","factoryPrice":93.19,"clientPrice":0,"actualClientPrice":0,"plannedRevenue":0,"actualRevenue":0,"plannedGp":-111828,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"","priceSource":"Цена не найдена","operation":"","salesRows":0},{"month":"Июнь","sku":"SUB003","isNew":"","name":"SUBOTA Интенсивная восстанавливающая маска-уход, 200 мл,","order":"","planQty":1200,"releaseQty":0,"shippedQty":0,"remainingQty":1200,"manager":"","factoryPrice":64.96,"clientPrice":0,"actualClientPrice":0,"plannedRevenue":0,"actualRevenue":0,"plannedGp":-77952,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"","priceSource":"Цена не найдена","operation":"","salesRows":0},{"month":"Июнь","sku":"SUB004","isNew":"","name":"SUBOTA Несмываемый крем-уход для волос. Perfecting leave-in cream, 50 мл,","order":"","planQty":1200,"releaseQty":0,"shippedQty":0,"remainingQty":1200,"manager":"","factoryPrice":48.3,"clientPrice":0,"actualClientPrice":0,"plannedRevenue":0,"actualRevenue":0,"plannedGp":-57960,"actualGp":0,"margin":0,"shipDate":"","cookDate":"","comment":"","priceSource":"Цена не найдена","operation":"","salesRows":0},{"month":"Июнь","sku":"MYSL008","isNew":"Нет","name":"МТЕN Масло для бороды, 50 мл,","order":"00ЦБ-000005; 00ЦБ-000056; 00ЦБ-000108","planQty":3600,"releaseQty":0,"shippedQty":0,"remainingQty":3600,"manager":"Ягнакова Надежда","factoryPrice":52.09,"clientPrice":84.67,"actualClientPrice":0,"plannedRevenue":304812,"actualRevenue":0,"plannedGp":117288,"actualGp":0,"margin":0,"shipDate":"","cookDate":"04.05.2026","comment":"обеспечено","priceSource":"Заказы другого месяца","operation":"","salesRows":0},{"month":"Июнь","sku":"SM0101","isNew":"","name":"Semily Несмываемый крем-гель для сияния кожи лица VIT-C GEL CREAM, 50 мл","order":"","planQty":4500,"releaseQty":0,"shippedQty":0,"remainingQty":4500,"manager":"","factoryPrice":20.59,"clientPrice":0,"actualClientPrice":0,"plannedRevenue":0,"actualRevenue":0,"plannedGp":-92655,"actualGp":0,"margin":0,"shipDate":"","cookDate":"27.05.2026","comment":"","priceSource":"Цена не найдена","operation":"","salesRows":0},{"month":"Июнь","sku":"SM0102","isNew":"","name":"Semily Сыворотка с ампулами витамина С для сияния кожи VIT-С AMPOULE SERUM, 30 мл","order":"","planQty":4500,"releaseQty":0,"shippedQty":0,"remainingQty":4500,"manager":"","factoryPrice":26.26,"clientPrice":0,"actualClientPrice":0,"plannedRevenue":0,"actualRevenue":0,"plannedGp":-118170,"actualGp":0,"margin":0,"shipDate":"","cookDate":"28.05.2026","comment":"","priceSource":"Цена не найдена","operation":"","salesRows":0},{"month":"Июнь","sku":"SM001","isNew":"Да","name":"Semily Спрей ароматический, 150 мл","order":"00ЦБ-000065","planQty":3000,"releaseQty":0,"shippedQty":0,"remainingQty":3000,"manager":"Темрина Наталья","factoryPrice":29.19,"clientPrice":52.7,"actualClientPrice":0,"plannedRevenue":158100,"actualRevenue":0,"plannedGp":70530,"actualGp":0,"margin":0,"shipDate":"","cookDate":"27.05.2026","comment":"","priceSource":"Заказы другого месяца","operation":"","salesRows":0}];
+    const MANUAL_POTENTIAL = [{"month":"Май","sku":"нет","name":"Крем ДжулиБи","client":"Дух брендов","manager":"Лигостаева","qty":50000,"factoryPrice":19,"clientPrice":26,"revenue":1300000,"gp":350000,"margin":0.26923076923076922,"status":"","comment":"","source":"Ручной потенциал"}];
+    const TARGETS = {
+      'Май': { gp: 14000000, qty: 700000 },
+      'Июнь': { gp: 14000000, qty: 0 }
+    };
+    const state = { view: 'main', month: 'Май', search: '', manager: '', newness: '', priceSource: '', status: '', quality: '', managerPlanOnly: false };
+    const columns = [
+      { key: 'sku', label: 'Артикул', defaultVisible: true, render: row => `<strong>${escapeHtml(row.sku)}</strong>` },
+      { key: 'isNew', label: 'Новинка', defaultVisible: true, render: row => row.isNew === 'Да' ? '<span class="badge blue">Да</span>' : escapeHtml(row.isNew || '') },
+      { key: 'name', label: 'Наименование', defaultVisible: true, className: 'name', render: row => escapeHtml(row.name) },
+      { key: 'order', label: 'Заказ', defaultVisible: true, render: row => escapeHtml(row.order) },
+      { key: 'planQty', label: 'План', defaultVisible: true, className: 'num', render: row => fmtQty.format(row.planQty) },
+      { key: 'releaseQty', label: 'Выпуск', defaultVisible: true, className: 'num', render: row => fmtQty.format(row.releaseQty) },
+      { key: 'shippedQty', label: 'Отгружено', defaultVisible: true, className: 'num', render: row => fmtQty.format(row.shippedQty) },
+      { key: 'shipDate', label: 'Дата отгрузки', defaultVisible: true, render: row => escapeHtml(row.shipDate) },
+      { key: 'factoryPrice', label: 'ЦФ без НДС', defaultVisible: false, className: 'num', render: row => row.factoryPrice ? fmtPrice.format(row.factoryPrice) : '' },
+      { key: 'clientPrice', label: 'ЦК без НДС', defaultVisible: false, className: 'num', render: row => row.clientPrice ? fmtPrice.format(row.clientPrice) : '' },
+      { key: 'plannedRevenue', label: 'Выручка план', defaultVisible: false, className: 'num', render: row => rub(row.plannedRevenue) },
+      { key: 'plannedGp', label: 'Валовка план', defaultVisible: false, className: 'num', render: row => rub(row.plannedGp) },
+      { key: 'plannedMargin', label: 'Маржа план', defaultVisible: false, className: 'num', render: row => row.plannedRevenue ? pct(row.plannedGp / row.plannedRevenue) : '' },
+      { key: 'actualRevenue', label: 'Выручка факт', defaultVisible: true, className: 'num', render: row => rub(row.actualRevenue) },
+      { key: 'actualGp', label: 'Упр. валовка', defaultVisible: true, className: 'num', render: row => rub(row.actualGp) },
+      { key: 'margin', label: 'Маржа факт', defaultVisible: true, className: 'num', render: row => row.actualRevenue ? pct(row.margin) : '' },
+      { key: 'manager', label: 'Менеджер', defaultVisible: true, render: row => escapeHtml(row.manager) },
+      { key: 'priceSource', label: 'Источник', defaultVisible: true, render: row => sourceBadge(row.priceSource) },
+      { key: 'comment', label: 'Комментарий', defaultVisible: true, render: row => escapeHtml(row.comment) }
+    ];
+    const defaultColumnKeys = columns.filter(column => column.defaultVisible).map(column => column.key);
+    const visibleColumns = new Set(defaultColumnKeys);
+    const filterKeys = columns.map(column => column.key);
+    const tableFilters = Object.fromEntries(filterKeys.map(key => [key, null]));
+    let activeMenuKey = null;
+    let activeDraft = null;
+
+    const fmtMoney = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 });
+    const fmtQty = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 });
+    const fmtPrice = new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const pct = value => `${(Number(value || 0) * 100).toLocaleString('ru-RU', { maximumFractionDigits: 1 })}%`;
+    const rub = value => `${fmtMoney.format(Number(value || 0))} ₽`;
+
+    function uniqueValues(key, monthRows) {
+      return [...new Set(monthRows.map(row => row[key]).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ru'));
+    }
+
+    function fillSelect(id, values) {
+      const select = document.getElementById(id);
+      const current = select.value;
+      select.innerHTML = '<option value="">Все</option>' + values.map(value => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join('');
+      select.value = values.includes(current) ? current : '';
+      state[id] = select.value;
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+    }
+
+    function normalize(value) {
+      return String(value ?? '').toLowerCase().replace(/\s+/g, ' ').trim();
+    }
+
+    function rawFilterValue(row, key) {
+      if (key === 'plannedMargin') return row.plannedRevenue ? String(row.plannedGp / row.plannedRevenue) : '';
+      const value = row[key];
+      if (key === 'margin') return row.actualRevenue ? String(Number(value || 0)) : '';
+      return String(value ?? '');
+    }
+
+    function displayFilterValue(raw, key) {
+      if (raw === '') return '(пусто)';
+      const numeric = Number(raw);
+      if (['planQty', 'releaseQty', 'shippedQty'].includes(key)) return fmtQty.format(numeric);
+      if (['factoryPrice', 'clientPrice'].includes(key)) return fmtPrice.format(numeric);
+      if (['plannedRevenue', 'plannedGp', 'actualRevenue', 'actualGp'].includes(key)) return rub(numeric);
+      if (['plannedMargin', 'margin'].includes(key)) return pct(numeric);
+      return raw;
+    }
+
+    function isNonZeroValue(raw) {
+      return Number(raw || 0) !== 0;
+    }
+
+    function matchesTableFilters(row) {
+      return filterKeys.every(key => {
+        const selected = tableFilters[key];
+        if (!selected) return true;
+        return selected.has(rawFilterValue(row, key));
+      });
+    }
+
+    function monthRows() {
+      return DATA.filter(row => row.month === state.month);
+    }
+
+    function baseFilteredRows() {
+      const q = state.search.trim().toLowerCase();
+      return monthRows().filter(row => {
+        if (q) {
+          const haystack = `${row.sku} ${row.name} ${row.order} ${row.manager}`.toLowerCase();
+          if (!haystack.includes(q)) return false;
+        }
+        if (state.manager && row.manager !== state.manager) return false;
+        if (state.managerPlanOnly && !(row.planQty > 0)) return false;
+        if (state.newness && row.isNew !== state.newness) return false;
+        if (state.priceSource && row.priceSource !== state.priceSource) return false;
+        if (state.status === 'shipped' && !(row.shippedQty > 0)) return false;
+        if (state.status === 'not-shipped' && row.shippedQty > 0) return false;
+        if (state.status === 'out-of-plan' && !(row.shippedQty > 0 && row.planQty === 0)) return false;
+        if (state.status === 'no-price' && row.priceSource !== 'Цена не найдена') return false;
+        return true;
+      });
+    }
+
+    function filteredRows() {
+      return baseFilteredRows().filter(row => matchesQualityFilter(row) && matchesTableFilters(row));
+    }
+
+    function matchesQualityFilter(row) {
+      if (state.quality === 'shipped') return row.shippedQty > 0;
+      if (state.quality === 'outOfPlan') return row.shippedQty > 0 && row.planQty === 0;
+      if (state.quality === 'noPrice') return row.priceSource === 'Цена не найдена';
+      if (state.quality === 'newItems') return row.isNew === 'Да';
+      return true;
+    }
+
+    function sum(rows, key) {
+      return rows.reduce((acc, row) => acc + Number(row[key] || 0), 0);
+    }
+
+    function renderKpis(rows) {
+      const target = TARGETS[state.month] || { gp: 0, qty: 0 };
+      const planQty = sum(rows, 'planQty');
+      const releaseQty = sum(rows, 'releaseQty');
+      const shippedQty = sum(rows, 'shippedQty');
+      const revenue = sum(rows, 'actualRevenue');
+      const gp = sum(rows, 'actualGp');
+      const plannedRevenue = sum(rows, 'plannedRevenue');
+      const plannedGp = sum(rows, 'plannedGp');
+      const plannedMargin = plannedRevenue ? plannedGp / plannedRevenue : 0;
+      const factMargin = revenue ? gp / revenue : 0;
+      const gpProgress = target.gp ? gp / target.gp : 0;
+      const qtyProgress = target.qty ? shippedQty / target.qty : 0;
+      const items = [
+        { label: 'Упр. валовка факт', value: rub(gp), sub: `цель ${rub(target.gp)}`, progress: gpProgress, color: 'green' },
+        { label: '% цели по валовке', value: pct(gpProgress), sub: 'по текущим фильтрам', progress: gpProgress, color: 'blue' },
+        { label: 'Выручка факт без НДС', value: rub(revenue), sub: 'из регистра 1С', progress: 0, color: 'amber' },
+        { label: 'Отгружено', value: fmtQty.format(shippedQty), sub: `план ${fmtQty.format(planQty)} / выпуск ${fmtQty.format(releaseQty)}`, progress: planQty ? shippedQty / planQty : 0, color: 'green' },
+        { label: '% цели по штукам', value: target.qty ? pct(qtyProgress) : 'нет цели', sub: target.qty ? `цель ${fmtQty.format(target.qty)}` : 'цель не задана', progress: qtyProgress, color: 'blue' }
+      ];
+      document.getElementById('kpis').innerHTML = items.map(item => `
+        <div class="kpi">
+          <div class="label">${item.label}</div>
+          <div class="value">${item.value}</div>
+          <div class="sub">${item.sub}</div>
+          <div class="progress"><span style="width:${Math.min(Math.max(item.progress, 0), 1) * 100}%; background: var(--${item.color});"></span></div>
+        </div>
+      `).join('');
+      document.getElementById('marginStrip').innerHTML = `
+        <span>Плановая выручка: <strong>${rub(plannedRevenue)}</strong></span>
+        <span>Плановая валовка: <strong>${rub(plannedGp)}</strong></span>
+        <span>Плановая маржа: <strong>${plannedRevenue ? pct(plannedMargin) : 'нет данных'}</strong></span>
+        <span>Фактическая маржа отгрузки: <strong>${revenue ? pct(factMargin) : 'нет данных'}</strong></span>
+      `;
+    }
+
+    function renderBars(rows) {
+      const byManager = new Map();
+      rows.forEach(row => {
+        const manager = row.manager || 'Без менеджера';
+        if (!(row.shippedQty > 0)) return;
+        byManager.set(manager, (byManager.get(manager) || 0) + Number(row.actualGp || 0));
+      });
+      const items = [...byManager.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+      const max = Math.max(...items.map(item => Math.abs(item[1])), 1);
+      document.getElementById('managerBars').innerHTML = items.length ? items.map(([name, value]) => `
+        <div class="bar-row clickable ${state.manager === name && state.status === 'shipped' ? 'active-manager' : ''} ${state.manager === name && state.managerPlanOnly ? 'active-manager-plan' : ''}" data-manager-filter="${escapeHtml(name)}" title="Показать все SKU менеджера в плане">
+          <div class="bar-name" title="${escapeHtml(name)}">${escapeHtml(name)}</div>
+          <div class="bar-track" data-manager-shipped="${escapeHtml(name)}" title="Показать только отгруженные SKU менеджера"><div class="bar-fill" style="width:${Math.min(Math.abs(value) / max, 1) * 100}%; background:${value >= 0 ? 'var(--green)' : 'var(--red)'}"></div></div>
+          <div class="bar-value">${rub(value)}</div>
+        </div>
+      `).join('') : '<div class="empty">Нет данных для выбранных фильтров</div>';
+    }
+
+    function renderQuality(rows) {
+      const noPrice = rows.filter(row => row.priceSource === 'Цена не найдена').length;
+      const outOfPlan = rows.filter(row => row.shippedQty > 0 && row.planQty === 0).length;
+      const shipped = rows.filter(row => row.shippedQty > 0).length;
+      const newItems = rows.filter(row => row.isNew === 'Да').length;
+      const items = [
+        ['shipped', 'SKU с отгрузкой', shipped, 'green'],
+        ['outOfPlan', 'Отгружено вне плана месяца', outOfPlan, outOfPlan ? 'amber' : 'blue'],
+        ['noPrice', 'Без цены', noPrice, noPrice ? 'red' : 'green'],
+        ['newItems', 'Новинки', newItems, 'blue']
+      ];
+      document.getElementById('dataQuality').innerHTML = items.map(([key, label, value, color]) => `
+        <div class="split-item clickable ${state.quality === key ? 'active-quality' : ''}" data-quality-filter="${key}" title="Показать строки: ${label}">
+          <span>${label}</span>
+          <span class="badge ${color}">${value}</span>
+        </div>
+      `).join('');
+    }
+
+    function renderTable(rows) {
+      document.getElementById('rowCount').textContent = `${rows.length} строк`;
+      const activeColumns = columns.filter(column => visibleColumns.has(column.key));
+      document.getElementById('thead').innerHTML = `
+        <tr class="header-labels">
+          ${activeColumns.map(column => `<th class="${column.className || ''}">${column.label}</th>`).join('')}
+        </tr>
+        <tr class="header-filters">
+          ${activeColumns.map(column => `<th><button class="table-filter-btn" data-filter-menu="${column.key}">Все <span class="filter-arrow">▼</span></button></th>`).join('')}
+        </tr>
+      `;
+      const tbody = document.getElementById('tbody');
+      if (!rows.length) {
+        tbody.innerHTML = `<tr><td colspan="${Math.max(activeColumns.length, 1)}"><div class="empty">Нет строк под выбранные фильтры</div></td></tr>`;
+        updateFilterButtons();
+        return;
+      }
+      tbody.innerHTML = rows.map(row => `
+        <tr>
+          ${activeColumns.map(column => `<td class="${column.className || ''}">${column.render(row)}</td>`).join('')}
+        </tr>
+      `).join('');
+      updateFilterButtons();
+    }
+
+    function potentialRows() {
+      const plannedRows = DATA
+        .filter(row => row.month === state.month && row.planQty > 0)
+        .map(row => ({
+          sku: row.sku,
+          name: row.name,
+          client: row.order || '',
+          manager: row.manager || '',
+          qty: row.planQty,
+          factoryPrice: row.factoryPrice || 0,
+          clientPrice: row.clientPrice || 0,
+          revenue: row.plannedRevenue || 0,
+          gp: row.plannedGp || 0,
+          margin: row.plannedRevenue ? row.plannedGp / row.plannedRevenue : 0,
+          status: 'В плане',
+          comment: row.comment || '',
+          source: 'План месяца'
+        }));
+      const manualRows = MANUAL_POTENTIAL
+        .filter(row => row.month === state.month)
+        .map(row => ({
+          sku: row.sku || '',
+          name: row.name || '',
+          client: row.client || '',
+          manager: row.manager || '',
+          qty: Number(row.qty || 0),
+          factoryPrice: Number(row.factoryPrice || 0),
+          clientPrice: Number(row.clientPrice || 0),
+          revenue: Number(row.revenue || 0),
+          gp: Number(row.gp || 0),
+          margin: Number(row.margin || 0),
+          status: row.status || '',
+          comment: row.comment || '',
+          source: row.source || 'Ручной потенциал'
+        }));
+      return [...plannedRows, ...manualRows];
+    }
+
+    function renderPotential() {
+      const rows = potentialRows();
+      const planRows = rows.filter(row => row.source === 'План месяца');
+      const manualRows = rows.filter(row => row.source === 'Ручной потенциал');
+      const qty = rows.reduce((acc, row) => acc + Number(row.qty || 0), 0);
+      const revenue = rows.reduce((acc, row) => acc + Number(row.revenue || 0), 0);
+      const gp = rows.reduce((acc, row) => acc + Number(row.gp || 0), 0);
+      const margin = revenue ? gp / revenue : 0;
+      const planRevenue = planRows.reduce((acc, row) => acc + Number(row.revenue || 0), 0);
+      const planGp = planRows.reduce((acc, row) => acc + Number(row.gp || 0), 0);
+      const planQty = planRows.reduce((acc, row) => acc + Number(row.qty || 0), 0);
+      const manualRevenue = manualRows.reduce((acc, row) => acc + Number(row.revenue || 0), 0);
+      const manualGp = manualRows.reduce((acc, row) => acc + Number(row.gp || 0), 0);
+      const manualQty = manualRows.reduce((acc, row) => acc + Number(row.qty || 0), 0);
+      const manualCount = manualRows.length;
+      const kpis = [
+        { label: 'Итого с учетом потенциала: выручка', value: rub(revenue), sub: `план ${rub(planRevenue)} + потенциал ${rub(manualRevenue)}` },
+        { label: 'Итого с учетом потенциала: валовка', value: rub(gp), sub: `план ${rub(planGp)} + потенциал ${rub(manualGp)}` },
+        { label: 'Итого с учетом потенциала: маржа', value: revenue ? pct(margin) : 'нет данных', sub: 'валовка / выручка' },
+        { label: 'Итого с учетом потенциала: количество', value: fmtQty.format(qty), sub: `план ${fmtQty.format(planQty)} + потенциал ${fmtQty.format(manualQty)}` }
+      ];
+      document.getElementById('potentialKpis').innerHTML = kpis.map(item => `
+        <div class="kpi">
+          <div class="label">${item.label}</div>
+          <div class="value">${item.value}</div>
+          <div class="sub">${item.sub}</div>
+        </div>
+      `).join('');
+      const planMargin = planRevenue ? planGp / planRevenue : 0;
+      const manualMargin = manualRevenue ? manualGp / manualRevenue : 0;
+      document.getElementById('potentialStrip').className = 'margin-strip potential-breakdown';
+      document.getElementById('potentialStrip').innerHTML = `
+        <span>План 1С: <strong>${rub(planRevenue)}</strong> выручка · <strong>${rub(planGp)}</strong> валовка · <strong>${planRevenue ? pct(planMargin) : 'нет данных'}</strong></span>
+        <span class="manual">Потенциал: <strong>${rub(manualRevenue)}</strong> выручка · <strong>${rub(manualGp)}</strong> валовка · <strong>${manualRevenue ? pct(manualMargin) : 'нет данных'}</strong> · ${manualCount} строк</span>
+        <span class="total">Итого: <strong>${rub(revenue)}</strong> выручка · <strong>${rub(gp)}</strong> валовка · <strong>${revenue ? pct(margin) : 'нет данных'}</strong></span>
+      `;
+      const byManager = new Map();
+      rows.forEach(row => {
+        const manager = row.manager || 'Без менеджера';
+        if (!byManager.has(manager)) {
+          byManager.set(manager, { manager, planRevenue: 0, planGp: 0, manualRevenue: 0, manualGp: 0 });
+        }
+        const item = byManager.get(manager);
+        if (row.source === 'Ручной потенциал') {
+          item.manualRevenue += Number(row.revenue || 0);
+          item.manualGp += Number(row.gp || 0);
+        } else {
+          item.planRevenue += Number(row.revenue || 0);
+          item.planGp += Number(row.gp || 0);
+        }
+      });
+      const managerRows = [...byManager.values()].sort((a, b) => (b.planGp + b.manualGp) - (a.planGp + a.manualGp));
+      document.getElementById('potentialManagerCount').textContent = `${managerRows.length} менеджеров`;
+      document.getElementById('potentialManagerTbody').innerHTML = managerRows.length ? managerRows.map(item => {
+        const totalRevenue = item.planRevenue + item.manualRevenue;
+        const totalGp = item.planGp + item.manualGp;
+        return `
+          <tr>
+            <td><strong>${escapeHtml(item.manager)}</strong></td>
+            <td class="num">${rub(item.planRevenue)}</td>
+            <td class="num">${rub(item.planGp)}</td>
+            <td class="num">${item.planRevenue ? pct(item.planGp / item.planRevenue) : ''}</td>
+            <td class="num manual-cell">${rub(item.manualRevenue)}</td>
+            <td class="num manual-cell">${rub(item.manualGp)}</td>
+            <td class="num manual-cell">${item.manualRevenue ? pct(item.manualGp / item.manualRevenue) : ''}</td>
+            <td class="num">${rub(totalRevenue)}</td>
+            <td class="num">${rub(totalGp)}</td>
+            <td class="num">${totalRevenue ? pct(totalGp / totalRevenue) : ''}</td>
+          </tr>
+        `;
+      }).join('') : '<tr><td colspan="10"><div class="empty">Нет данных по менеджерам</div></td></tr>';
+      document.getElementById('potentialRowCount').textContent = `${rows.length} строк`;
+      const tbody = document.getElementById('potentialTbody');
+      if (!rows.length) {
+        tbody.innerHTML = '<tr><td colspan="13"><div class="empty">Нет строк для выбранного месяца</div></td></tr>';
+        return;
+      }
+      tbody.innerHTML = rows.map(row => `
+        <tr>
+          <td><strong>${escapeHtml(row.sku)}</strong></td>
+          <td class="name">${escapeHtml(row.name)}</td>
+          <td>${escapeHtml(row.client)}</td>
+          <td>${escapeHtml(row.manager)}</td>
+          <td class="num">${fmtQty.format(row.qty)}</td>
+          <td class="num">${row.factoryPrice ? fmtPrice.format(row.factoryPrice) : ''}</td>
+          <td class="num">${row.clientPrice ? fmtPrice.format(row.clientPrice) : ''}</td>
+          <td class="num">${rub(row.revenue)}</td>
+          <td class="num">${rub(row.gp)}</td>
+          <td class="num">${row.revenue ? pct(row.margin) : ''}</td>
+          <td>${escapeHtml(row.status)}</td>
+          <td>${escapeHtml(row.comment)}</td>
+          <td>${sourceBadge(row.source)}</td>
+        </tr>
+      `).join('');
+    }
+
+    function sourceBadge(source) {
+      const color = source === 'Цена не найдена' ? 'red' : source === 'Факт продаж' ? 'amber' : 'green';
+      return `<span class="badge ${color}">${escapeHtml(source || '')}</span>`;
+    }
+
+    function renderColumnPanel() {
+      document.getElementById('columnsList').innerHTML = columns.map(column => `
+        <label>
+          <input type="checkbox" value="${column.key}" ${visibleColumns.has(column.key) ? 'checked' : ''}>
+          <span>${column.label}</span>
+        </label>
+      `).join('');
+    }
+
+    function setDefaultColumns() {
+      visibleColumns.clear();
+      defaultColumnKeys.forEach(key => visibleColumns.add(key));
+      renderColumnPanel();
+      render();
+    }
+
+    function refreshOptions() {
+      const rows = monthRows();
+      fillSelect('manager', uniqueValues('manager', rows));
+      fillSelect('priceSource', uniqueValues('priceSource', rows));
+      updateFilterButtons();
+    }
+
+    function setManagerShipmentFilter(manager) {
+      if (state.manager === manager && state.status === 'shipped' && !state.managerPlanOnly) {
+        clearManagerShipmentFilter();
+        return;
+      }
+      state.manager = manager === 'Без менеджера' ? '' : manager;
+      state.status = 'shipped';
+      state.managerPlanOnly = false;
+      document.getElementById('manager').value = state.manager;
+      document.getElementById('status').value = state.status;
+      closeFilterMenu();
+      render();
+      document.querySelector('.table-wrap').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function setManagerPlanFilter(manager) {
+      if (state.manager === manager && state.managerPlanOnly) {
+        clearManagerShipmentFilter();
+        return;
+      }
+      state.manager = manager === 'Без менеджера' ? '' : manager;
+      state.status = '';
+      state.managerPlanOnly = true;
+      document.getElementById('manager').value = state.manager;
+      document.getElementById('status').value = '';
+      closeFilterMenu();
+      render();
+      document.querySelector('.table-wrap').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function clearManagerShipmentFilter() {
+      state.manager = '';
+      state.status = '';
+      state.managerPlanOnly = false;
+      document.getElementById('manager').value = '';
+      document.getElementById('status').value = '';
+      closeFilterMenu();
+      render();
+    }
+
+    function setQualityFilter(key) {
+      state.quality = state.quality === key ? '' : key;
+      closeFilterMenu();
+      render();
+      document.querySelector('.table-wrap').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function clearQualityFilter() {
+      state.quality = '';
+      closeFilterMenu();
+      render();
+    }
+
+    function getFilterOptions(key) {
+      const counts = new Map();
+      baseFilteredRows().forEach(row => {
+        const raw = rawFilterValue(row, key);
+        counts.set(raw, (counts.get(raw) || 0) + 1);
+      });
+      return [...counts.entries()].map(([raw, count]) => ({
+        raw,
+        count,
+        display: displayFilterValue(raw, key)
+      })).sort((a, b) => {
+        const aNum = Number(a.raw);
+        const bNum = Number(b.raw);
+        if (!Number.isNaN(aNum) && !Number.isNaN(bNum)) return aNum - bNum;
+        return a.display.localeCompare(b.display, 'ru');
+      });
+    }
+
+    function updateFilterButtons() {
+      document.querySelectorAll('[data-filter-menu]').forEach(button => {
+        const key = button.dataset.filterMenu;
+        const selected = tableFilters[key];
+        const count = selected ? selected.size : 0;
+        button.classList.toggle('active', Boolean(selected));
+        button.innerHTML = `${selected ? `Выбрано: ${count}` : 'Все'} <span class="filter-arrow">▼</span>`;
+      });
+    }
+
+    function closeFilterMenu() {
+      document.querySelector('.filter-menu')?.remove();
+      activeMenuKey = null;
+      activeDraft = null;
+    }
+
+    function openFilterMenu(key, button) {
+      closeFilterMenu();
+      activeMenuKey = key;
+      const options = getFilterOptions(key);
+      activeDraft = new Set(tableFilters[key] || options.map(option => option.raw));
+      const menu = document.createElement('div');
+      menu.className = 'filter-menu';
+      menu.innerHTML = `
+        <input type="search" data-filter-search placeholder="Поиск значения">
+        <div class="filter-actions">
+          <button type="button" data-filter-all>Все</button>
+          <button type="button" data-filter-none>Снять</button>
+          <button type="button" data-filter-nonzero>Ненулевые</button>
+        </div>
+        <div class="filter-options"></div>
+        <div class="filter-footer">
+          <button type="button" class="primary" data-filter-apply>Применить</button>
+          <button type="button" data-filter-clear>Сбросить</button>
+        </div>
+      `;
+      document.body.appendChild(menu);
+      const rect = button.getBoundingClientRect();
+      const menuHeight = menu.offsetHeight;
+      const viewportGap = 12;
+      const left = Math.max(viewportGap, Math.min(rect.left, window.innerWidth - menu.offsetWidth - viewportGap));
+      const openUp = rect.bottom + menuHeight + viewportGap > window.innerHeight && rect.top > menuHeight;
+      const top = openUp ? rect.top - menuHeight - 4 : Math.min(rect.bottom + 4, window.innerHeight - menuHeight - viewportGap);
+      menu.style.left = `${left}px`;
+      menu.style.top = `${Math.max(viewportGap, top)}px`;
+
+      const renderOptions = () => {
+        const q = normalize(menu.querySelector('[data-filter-search]').value);
+        const visible = options.filter(option => !q || normalize(option.display).includes(q));
+        menu.querySelector('.filter-options').innerHTML = visible.map(option => `
+          <label class="filter-option">
+            <input type="checkbox" value="${escapeHtml(option.raw)}" ${activeDraft.has(option.raw) ? 'checked' : ''}>
+            <span>${escapeHtml(option.display)} (${option.count})</span>
+          </label>
+        `).join('') || '<div class="empty">Нет значений</div>';
+      };
+
+      menu.addEventListener('click', event => event.stopPropagation());
+      menu.querySelector('[data-filter-search]').addEventListener('input', renderOptions);
+      menu.querySelector('[data-filter-all]').addEventListener('click', () => { activeDraft = new Set(options.map(option => option.raw)); renderOptions(); });
+      menu.querySelector('[data-filter-none]').addEventListener('click', () => { activeDraft = new Set(); renderOptions(); });
+      menu.querySelector('[data-filter-nonzero]').addEventListener('click', () => { activeDraft = new Set(options.filter(option => isNonZeroValue(option.raw)).map(option => option.raw)); renderOptions(); });
+      menu.querySelector('[data-filter-clear]').addEventListener('click', () => { tableFilters[key] = null; closeFilterMenu(); render(); });
+      menu.querySelector('[data-filter-apply]').addEventListener('click', () => {
+        tableFilters[key] = activeDraft.size === options.length ? null : new Set(activeDraft);
+        closeFilterMenu();
+        render();
+      });
+      menu.querySelector('.filter-options').addEventListener('change', event => {
+        if (event.target.type !== 'checkbox') return;
+        if (event.target.checked) activeDraft.add(event.target.value);
+        else activeDraft.delete(event.target.value);
+      });
+      renderOptions();
+    }
+
+    function render() {
+      document.getElementById('mainReport').hidden = state.view !== 'main';
+      document.getElementById('potentialReport').hidden = state.view !== 'potential';
+      if (state.view === 'potential') {
+        renderPotential();
+        return;
+      }
+      refreshOptions();
+      const rows = filteredRows();
+      const qualityRows = baseFilteredRows().filter(row => matchesTableFilters(row));
+      renderKpis(rows);
+      renderBars(rows);
+      renderQuality(qualityRows);
+      renderTable(rows);
+    }
+
+    document.querySelectorAll('[data-month]').forEach(button => {
+      button.addEventListener('click', () => {
+        state.month = button.dataset.month;
+        document.querySelectorAll('[data-month]').forEach(item => item.classList.toggle('active', item === button));
+        render();
+      });
+    });
+    document.querySelectorAll('[data-view]').forEach(button => {
+      button.addEventListener('click', () => {
+        state.view = button.dataset.view;
+        document.querySelectorAll('[data-view]').forEach(item => item.classList.toggle('active', item === button));
+        closeFilterMenu();
+        document.getElementById('columnsPanel').hidden = true;
+        render();
+      });
+    });
+    document.getElementById('search').addEventListener('input', event => { state.search = event.target.value; render(); });
+    ['manager', 'newness', 'priceSource', 'status'].forEach(id => {
+      document.getElementById(id).addEventListener('change', event => {
+        state[id] = event.target.value;
+        if (id === 'manager' || id === 'status') state.managerPlanOnly = false;
+        render();
+      });
+    });
+    document.addEventListener('click', event => {
+      const button = event.target.closest('[data-filter-menu]');
+      if (button) {
+        event.stopPropagation();
+        openFilterMenu(button.dataset.filterMenu, button);
+        return;
+      }
+      closeFilterMenu();
+      document.getElementById('columnsPanel').hidden = true;
+    });
+    document.getElementById('columnsButton').addEventListener('click', event => {
+      event.stopPropagation();
+      closeFilterMenu();
+      const panel = document.getElementById('columnsPanel');
+      panel.hidden = !panel.hidden;
+    });
+    document.getElementById('columnsPanel').addEventListener('click', event => event.stopPropagation());
+    document.getElementById('columnsList').addEventListener('change', event => {
+      if (event.target.type !== 'checkbox') return;
+      if (event.target.checked) visibleColumns.add(event.target.value);
+      else visibleColumns.delete(event.target.value);
+      render();
+      document.getElementById('columnsPanel').hidden = true;
+    });
+    document.getElementById('columnsAll').addEventListener('click', () => {
+      columns.forEach(column => visibleColumns.add(column.key));
+      renderColumnPanel();
+      render();
+      document.getElementById('columnsPanel').hidden = true;
+    });
+    document.getElementById('columnsDefault').addEventListener('click', setDefaultColumns);
+    document.getElementById('columnsClose').addEventListener('click', () => {
+      document.getElementById('columnsPanel').hidden = true;
+    });
+    document.getElementById('managerBars').addEventListener('click', event => {
+      const shipped = event.target.closest('[data-manager-shipped]');
+      if (shipped) {
+        event.stopPropagation();
+        setManagerShipmentFilter(shipped.dataset.managerShipped);
+        return;
+      }
+      const row = event.target.closest('[data-manager-filter]');
+      if (!row) return;
+      setManagerPlanFilter(row.dataset.managerFilter);
+    });
+    document.getElementById('clearManagerFilter').addEventListener('click', clearManagerShipmentFilter);
+    document.getElementById('dataQuality').addEventListener('click', event => {
+      const row = event.target.closest('[data-quality-filter]');
+      if (!row) return;
+      setQualityFilter(row.dataset.qualityFilter);
+    });
+    document.getElementById('clearQualityFilter').addEventListener('click', clearQualityFilter);
+    renderColumnPanel();
+    render();
+  </script>
+</body>
+</html>
