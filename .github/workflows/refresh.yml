@@ -1,0 +1,45 @@
+name: Daily data refresh → Vercel
+
+on:
+  schedule:
+    - cron: '0 7 * * 1-5'   # 10:00 МСК (UTC+3), пн–пт
+  workflow_dispatch:          # ручной запуск
+
+jobs:
+  refresh:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Refresh index.html
+        shell: pwsh
+        env:
+          ODATA_PROXY_URL: ${{ secrets.ODATA_PROXY_URL }}
+          ODATA_PROXY_READ_KEY: ${{ secrets.ODATA_PROXY_READ_KEY }}
+        run: scripts/build_stm_data.ps1
+
+      - name: Commit updated index.html
+        shell: pwsh
+        run: |
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name  "github-actions[bot]"
+          git add index.html
+          $changed = git diff --staged --quiet; if ($LASTEXITCODE -ne 0) {
+            git commit -m "chore: refresh data $(Get-Date -Format 'yyyy-MM-dd HH:mm') UTC"
+            git push
+          } else {
+            Write-Host "index.html не изменился, коммит пропущен"
+          }
+
+      - name: Deploy to Vercel production
+        shell: pwsh
+        env:
+          VERCEL_TOKEN:      ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID:     ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          npm install -g vercel --silent
+          vercel --prod --yes --token $env:VERCEL_TOKEN
