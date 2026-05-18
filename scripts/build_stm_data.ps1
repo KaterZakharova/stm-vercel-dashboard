@@ -316,21 +316,32 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
         $price = $priceMap[$skuNorm]
         $sales = Get-SalesFact $skuNorm $mStart $mEnd
 
-        $fp = if ($price) { [double]$price.FactoryPrice } else { 0.0 }
-        if ($fp -eq 0 -and $classPrices.ContainsKey($skuNorm)) { $fp = [double]$classPrices[$skuNorm] }
-        $cp = if ($price) { [double]$price.ClientPrice } else { 0.0 }
+        # factory price: actual cost/unit from 1C first, CSV as fallback
+        $fp_1c  = if ($sales.ShippedQty -gt 0 -and $sales.Cost -gt 0) { $sales.Cost / $sales.ShippedQty } else { 0.0 }
+        $fp_csv = if ($price) { [double]$price.FactoryPrice } else { 0.0 }
+        if ($fp_csv -eq 0 -and $classPrices.ContainsKey($skuNorm)) { $fp_csv = [double]$classPrices[$skuNorm] }
+        $fp = if ($fp_1c -gt 0) { $fp_1c } else { $fp_csv }
+
+        # client price: actual revenue/unit from 1C first, CSV as fallback
         $acp = if ($sales.ShippedQty -ne 0) { $sales.Revenue / $sales.ShippedQty } else { 0.0 }
-        if ($cp -eq 0 -and $acp -ne 0) { $cp = $acp }
+        $cp_csv = if ($price) { [double]$price.ClientPrice } else { 0.0 }
+        $cp = if ($acp -ne 0) { $acp } elseif ($cp_csv -ne 0) { $cp_csv } else { 0.0 }
 
         $planQty        = [math]::Round($pd.PlanQty, 3)
         $releaseQty     = [math]::Round([math]::Max($rel, 0), 3)
         $plannedRevenue = [math]::Round($planQty * $cp, 2)
         $plannedGp      = [math]::Round($planQty * ($cp - $fp), 2)
-        $actualGp       = [math]::Round($sales.Revenue - ($sales.ShippedQty * $fp), 2)
-        $margin         = if ($sales.Revenue -ne 0) { [math]::Round($actualGp / $sales.Revenue, 4) } else { 0 }
+        # actual GP: use direct cost from 1C register when available
+        $actualGp = if ($sales.ShippedQty -gt 0 -and $sales.Cost -gt 0) {
+            [math]::Round($sales.Revenue - $sales.Cost, 2)
+        } else {
+            [math]::Round($sales.Revenue - ($sales.ShippedQty * $fp), 2)
+        }
+        $margin = if ($sales.Revenue -ne 0) { [math]::Round($actualGp / $sales.Revenue, 4) } else { 0 }
 
-        $ps = if ($price) { if ($price.IsMonthMatch) { "Заказы месяца" } else { "Заказы другого месяца" } } `
-              elseif ($acp -ne 0) { "Факт продаж" } else { "Цена не найдена" }
+        $ps = if ($fp_1c -gt 0 -or $acp -gt 0) { "Факт 1С" } `
+              elseif ($price) { if ($price.IsMonthMatch) { "Заказы месяца" } else { "Заказы другого месяца" } } `
+              elseif ($fp_csv -gt 0 -or $cp_csv -gt 0) { "CSV" } else { "Цена не найдена" }
 
         $script:dataRows.Add([ordered]@{
             month           = $monthName
@@ -367,13 +378,19 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
         if ($sales.ShippedQty -eq 0 -and $sales.Revenue -eq 0) { continue }
         $included[$skuNorm] = $true
         $price = $priceMap[$skuNorm]
-        $fp = if ($price) { [double]$price.FactoryPrice } else { 0.0 }
-        if ($fp -eq 0 -and $classPrices.ContainsKey($skuNorm)) { $fp = [double]$classPrices[$skuNorm] }
-        $cp  = if ($price) { [double]$price.ClientPrice } else { 0.0 }
+        $fp_1c  = if ($sales.ShippedQty -gt 0 -and $sales.Cost -gt 0) { $sales.Cost / $sales.ShippedQty } else { 0.0 }
+        $fp_csv = if ($price) { [double]$price.FactoryPrice } else { 0.0 }
+        if ($fp_csv -eq 0 -and $classPrices.ContainsKey($skuNorm)) { $fp_csv = [double]$classPrices[$skuNorm] }
+        $fp  = if ($fp_1c -gt 0) { $fp_1c } else { $fp_csv }
         $acp = if ($sales.ShippedQty -ne 0) { $sales.Revenue / $sales.ShippedQty } else { 0.0 }
-        if ($cp -eq 0 -and $acp -ne 0) { $cp = $acp }
-        $actualGp = [math]::Round($sales.Revenue - ($sales.ShippedQty * $fp), 2)
-        $margin   = if ($sales.Revenue -ne 0) { [math]::Round($actualGp / $sales.Revenue, 4) } else { 0 }
+        $cp_csv = if ($price) { [double]$price.ClientPrice } else { 0.0 }
+        $cp  = if ($acp -ne 0) { $acp } elseif ($cp_csv -ne 0) { $cp_csv } else { 0.0 }
+        $actualGp = if ($sales.ShippedQty -gt 0 -and $sales.Cost -gt 0) {
+            [math]::Round($sales.Revenue - $sales.Cost, 2)
+        } else {
+            [math]::Round($sales.Revenue - ($sales.ShippedQty * $fp), 2)
+        }
+        $margin = if ($sales.Revenue -ne 0) { [math]::Round($actualGp / $sales.Revenue, 4) } else { 0 }
         $n = Get-NomByArticle $skuNorm
         $name = if ($price -and $price.Nomenclature) { $price.Nomenclature } elseif ($n) { $n.Description } else { "" }
 
