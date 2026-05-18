@@ -486,8 +486,10 @@
       const shippedQty = sum(rows, 'shippedQty');
       const revenue = sum(rows, 'actualRevenue');
       const gp = sum(rows, 'actualGp');
-      const plannedRevenue = sum(rows, 'plannedRevenue');
-      const plannedGp = sum(rows, 'plannedGp');
+      const checkedRows = rows.filter(isChecked);
+      const excludedCount = rows.length - checkedRows.length;
+      const plannedRevenue = sum(checkedRows, 'plannedRevenue');
+      const plannedGp = sum(checkedRows, 'plannedGp');
       const plannedMargin = plannedRevenue ? plannedGp / plannedRevenue : 0;
       const factMargin = revenue ? gp / revenue : 0;
       const gpProgress = target.gp ? gp / target.gp : 0;
@@ -514,7 +516,7 @@
       `).join('');
       document.getElementById('marginStrip').innerHTML = `
         <span>Плановая выручка: <strong>${rub(plannedRevenue)}</strong></span>
-        <span>Плановая валовка: <strong>${rub(plannedGp)}</strong></span>
+        <span>Плановая валовка: <strong>${rub(plannedGp)}</strong>${excludedCount ? ` <em style="color:var(--muted);font-style:normal;font-size:12px;">(− ${excludedCount} SKU выкл.)</em>` : ''}</span>
         <span>Плановая маржа: <strong>${plannedRevenue ? pct(plannedMargin) : 'нет данных'}</strong></span>
         <span>Фактическая маржа отгрузки: <strong>${revenue ? pct(factMargin) : 'нет данных'}</strong></span>
       `;
