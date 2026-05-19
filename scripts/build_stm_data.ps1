@@ -329,8 +329,10 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
 
         $planQty        = [math]::Round($pd.PlanQty, 3)
         $releaseQty     = [math]::Round([math]::Max($rel, 0), 3)
-        $plannedRevenue = [math]::Round($planQty * $cp, 2)
-        $plannedGp      = [math]::Round($planQty * ($cp - $fp), 2)
+        # no selling price anywhere → can't plan GP (don't fabricate negative qty*(0-cost))
+        $hasSellPrice   = ($cp -gt 0)
+        $plannedRevenue = if ($hasSellPrice) { [math]::Round($planQty * $cp, 2) } else { 0.0 }
+        $plannedGp      = if ($hasSellPrice) { [math]::Round($planQty * ($cp - $fp), 2) } else { 0.0 }
         # actual GP: use direct cost from 1C register when available
         $actualGp = if ($sales.ShippedQty -gt 0 -and $sales.Cost -gt 0) {
             [math]::Round($sales.Revenue - $sales.Cost, 2)
@@ -340,8 +342,9 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
         $margin = if ($sales.Revenue -ne 0) { [math]::Round($actualGp / $sales.Revenue, 4) } else { 0 }
 
         $ps = if ($fp_1c -gt 0 -or $acp -gt 0) { "Факт 1С" } `
+              elseif (-not $hasSellPrice) { "Цена не найдена" } `
               elseif ($price) { if ($price.IsMonthMatch) { "Заказы месяца" } else { "Заказы другого месяца" } } `
-              elseif ($fp_csv -gt 0 -or $cp_csv -gt 0) { "CSV" } else { "Цена не найдена" }
+              else { "CSV" }
 
         $script:dataRows.Add([ordered]@{
             month           = $monthName
