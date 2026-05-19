@@ -492,34 +492,46 @@
 
     function renderHero(rows) {
       const target = TARGETS[state.month] || { gp: 0, qty: 0 };
+      const gpPlan = sum(rows, 'plannedGp');
       const gpFact = sum(rows, 'actualGp');
       const gpGoal = target.gp || 0;
-      const gpPct = gpGoal ? gpFact / gpGoal : 0;
       const qtyPlan = sum(rows, 'planQty');
       const qtyShipped = sum(rows, 'shippedQty');
       const qtyRelease = sum(rows, 'releaseQty');
-      const qtyPct = qtyPlan ? qtyShipped / qtyPlan : 0;
       const bar = (p, color) => `<div class="progress"><span style="width:${Math.min(Math.max(p,0),1)*100}%; background: var(--${color});"></span></div>`;
+      // если отгрузок ещё нет (будущий месяц) — крупно показываем ПЛАН по заказам, иначе ФАКТ
+      const hasShip = qtyShipped > 0 || gpFact > 0;
+
+      const gpBig = hasShip ? gpFact : gpPlan;
+      const gpPct = gpGoal ? gpBig / gpGoal : 0;
+      const gpColor = hasShip ? (gpPct>=1?'green':gpPct>=0.6?'amber':'red') : 'blue';
+      const gpTag = hasShip ? 'Факт · отгружено' : 'План · по заказам';
+
+      const qtyProg = qtyPlan ? (hasShip ? qtyShipped/qtyPlan : qtyRelease/qtyPlan) : 0;
+      const qtyBig = hasShip ? qtyShipped : qtyPlan;
+      const qtyColor = hasShip ? (qtyProg>=1?'green':qtyProg>=0.6?'amber':'blue') : 'blue';
+      const qtyTag = hasShip ? 'Отгружено' : 'План · заказы';
+
       document.getElementById('hero').innerHTML = `
         <div class="hero-card">
-          <div class="h-label">Валовка управленческая · ${escapeHtml(state.month)}</div>
+          <div class="h-label">Валовка управленческая · ${escapeHtml(state.month)} · ${gpTag}</div>
           <div class="h-main">
-            <span class="h-fact">${rub(gpFact)}</span>
+            <span class="h-fact">${rub(gpBig)}</span>
             <span class="h-goal">из ${rub(gpGoal)} цель</span>
-            <span class="h-pct" style="color:var(--${gpPct>=1?'green':gpPct>=0.6?'amber':'red'})">${pct(gpPct)}</span>
+            <span class="h-pct" style="color:var(--${gpColor})">${gpGoal?pct(gpPct):'—'}</span>
           </div>
-          ${bar(gpPct, 'green')}
-          <div class="h-sub">Набрано по факту отгрузок (далее пополнится по мере отгрузки заказов)</div>
+          ${bar(gpPct, gpColor)}
+          <div class="h-sub">План ${rub(gpPlan)} · Факт ${rub(gpFact)} · Цель ${rub(gpGoal)}${hasShip?'':' · отгрузок ещё нет'}</div>
         </div>
         <div class="hero-card">
-          <div class="h-label">Штуки · план / отгружено</div>
+          <div class="h-label">Штуки · ${escapeHtml(state.month)} · ${qtyTag}</div>
           <div class="h-main">
-            <span class="h-fact">${fmtQty.format(qtyShipped)}</span>
-            <span class="h-goal">из ${fmtQty.format(qtyPlan)} план</span>
-            <span class="h-pct" style="color:var(--${qtyPct>=1?'green':qtyPct>=0.6?'amber':'blue'})">${qtyPlan?pct(qtyPct):'—'}</span>
+            <span class="h-fact">${fmtQty.format(qtyBig)}</span>
+            <span class="h-goal">${hasShip ? `из ${fmtQty.format(qtyPlan)} план` : `план ${fmtQty.format(qtyPlan)}`}</span>
+            <span class="h-pct" style="color:var(--${qtyColor})">${qtyPlan?pct(qtyProg):'—'}</span>
           </div>
-          ${bar(qtyPct, 'blue')}
-          <div class="h-sub">Выпущено: ${fmtQty.format(qtyRelease)} шт</div>
+          ${bar(qtyProg, qtyColor)}
+          <div class="h-sub">План ${fmtQty.format(qtyPlan)} · Выпущено ${fmtQty.format(qtyRelease)} · Отгружено ${fmtQty.format(qtyShipped)}${hasShip?'':' · отгрузок ещё нет'}</div>
         </div>
       `;
     }
