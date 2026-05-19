@@ -118,6 +118,36 @@ function Get-NomFromAnalyticsKey($analyticsKey) {
     } catch { $analyticsToNomCache[$k] = $null; return $null }
 }
 
+# ─── 1С price resolvers: цена фабрики (прайс-лист) + цена клиента (Заказ давальца) ───
+$FactoryPriceTypeKey = "70152faf-6704-11ec-b0bf-00155d640300"  # ВидЦены "Цена Фабрики"
+$factoryPriceCache = @{}
+function Get-OneCFactoryPrice($nomRefKey) {
+    $k = ([string]$nomRefKey).Trim()
+    if ($k -eq "" -or $k -eq "00000000-0000-0000-0000-000000000000") { return 0.0 }
+    if ($factoryPriceCache.ContainsKey($k)) { return $factoryPriceCache[$k] }
+    $f = [uri]::EscapeDataString("Номенклатура_Key eq guid'$k' and ВидЦены_Key eq guid'$FactoryPriceTypeKey'")
+    try {
+        $r = Invoke-OData "InformationRegister_ЦеныНоменклатуры_RecordType" "`$select=Period,Цена&`$filter=$f&`$orderby=Period desc&`$top=10"
+        $val = 0.0
+        foreach ($rec in @($r.value)) { $p = To-Num $rec.Цена; if ($p -gt 0) { $val = $p; break } }
+        $factoryPriceCache[$k] = $val; return $val
+    } catch { $factoryPriceCache[$k] = 0.0; return 0.0 }
+}
+
+$clientPriceCache = @{}
+function Get-OneCClientPrice($nomRefKey) {
+    $k = ([string]$nomRefKey).Trim()
+    if ($k -eq "" -or $k -eq "00000000-0000-0000-0000-000000000000") { return 0.0 }
+    if ($clientPriceCache.ContainsKey($k)) { return $clientPriceCache[$k] }
+    # цена клиента = Цена в строке последнего оформленного Заказа давальца (по ДатаОтгрузки)
+    $f = [uri]::EscapeDataString("Номенклатура_Key eq guid'$k' and Отменено eq false")
+    try {
+        $r = Invoke-OData "Document_ЗаказДавальца_Продукция" "`$select=Цена,ДатаОтгрузки&`$filter=$f&`$orderby=ДатаОтгрузки desc&`$top=1"
+        $val = if (@($r.value).Count -gt 0) { To-Num $r.value[0].Цена } else { 0.0 }
+        $clientPriceCache[$k] = $val; return $val
+    } catch { $clientPriceCache[$k] = 0.0; return 0.0 }
+}
+
 $managerCache = @{}
 function Get-ManagerName($managerKey) {
     $k = ([string]$managerKey).Trim()
@@ -307,25 +337,28 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
     $mEnd   = if ($monthCode -eq "2026-05") { $JuneStart } else { $JuneEnd   }
     $included = @{}
 
-    # rows from production plan
+    # rows from production plan — план ЦБ-00000218 сам источник истины по СТМ,
+    # не отсеиваем по статическому классификатору (он неполный/устаревший)
     foreach ($skuNorm in ($planMonth.Keys | Sort-Object)) {
-        if (-not $stmSkus.ContainsKey($skuNorm)) { continue }
         $included[$skuNorm] = $true
         $pd  = $planMonth[$skuNorm]
         $rel = if ($releaseMonth.ContainsKey($skuNorm)) { $releaseMonth[$skuNorm] } else { 0.0 }
         $price = $priceMap[$skuNorm]
         $sales = Get-SalesFact $skuNorm $mStart $mEnd
 
-        # factory price: actual cost/unit from 1C first, CSV as fallback
+        # factory price: факт 1С → CSV/классиф → прайс-лист 1С (вид "Цена Фабрики")
         $fp_1c  = if ($sales.ShippedQty -gt 0 -and $sales.Cost -gt 0) { $sales.Cost / $sales.ShippedQty } else { 0.0 }
         $fp_csv = if ($price) { [double]$price.FactoryPrice } else { 0.0 }
         if ($fp_csv -eq 0 -and $classPrices.ContainsKey($skuNorm)) { $fp_csv = [double]$classPrices[$skuNorm] }
-        $fp = if ($fp_1c -gt 0) { $fp_1c } else { $fp_csv }
+        $fp = if ($fp_1c -gt 0) { $fp_1c } elseif ($fp_csv -gt 0) { $fp_csv } else { 0.0 }
+        if ($fp -eq 0) { $pf = Get-OneCFactoryPrice $pd.NomRef; if ($pf -gt 0) { $fp = $pf } }
 
-        # client price: actual revenue/unit from 1C first, CSV as fallback
+        # client price: факт продаж → CSV → последний Заказ давальца 1С
         $acp = if ($sales.ShippedQty -ne 0) { $sales.Revenue / $sales.ShippedQty } else { 0.0 }
         $cp_csv = if ($price) { [double]$price.ClientPrice } else { 0.0 }
         $cp = if ($acp -ne 0) { $acp } elseif ($cp_csv -ne 0) { $cp_csv } else { 0.0 }
+        $cpFromDavalec = $false
+        if ($cp -eq 0) { $pc = Get-OneCClientPrice $pd.NomRef; if ($pc -gt 0) { $cp = $pc; $cpFromDavalec = $true } }
 
         $planQty        = [math]::Round($pd.PlanQty, 3)
         $releaseQty     = [math]::Round([math]::Max($rel, 0), 3)
@@ -342,6 +375,7 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
         $margin = if ($sales.Revenue -ne 0) { [math]::Round($actualGp / $sales.Revenue, 4) } else { 0 }
 
         $ps = if ($fp_1c -gt 0 -or $acp -gt 0) { "Факт 1С" } `
+              elseif ($cpFromDavalec) { "Заказ давальца 1С" } `
               elseif (-not $hasSellPrice) { "Цена не найдена" } `
               elseif ($price) { if ($price.IsMonthMatch) { "Заказы месяца" } else { "Заказы другого месяца" } } `
               else { "CSV" }
