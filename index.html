@@ -155,6 +155,21 @@
     .fc-risks-list { display:flex; flex-wrap:wrap; gap:8px; }
     .fc-risk-chip { background:#fef3f2; color:#b42318; border:1px solid #fecaca; border-radius:999px; padding:5px 11px; font-size:12px; font-weight:500; cursor:pointer; }
     .fc-risk-chip:hover { background:#fee4e2; }
+    .fc-clickable { cursor:pointer; border-radius:10px; padding:8px 12px; margin:-8px -12px; transition: background 0.12s, box-shadow 0.12s; }
+    .fc-clickable:hover { background:#f1f5f9; }
+    .fc-clickable.fc-active { background:#eef2ff; box-shadow: inset 0 0 0 1px #c7d2fe; }
+    .fc-caret { color:#94a3b8; font-size:10px; margin-right:3px; }
+    .fc-clickable.fc-active .fc-caret { color:var(--blue); }
+    .fc-drawer { margin-top:14px; padding-top:12px; border-top:1px dashed #e6e9f0; }
+    .fc-drawer-head { display:flex; align-items:baseline; gap:10px; margin-bottom:8px; font-size:14px; }
+    .fc-drawer-meta { color:#64748b; font-size:12px; }
+    .fc-drawer-scroll { max-height:340px; overflow:auto; border:1px solid #e6e9f0; border-radius:8px; }
+    table.fc-drilldown { width:100%; border-collapse:collapse; font-size:12px; }
+    table.fc-drilldown th { position:sticky; top:0; background:#f8fafc; color:#475467; font-weight:700; padding:8px 10px; border-bottom:1px solid #e6e9f0; text-align:left; }
+    table.fc-drilldown td { padding:7px 10px; border-bottom:1px solid #f1f5f9; vertical-align:top; }
+    table.fc-drilldown td.num, table.fc-drilldown th.num { text-align:right; white-space:nowrap; }
+    table.fc-drilldown td.name { max-width:320px; color:#263445; }
+    table.fc-drilldown tr:hover td { background:#fbfcff; }
     .row-comment-btn { background:transparent; border:1px dashed #cbd5e1; color:#64748b; border-radius:6px; padding:3px 8px; font-size:12px; cursor:pointer; max-width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .row-comment-btn.has-comment { background:#fef3f2; color:#b42318; border:1px solid #fecaca; border-style:solid; }
     .row-comment-btn:hover { border-color:var(--blue); color:var(--blue); }
@@ -784,6 +799,37 @@
       return { A, B, C, safe: A + B, opt: A + B + C, lostB, lostC, risks };
     }
 
+    let expandedBucket = null;
+    function bucketRows(rows, bucket) {
+      const out = [];
+      rows.forEach(r => {
+        const v = valovkaPerUnit(r);
+        if (bucket === 'A') {
+          if (r.shippedQty > 0 || Number(r.actualGp || 0) !== 0) {
+            out.push({ row: r, qty: r.shippedQty || 0, contribution: Number(r.actualGp || 0) });
+          }
+        } else if (bucket === 'B') {
+          if (isChecked(r) && stockQty(r) > 0) {
+            out.push({ row: r, qty: stockQty(r), contribution: stockQty(r) * v });
+          }
+        } else if (bucket === 'C') {
+          if (isChecked(r) && toProduceQty(r) > 0) {
+            out.push({ row: r, qty: toProduceQty(r), contribution: toProduceQty(r) * v });
+          }
+        } else if (bucket === 'opt') {
+          const a = Number(r.actualGp || 0);
+          const b = isChecked(r) ? stockQty(r) * v : 0;
+          const c = isChecked(r) ? toProduceQty(r) * v : 0;
+          const total = a + b + c;
+          if (total !== 0) {
+            const qty = (r.shippedQty || 0) + (isChecked(r) ? stockQty(r) + toProduceQty(r) : 0);
+            out.push({ row: r, qty, contribution: total });
+          }
+        }
+      });
+      return out.sort((a, b) => b.contribution - a.contribution);
+    }
+
     function renderForecast(rows) {
       const target = TARGETS[state.month] || { gp: 0 };
       const f = computeForecast(rows);
@@ -801,26 +847,28 @@
             return `<span class="fc-risk-chip" data-comment-sku="${escapeHtml(r.sku)}" title="Кликнуть, чтобы изменить комментарий">${txt}</span>`;
           }).join('')}</div>
         </div>` : '';
+      const cellCls = b => `fc-cell fc-clickable${expandedBucket === b ? ' fc-active' : ''}`;
+      const caret = b => `<span class="fc-caret">${expandedBucket === b ? '▾' : '▸'}</span>`;
       document.getElementById('forecastSection').innerHTML = `
         <h2>Прогноз конца месяца · ${escapeHtml(state.month)}</h2>
         <div class="fc-grid">
-          <div class="fc-cell">
-            <div class="label">Факт уже отгружено</div>
+          <div class="${cellCls('A')}" data-fc-bucket="A">
+            <div class="label">${caret('A')} Факт уже отгружено</div>
             <div class="value">${rub(f.A)}</div>
             <div class="sub">из регистра 1С</div>
           </div>
-          <div class="fc-cell">
-            <div class="label">+ Склад (готово)</div>
+          <div class="${cellCls('B')}" data-fc-bucket="B">
+            <div class="label">${caret('B')} + Склад (готово)</div>
             <div class="value">+${rub(f.B)}</div>
             <div class="sub">выпущено, не отгружено</div>
           </div>
-          <div class="fc-cell">
-            <div class="label">+ К выпуску</div>
+          <div class="${cellCls('C')}" data-fc-bucket="C">
+            <div class="label">${caret('C')} + К выпуску</div>
             <div class="value">+${rub(f.C)}</div>
             <div class="sub">план − выпущено</div>
           </div>
-          <div class="fc-cell">
-            <div class="label">Прогноз (оптимистичный)</div>
+          <div class="${cellCls('opt')}" data-fc-bucket="opt">
+            <div class="label">${caret('opt')} Прогноз (оптимистичный)</div>
             <div class="value big" style="color:var(--${optColor})">${rub(f.opt)}</div>
             <div class="sub">из ${rub(target.gp)} цель${target.gp ? ` · <strong style="color:var(--${optColor})">${pct(optPct)}</strong>` : ''}</div>
           </div>
@@ -830,7 +878,43 @@
           <span>Осторожный (только склад): <strong style="color:var(--${safeColor})">${rub(f.safe)}</strong>${target.gp ? ` · ${pct(safePct)} от цели` : ''}</span>
           <span>Маржа на штуку: считается по факту (если SKU уже отгружался), иначе по плану</span>
         </div>
+        ${renderForecastDrawer(rows)}
         ${risksHtml}
+      `;
+    }
+
+    function renderForecastDrawer(rows) {
+      if (!expandedBucket) return '';
+      const items = bucketRows(rows, expandedBucket);
+      const titles  = { A: 'Факт уже отгружено',        B: 'Склад (готово)',         C: 'К выпуску',           opt: 'Прогноз — все вклады' };
+      const qtyLbl  = { A: 'отгружено',                  B: 'на складе',              C: 'к выпуску',           opt: 'кол-во итого' };
+      const headTone= { A: 'green',                      B: 'amber',                  C: 'blue',                opt: 'green' };
+      if (!items.length) {
+        return `<div class="fc-drawer"><div class="fc-drawer-head"><strong>${titles[expandedBucket]}</strong></div><div class="empty">Нет SKU в этой категории</div></div>`;
+      }
+      const totalContrib = items.reduce((s, i) => s + i.contribution, 0);
+      const totalQty     = items.reduce((s, i) => s + (i.qty || 0), 0);
+      return `
+        <div class="fc-drawer">
+          <div class="fc-drawer-head">
+            <strong style="color:var(--${headTone[expandedBucket]})">${titles[expandedBucket]}</strong>
+            <span class="fc-drawer-meta">${items.length} SKU · ${fmtQty.format(totalQty)} шт · итого ${rub(totalContrib)}</span>
+          </div>
+          <div class="fc-drawer-scroll">
+            <table class="fc-drilldown">
+              <thead><tr><th>Артикул</th><th>Наименование</th><th>Менеджер</th><th class="num">${qtyLbl[expandedBucket]}</th><th class="num">Вклад в валовку</th></tr></thead>
+              <tbody>${items.map(i => `
+                <tr>
+                  <td><strong>${escapeHtml(i.row.sku)}</strong></td>
+                  <td class="name">${escapeHtml(i.row.name)}</td>
+                  <td>${escapeHtml(i.row.manager || '')}</td>
+                  <td class="num">${fmtQty.format(i.qty)}</td>
+                  <td class="num">${rub(i.contribution)}</td>
+                </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
       `;
     }
 
@@ -1274,8 +1358,16 @@
     });
     document.getElementById('forecastSection').addEventListener('click', event => {
       const chip = event.target.closest('[data-comment-sku]');
-      if (!chip) return;
-      promptComment(chip.dataset.commentSku);
+      if (chip) {
+        promptComment(chip.dataset.commentSku);
+        return;
+      }
+      const bucket = event.target.closest('[data-fc-bucket]');
+      if (bucket) {
+        const b = bucket.dataset.fcBucket;
+        expandedBucket = (expandedBucket === b) ? null : b;
+        render();
+      }
     });
     document.getElementById('checkAll').addEventListener('click', () => {
       uncheckedKeys[state.month].clear();
