@@ -2,13 +2,13 @@ name: Daily data refresh → Vercel
 
 on:
   schedule:
-    - cron: '0 7 * * 1-5'   # 10:00 МСК (UTC+3), пн–пт
+    - cron: '50 5 * * *'    # 08:50 МСК (UTC+3), ежедневно
   workflow_dispatch:          # ручной запуск
 
 jobs:
   refresh:
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
 
     steps:
       - name: Checkout
