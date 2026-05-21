@@ -170,6 +170,12 @@
     table.fc-drilldown td.num, table.fc-drilldown th.num { text-align:right; white-space:nowrap; }
     table.fc-drilldown td.name { max-width:320px; color:#263445; }
     table.fc-drilldown tr:hover td { background:#fbfcff; }
+    table.fc-drilldown td.cb-col, table.fc-drilldown th.cb-col { text-align:center; width:80px; }
+    table.fc-drilldown .cb-col input[type=checkbox] { cursor:pointer; width:15px; height:15px; accent-color:var(--blue); margin:0; }
+    table.fc-drilldown tr.fc-row-muted td { color:#94a3b8; text-decoration: line-through; text-decoration-color:#cbd5e1; }
+    table.fc-drilldown tr.fc-row-muted td strong { color:#94a3b8; }
+    table.fc-drilldown tr.fc-row-muted td.cb-col, table.fc-drilldown tr.fc-row-muted td:last-child { text-decoration:none; }
+    table.fc-drilldown tr.fc-row-muted td.cb-col input { opacity:1; }
     .row-comment-btn { background:transparent; border:1px dashed #cbd5e1; color:#64748b; border-radius:6px; padding:3px 8px; font-size:12px; cursor:pointer; max-width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .row-comment-btn.has-comment { background:#fef3f2; color:#b42318; border:1px solid #fecaca; border-style:solid; }
     .row-comment-btn:hover { border-color:var(--blue); color:var(--blue); }
@@ -804,26 +810,27 @@
       const out = [];
       rows.forEach(r => {
         const v = valovkaPerUnit(r);
+        const checked = isChecked(r);
         if (bucket === 'A') {
           if (r.shippedQty > 0 || Number(r.actualGp || 0) !== 0) {
             out.push({ row: r, qty: r.shippedQty || 0, contribution: Number(r.actualGp || 0) });
           }
         } else if (bucket === 'B') {
-          if (isChecked(r) && stockQty(r) > 0) {
-            out.push({ row: r, qty: stockQty(r), contribution: stockQty(r) * v });
+          if (stockQty(r) > 0) {
+            out.push({ row: r, qty: stockQty(r), contribution: checked ? stockQty(r) * v : 0 });
           }
         } else if (bucket === 'C') {
-          if (isChecked(r) && toProduceQty(r) > 0) {
-            out.push({ row: r, qty: toProduceQty(r), contribution: toProduceQty(r) * v });
+          if (toProduceQty(r) > 0) {
+            out.push({ row: r, qty: toProduceQty(r), contribution: checked ? toProduceQty(r) * v : 0 });
           }
         } else if (bucket === 'opt') {
           const a = Number(r.actualGp || 0);
-          const b = isChecked(r) ? stockQty(r) * v : 0;
-          const c = isChecked(r) ? toProduceQty(r) * v : 0;
-          const total = a + b + c;
-          if (total !== 0) {
-            const qty = (r.shippedQty || 0) + (isChecked(r) ? stockQty(r) + toProduceQty(r) : 0);
-            out.push({ row: r, qty, contribution: total });
+          const stockPot = stockQty(r) * v;
+          const futPot   = toProduceQty(r) * v;
+          if (a !== 0 || stockPot > 0 || futPot > 0) {
+            const contribution = a + (checked ? stockPot + futPot : 0);
+            const qty = (r.shippedQty || 0) + stockQty(r) + toProduceQty(r);
+            out.push({ row: r, qty, contribution });
           }
         }
       });
@@ -894,24 +901,39 @@
       }
       const totalContrib = items.reduce((s, i) => s + i.contribution, 0);
       const totalQty     = items.reduce((s, i) => s + (i.qty || 0), 0);
+      const excluded     = items.filter(i => !isChecked(i.row)).length;
       return `
         <div class="fc-drawer">
           <div class="fc-drawer-head">
             <strong style="color:var(--${headTone[expandedBucket]})">${titles[expandedBucket]}</strong>
-            <span class="fc-drawer-meta">${items.length} SKU · ${fmtQty.format(totalQty)} шт · итого ${rub(totalContrib)}</span>
+            <span class="fc-drawer-meta">${items.length} SKU${excluded ? ` · ${excluded} снято` : ''} · ${fmtQty.format(totalQty)} шт · вклад в прогноз ${rub(totalContrib)}</span>
           </div>
           <div class="fc-drawer-scroll">
             <table class="fc-drilldown">
-              <thead><tr><th>Артикул</th><th>Наименование</th><th>Менеджер</th><th class="num">${qtyLbl[expandedBucket]}</th><th class="num">Вклад в валовку</th></tr></thead>
-              <tbody>${items.map(i => `
-                <tr>
+              <thead><tr>
+                <th>Артикул</th>
+                <th>Наименование</th>
+                <th>Менеджер</th>
+                <th class="num">${qtyLbl[expandedBucket]}</th>
+                <th class="num">Вклад в валовку</th>
+                <th class="cb-col" title="Учитывать в расчёте прогноза">В расчёте</th>
+                <th>Комментарий</th>
+              </tr></thead>
+              <tbody>${items.map(i => {
+                const checked = isChecked(i.row);
+                const c = getComment(i.row);
+                const btnCls = c ? 'row-comment-btn has-comment' : 'row-comment-btn';
+                const btnTxt = c ? `✎ ${escapeHtml(c)}` : '+ комментарий';
+                return `<tr class="${checked ? '' : 'fc-row-muted'}">
                   <td><strong>${escapeHtml(i.row.sku)}</strong></td>
                   <td class="name">${escapeHtml(i.row.name)}</td>
                   <td>${escapeHtml(i.row.manager || '')}</td>
                   <td class="num">${fmtQty.format(i.qty)}</td>
                   <td class="num">${rub(i.contribution)}</td>
-                </tr>`).join('')}
-              </tbody>
+                  <td class="cb-col"><input type="checkbox" data-row-sku="${escapeHtml(i.row.sku)}" ${checked ? 'checked' : ''}></td>
+                  <td><button type="button" class="${btnCls}" data-comment-sku="${escapeHtml(i.row.sku)}" title="${escapeHtml(c || 'Добавить комментарий о риске/переносе')}">${btnTxt}</button></td>
+                </tr>`;
+              }).join('')}</tbody>
             </table>
           </div>
         </div>
@@ -1357,6 +1379,7 @@
       promptComment(btn.dataset.commentSku);
     });
     document.getElementById('forecastSection').addEventListener('click', event => {
+      if (event.target.closest('input[type="checkbox"]')) return;
       const chip = event.target.closest('[data-comment-sku]');
       if (chip) {
         promptComment(chip.dataset.commentSku);
@@ -1368,6 +1391,15 @@
         expandedBucket = (expandedBucket === b) ? null : b;
         render();
       }
+    });
+    document.getElementById('forecastSection').addEventListener('change', event => {
+      const rowCb = event.target.closest('[data-row-sku]');
+      if (!rowCb) return;
+      const sku = rowCb.dataset.rowSku;
+      if (rowCb.checked) uncheckedKeys[state.month].delete(sku);
+      else uncheckedKeys[state.month].add(sku);
+      persistUnchecked();
+      render();
     });
     document.getElementById('checkAll').addEventListener('click', () => {
       uncheckedKeys[state.month].clear();
