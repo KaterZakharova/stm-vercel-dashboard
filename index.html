@@ -42,14 +42,19 @@
     .field label { display: block; color: var(--muted); font-size: 12px; margin-bottom: 6px; }
     .field input, .field select { width: 100%; height: 38px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--text); padding: 0 10px; outline: none; }
     .field input:focus, .field select:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(47, 111, 237, 0.12); }
-    .kpis { display: grid; grid-template-columns: repeat(5, minmax(160px, 1fr)); gap: 12px; }
-    .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; box-shadow: var(--shadow); min-height: 112px; }
-    .kpi .label { color: var(--muted); font-size: 12px; margin-bottom: 9px; }
-    .kpi .value { font-size: 23px; font-weight: 760; color: var(--ink); white-space: nowrap; }
-    .kpi .sub { margin-top: 9px; color: var(--muted); font-size: 12px; }
+    .kpis { display: grid; grid-template-columns: repeat(3, minmax(220px, 1fr)); gap: 14px; }
+    .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow); min-height: 112px; }
+    .kpi .label { color: var(--muted); font-size: 12px; margin-bottom: 9px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+    .kpi .value { font-size: 22px; font-weight: 760; color: var(--ink); white-space: nowrap; }
+    .kpi .kpi-sep { color: #cbd5e1; font-weight: 400; margin: 0 4px; }
+    .kpi .kpi-plan { color: #94a3b8; font-weight: 700; }
+    .kpi .sub { margin-top: 8px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .kpi .sub strong { color: var(--ink); font-weight: 700; }
+    .kpi .progress { margin-top: 10px; }
     .progress { height: 7px; background: #e7ecf3; border-radius: 999px; overflow: hidden; margin-top: 11px; }
     .progress span { display: block; height: 100%; width: 0; background: var(--blue); border-radius: inherit; }
     .margin-strip { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 10px 14px; color: #334155; display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+    .margin-strip:empty { display: none; }
     .margin-strip strong { color: var(--ink); }
     .hero { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
     .hero-card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px 20px; }
@@ -134,6 +139,25 @@
     tfoot td { position: sticky; bottom: 0; background: #f1f5f9; border-top: 2px solid #cbd5e1; font-weight: 700; color: #0f172a; }
     tfoot td.label { color: #475467; letter-spacing: 0.04em; text-transform: uppercase; font-size: 12px; }
     tfoot tr:hover td { background: #f1f5f9; }
+    .forecast-section { background:#fff; border:1px solid #e6e9f0; border-radius:14px; padding:18px 22px; margin: 16px 0 0; box-shadow:0 8px 24px rgba(15,23,42,0.04); }
+    .forecast-section h2 { margin:0 0 14px; font-size:18px; color:#0f172a; }
+    .fc-grid { display:grid; grid-template-columns: 1.1fr 1fr 1fr 1.2fr; gap:18px; align-items:end; }
+    .fc-cell { display:grid; gap:4px; }
+    .fc-cell .label { font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em; }
+    .fc-cell .value { font-size:24px; font-weight:800; color:#0f172a; line-height:1.1; }
+    .fc-cell .value.big { font-size:30px; }
+    .fc-cell .sub { font-size:12px; color:#475467; }
+    .fc-bar { margin-top:14px; height:10px; border-radius:6px; background:#eef2f7; overflow:hidden; }
+    .fc-bar > span { display:block; height:100%; }
+    .fc-meta { margin-top:8px; font-size:13px; color:#334155; display:flex; flex-wrap:wrap; gap:14px; }
+    .fc-risks { margin-top:14px; padding-top:12px; border-top:1px dashed #e6e9f0; }
+    .fc-risks-head { font-size:13px; color:#475467; margin-bottom:8px; font-weight:600; }
+    .fc-risks-list { display:flex; flex-wrap:wrap; gap:8px; }
+    .fc-risk-chip { background:#fef3f2; color:#b42318; border:1px solid #fecaca; border-radius:999px; padding:5px 11px; font-size:12px; font-weight:500; cursor:pointer; }
+    .fc-risk-chip:hover { background:#fee4e2; }
+    .row-comment-btn { background:transparent; border:1px dashed #cbd5e1; color:#64748b; border-radius:6px; padding:3px 8px; font-size:12px; cursor:pointer; max-width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .row-comment-btn.has-comment { background:#fef3f2; color:#b42318; border:1px solid #fecaca; border-style:solid; }
+    .row-comment-btn:hover { border-color:var(--blue); color:var(--blue); }
     td.cb, th.cb { width: 34px; padding: 4px 6px; text-align: center; }
     .cb input[type=checkbox] { cursor: pointer; width: 15px; height: 15px; accent-color: var(--blue); margin: 0; }
     .check-controls { display: flex; gap: 6px; }
@@ -147,7 +171,7 @@
       body { padding: 14px; }
       .topbar { display: grid; }
       .filters { grid-template-columns: 1fr 1fr; }
-      .kpis { grid-template-columns: 1fr 1fr; }
+      .kpis { grid-template-columns: 1fr; }
       .grid-two { grid-template-columns: 1fr; }
     }
     @media (max-width: 680px) {
@@ -269,6 +293,8 @@
       </div>
     </section>
 
+    <section class="forecast-section" id="forecastSection"></section>
+
     <section class="table-wrap">
       <div class="table-head">
         <h2>SKU в отчете</h2>
@@ -371,8 +397,46 @@
       'Июнь': { gp: 14000000, qty: 0 }
     };
     const state = { view: 'main', month: 'Май', search: '', manager: '', newness: '', priceSource: '', status: '', quality: '', managerPlanOnly: false };
-    const uncheckedKeys = { 'Май': new Set(), 'Июнь': new Set() };
+    const UNCHECKED_STORAGE_KEY = 'stmUnchecked_v1';
+    const COMMENTS_STORAGE_KEY  = 'stmRowComments_v1';
+    const loadedUnchecked = (() => {
+      try { return JSON.parse(localStorage.getItem(UNCHECKED_STORAGE_KEY) || '{}') || {}; } catch { return {}; }
+    })();
+    const uncheckedKeys = {
+      'Май':  new Set(loadedUnchecked['Май']  || []),
+      'Июнь': new Set(loadedUnchecked['Июнь'] || [])
+    };
+    function persistUnchecked() {
+      const out = {};
+      Object.entries(uncheckedKeys).forEach(([m, s]) => { out[m] = [...s]; });
+      try { localStorage.setItem(UNCHECKED_STORAGE_KEY, JSON.stringify(out)); } catch {}
+    }
     function isChecked(row) { return !uncheckedKeys[state.month].has(row.sku); }
+
+    const rowComments = (() => {
+      try { return JSON.parse(localStorage.getItem(COMMENTS_STORAGE_KEY) || '{}') || {}; } catch { return {}; }
+    })();
+    function commentKey(row) { return `${row.month}::${row.sku}`; }
+    function getComment(row) { return rowComments[commentKey(row)] || ''; }
+    function setComment(row, text) {
+      const k = commentKey(row);
+      const v = (text || '').trim();
+      if (v) rowComments[k] = v; else delete rowComments[k];
+      try { localStorage.setItem(COMMENTS_STORAGE_KEY, JSON.stringify(rowComments)); } catch {}
+    }
+
+    function valovkaPerUnit(row) {
+      if (row.shippedQty > 0 && row.actualGp) return row.actualGp / row.shippedQty;
+      if (row.planQty > 0 && row.plannedGp)   return row.plannedGp / row.planQty;
+      return 0;
+    }
+    function stockQty(row)     { return Math.max(0, (row.releaseQty || 0) - (row.shippedQty || 0)); }
+    function toProduceQty(row) { return Math.max(0, (row.planQty || 0) - (row.releaseQty || 0)); }
+    function rowForecastGp(row) {
+      const v = valovkaPerUnit(row);
+      const extra = isChecked(row) ? (stockQty(row) + toProduceQty(row)) * v : 0;
+      return (row.actualGp || 0) + extra;
+    }
     const columns = [
       { key: 'sku', label: 'Артикул', defaultVisible: true, render: row => `<strong>${escapeHtml(row.sku)}</strong>` },
       { key: 'isNew', label: 'Новинка', defaultVisible: true, render: row => row.isNew === 'Да' ? '<span class="badge blue">Да</span>' : escapeHtml(row.isNew || '') },
@@ -390,6 +454,15 @@
       { key: 'actualRevenue', label: 'Выручка факт', defaultVisible: true, className: 'num', render: row => rub(row.actualRevenue) },
       { key: 'actualGp', label: 'Упр. валовка', defaultVisible: true, className: 'num', render: row => rub(row.actualGp) },
       { key: 'margin', label: 'Маржа факт', defaultVisible: true, className: 'num', render: row => row.actualRevenue ? pct(row.margin) : '' },
+      { key: 'stockQty', label: 'На складе', defaultVisible: true, className: 'num', render: row => fmtQty.format(stockQty(row)) },
+      { key: 'toProduceQty', label: 'К выпуску', defaultVisible: true, className: 'num', render: row => fmtQty.format(toProduceQty(row)) },
+      { key: 'forecastGp', label: 'Прогноз вал.', defaultVisible: true, className: 'num', render: row => rub(rowForecastGp(row)) },
+      { key: 'comment', label: 'Риск / коммент', defaultVisible: true, className: 'comment-col', render: row => {
+        const c = getComment(row);
+        const cls = c ? 'row-comment-btn has-comment' : 'row-comment-btn';
+        const text = c ? `✎ ${escapeHtml(c)}` : '+ комментарий';
+        return `<button type="button" class="${cls}" data-comment-sku="${escapeHtml(row.sku)}" title="${escapeHtml(c || 'Добавить комментарий о риске/переносе')}">${text}</button>`;
+      } },
       { key: 'manager', label: 'Менеджер', defaultVisible: true, render: row => escapeHtml(row.manager) },
       { key: 'priceSource', label: 'Источник', defaultVisible: true, render: row => sourceBadge(row.priceSource) }
     ];
@@ -428,6 +501,10 @@
 
     function rawFilterValue(row, key) {
       if (key === 'plannedMargin') return row.plannedRevenue ? String(row.plannedGp / row.plannedRevenue) : '';
+      if (key === 'stockQty')      return String(stockQty(row));
+      if (key === 'toProduceQty')  return String(toProduceQty(row));
+      if (key === 'forecastGp')    return String(rowForecastGp(row));
+      if (key === 'comment')       return getComment(row);
       const value = row[key];
       if (key === 'margin') return row.actualRevenue ? String(Number(value || 0)) : '';
       return String(value ?? '');
@@ -436,9 +513,9 @@
     function displayFilterValue(raw, key) {
       if (raw === '') return '(пусто)';
       const numeric = Number(raw);
-      if (['planQty', 'releaseQty', 'shippedQty'].includes(key)) return fmtQty.format(numeric);
+      if (['planQty', 'releaseQty', 'shippedQty', 'stockQty', 'toProduceQty'].includes(key)) return fmtQty.format(numeric);
       if (['factoryPrice', 'clientPrice'].includes(key)) return fmtPrice.format(numeric);
-      if (['plannedRevenue', 'plannedGp', 'actualRevenue', 'actualGp'].includes(key)) return rub(numeric);
+      if (['plannedRevenue', 'plannedGp', 'actualRevenue', 'actualGp', 'forecastGp'].includes(key)) return rub(numeric);
       if (['plannedMargin', 'margin'].includes(key)) return pct(numeric);
       return raw;
     }
@@ -555,32 +632,33 @@
       const factMargin = revenue ? gp / revenue : 0;
       const gpProgress = target.gp ? gp / target.gp : 0;
       const qtyProgress = target.qty ? shippedQty / target.qty : 0;
-      const checkedAllRows = monthRows().filter(isChecked);
-      const checkedPlanQty = sum(checkedAllRows, 'planQty');
-      const checkedRevenue = sum(checkedAllRows, 'plannedRevenue');
-      const checkedGp      = sum(checkedAllRows, 'plannedGp');
-      const items = [
-        { label: 'Упр. валовка факт', value: rub(gp), sub: `цель ${rub(target.gp)}`, progress: gpProgress, color: 'green' },
-        { label: '% цели по валовке', value: pct(gpProgress), sub: 'по текущим фильтрам', progress: gpProgress, color: 'blue' },
-        { label: 'Выручка факт без НДС', value: rub(revenue), sub: 'из регистра 1С', progress: 0, color: 'amber' },
-        { label: 'Отгружено', value: fmtQty.format(shippedQty), sub: `план ${fmtQty.format(planQty)} / выпуск ${fmtQty.format(releaseQty)}`, progress: planQty ? shippedQty / planQty : 0, color: 'green' },
-        { label: '% цели по штукам', value: target.qty ? pct(qtyProgress) : 'нет цели', sub: target.qty ? `цель ${fmtQty.format(target.qty)}` : 'цель не задана', progress: qtyProgress, color: 'blue' },
-        { label: 'Плановые отгрузки ☑', value: fmtQty.format(checkedPlanQty), sub: `выручка ${rub(checkedRevenue)} · ВП ${rub(checkedGp)}`, progress: 0, color: 'blue' }
-      ];
-      document.getElementById('kpis').innerHTML = items.map(item => `
-        <div class="kpi">
-          <div class="label">${item.label}</div>
-          <div class="value">${item.value}</div>
-          <div class="sub">${item.sub}</div>
-          <div class="progress"><span style="width:${Math.min(Math.max(item.progress, 0), 1) * 100}%; background: var(--${item.color});"></span></div>
+      const gpColor  = !target.gp  ? 'blue' : (gpProgress  >= 1 ? 'green' : gpProgress  >= 0.6 ? 'amber' : 'red');
+      const qtyColor = !target.qty ? 'blue' : (qtyProgress >= 1 ? 'green' : qtyProgress >= 0.6 ? 'amber' : 'red');
+      const revColor = plannedRevenue && revenue / plannedRevenue >= 0.6 ? 'amber' : 'blue';
+      const revProgress = plannedRevenue ? revenue / plannedRevenue : 0;
+      const bar = (p, color) => `<div class="progress"><span style="width:${Math.min(Math.max(p, 0), 1) * 100}%; background: var(--${color});"></span></div>`;
+      const excludedNote = excludedCount ? ` <em style="color:var(--muted);font-style:normal;font-size:11px;">(− ${excludedCount} SKU)</em>` : '';
+      document.getElementById('kpis').innerHTML = `
+        <div class="kpi kpi-wide">
+          <div class="label">Штуки · ${escapeHtml(state.month)}</div>
+          <div class="value">${fmtQty.format(shippedQty)} <span class="kpi-sep">/</span> <span class="kpi-plan">${fmtQty.format(planQty)}</span></div>
+          <div class="sub">факт · план${excludedNote} · выпущено ${fmtQty.format(releaseQty)}${target.qty ? ` · цель ${fmtQty.format(target.qty)} (${pct(qtyProgress)})` : ''}</div>
+          ${bar(planQty ? shippedQty / planQty : 0, qtyColor)}
         </div>
-      `).join('');
-      document.getElementById('marginStrip').innerHTML = `
-        <span>Плановая выручка: <strong>${rub(plannedRevenue)}</strong></span>
-        <span>Плановая валовка: <strong>${rub(plannedGp)}</strong>${excludedCount ? ` <em style="color:var(--muted);font-style:normal;font-size:12px;">(− ${excludedCount} SKU выкл.)</em>` : ''}</span>
-        <span>Плановая маржа: <strong>${plannedRevenue ? pct(plannedMargin) : 'нет данных'}</strong></span>
-        <span>Фактическая маржа отгрузки: <strong>${revenue ? pct(factMargin) : 'нет данных'}</strong></span>
+        <div class="kpi kpi-wide">
+          <div class="label">Валовка управленческая · ${escapeHtml(state.month)}</div>
+          <div class="value">${rub(gp)} <span class="kpi-sep">/</span> <span class="kpi-plan">${rub(plannedGp)}</span></div>
+          <div class="sub">факт · план${excludedNote} · маржа факт <strong>${revenue ? pct(factMargin) : '—'}</strong> · план <strong>${plannedRevenue ? pct(plannedMargin) : '—'}</strong>${target.gp ? ` · цель ${rub(target.gp)} (${pct(gpProgress)})` : ''}</div>
+          ${bar(gpProgress, gpColor)}
+        </div>
+        <div class="kpi kpi-wide">
+          <div class="label">Выручка без НДС · ${escapeHtml(state.month)}</div>
+          <div class="value">${rub(revenue)} <span class="kpi-sep">/</span> <span class="kpi-plan">${rub(plannedRevenue)}</span></div>
+          <div class="sub">факт · план${excludedNote}${plannedRevenue ? ` · ${pct(revProgress)} от плана` : ''}</div>
+          ${bar(revProgress, revColor)}
+        </div>
       `;
+      document.getElementById('marginStrip').innerHTML = '';
     }
 
     function renderBars(rows) {
@@ -664,6 +742,9 @@
       const totalPlanGp        = sum(rows, 'plannedGp');
       const totalActualRevenue = sum(rows, 'actualRevenue');
       const totalActualGp      = sum(rows, 'actualGp');
+      const totalStock         = rows.reduce((a, r) => a + stockQty(r), 0);
+      const totalToProduce     = rows.reduce((a, r) => a + toProduceQty(r), 0);
+      const totalForecastGp    = rows.reduce((a, r) => a + rowForecastGp(r), 0);
       const totals = {
         planQty:        fmtQty.format(totalPlanQty),
         releaseQty:     fmtQty.format(totalReleaseQty),
@@ -673,15 +754,84 @@
         plannedMargin:  totalPlanRevenue ? pct(totalPlanGp / totalPlanRevenue) : '',
         actualRevenue:  rub(totalActualRevenue),
         actualGp:       rub(totalActualGp),
-        margin:         totalActualRevenue ? pct(totalActualGp / totalActualRevenue) : ''
+        margin:         totalActualRevenue ? pct(totalActualGp / totalActualRevenue) : '',
+        stockQty:       fmtQty.format(totalStock),
+        toProduceQty:   fmtQty.format(totalToProduce),
+        forecastGp:     rub(totalForecastGp)
       };
-      const labelKey = activeColumns[0]?.key;
       const cells = activeColumns.map((column, idx) => {
         if (idx === 0) return `<td class="label">ИТОГО · ${rows.length}</td>`;
         if (totals.hasOwnProperty(column.key)) return `<td class="${column.className || ''}">${totals[column.key]}</td>`;
         return `<td class="${column.className || ''}"></td>`;
       }).join('');
       return `<tr><td class="cb"></td>${cells}</tr>`;
+    }
+
+    function computeForecast(rows) {
+      let A = 0, B = 0, C = 0, lostB = 0, lostC = 0;
+      const risks = [];
+      rows.forEach(r => {
+        A += Number(r.actualGp || 0);
+        const v = valovkaPerUnit(r);
+        const stock = stockQty(r) * v;
+        const future = toProduceQty(r) * v;
+        if (isChecked(r)) { B += stock; C += future; }
+        else {
+          lostB += stock; lostC += future;
+          if (stock + future > 0 || getComment(r)) risks.push(r);
+        }
+      });
+      return { A, B, C, safe: A + B, opt: A + B + C, lostB, lostC, risks };
+    }
+
+    function renderForecast(rows) {
+      const target = TARGETS[state.month] || { gp: 0 };
+      const f = computeForecast(rows);
+      const safePct = target.gp ? f.safe / target.gp : 0;
+      const optPct  = target.gp ? f.opt  / target.gp : 0;
+      const optColor  = !target.gp ? 'blue' : (optPct  >= 1 ? 'green' : optPct  >= 0.7 ? 'amber' : 'red');
+      const safeColor = !target.gp ? 'blue' : (safePct >= 1 ? 'green' : safePct >= 0.7 ? 'amber' : 'red');
+      const lostTotal = f.lostB + f.lostC;
+      const risksHtml = f.risks.length ? `
+        <div class="fc-risks">
+          <div class="fc-risks-head">Под риском (снято с месяца): ${f.risks.length} SKU · потенциально −${rub(lostTotal)}</div>
+          <div class="fc-risks-list">${f.risks.map(r => {
+            const c = getComment(r);
+            const txt = c ? `${escapeHtml(r.sku)} — ${escapeHtml(c)}` : escapeHtml(r.sku);
+            return `<span class="fc-risk-chip" data-comment-sku="${escapeHtml(r.sku)}" title="Кликнуть, чтобы изменить комментарий">${txt}</span>`;
+          }).join('')}</div>
+        </div>` : '';
+      document.getElementById('forecastSection').innerHTML = `
+        <h2>Прогноз конца месяца · ${escapeHtml(state.month)}</h2>
+        <div class="fc-grid">
+          <div class="fc-cell">
+            <div class="label">Факт уже отгружено</div>
+            <div class="value">${rub(f.A)}</div>
+            <div class="sub">из регистра 1С</div>
+          </div>
+          <div class="fc-cell">
+            <div class="label">+ Склад (готово)</div>
+            <div class="value">+${rub(f.B)}</div>
+            <div class="sub">выпущено, не отгружено</div>
+          </div>
+          <div class="fc-cell">
+            <div class="label">+ К выпуску</div>
+            <div class="value">+${rub(f.C)}</div>
+            <div class="sub">план − выпущено</div>
+          </div>
+          <div class="fc-cell">
+            <div class="label">Прогноз (оптимистичный)</div>
+            <div class="value big" style="color:var(--${optColor})">${rub(f.opt)}</div>
+            <div class="sub">из ${rub(target.gp)} цель${target.gp ? ` · <strong style="color:var(--${optColor})">${pct(optPct)}</strong>` : ''}</div>
+          </div>
+        </div>
+        <div class="fc-bar"><span style="width:${Math.min(Math.max(optPct,0),1)*100}%; background:var(--${optColor})"></span></div>
+        <div class="fc-meta">
+          <span>Осторожный (только склад): <strong style="color:var(--${safeColor})">${rub(f.safe)}</strong>${target.gp ? ` · ${pct(safePct)} от цели` : ''}</span>
+          <span>Маржа на штуку: считается по факту (если SKU уже отгружался), иначе по плану</span>
+        </div>
+        ${risksHtml}
+      `;
     }
 
     function potentialRows() {
@@ -1007,6 +1157,7 @@
       renderKpis(rows);
       renderBars(rows);
       renderQuality(qualityRows);
+      renderForecast(rows);
       renderTable(rows);
     }
 
@@ -1093,29 +1244,47 @@
       if (rowCb) {
         if (rowCb.checked) uncheckedKeys[state.month].delete(rowCb.dataset.rowSku);
         else uncheckedKeys[state.month].add(rowCb.dataset.rowSku);
-        renderKpis(filteredRows());
-        const sel = document.getElementById('selectAllCb');
-        if (sel) {
-          const vis = filteredRows();
-          const cnt = vis.filter(isChecked).length;
-          sel.checked = cnt === vis.length;
-          sel.indeterminate = cnt > 0 && cnt < vis.length;
-        }
+        persistUnchecked();
+        render();
         return;
       }
       if (event.target.id === 'selectAllCb') {
         const vis = filteredRows();
         if (event.target.checked) vis.forEach(row => uncheckedKeys[state.month].delete(row.sku));
         else vis.forEach(row => uncheckedKeys[state.month].add(row.sku));
+        persistUnchecked();
         render();
       }
     });
+
+    function promptComment(sku) {
+      const row = monthRows().find(r => r.sku === sku);
+      if (!row) return;
+      const current = getComment(row);
+      const next = window.prompt(`Комментарий для ${sku} (например: «нет сырья, перенос на июнь»):`, current);
+      if (next === null) return;
+      setComment(row, next);
+      render();
+    }
+    document.querySelector('.table-wrap').addEventListener('click', event => {
+      const btn = event.target.closest('[data-comment-sku]');
+      if (!btn) return;
+      event.preventDefault();
+      promptComment(btn.dataset.commentSku);
+    });
+    document.getElementById('forecastSection').addEventListener('click', event => {
+      const chip = event.target.closest('[data-comment-sku]');
+      if (!chip) return;
+      promptComment(chip.dataset.commentSku);
+    });
     document.getElementById('checkAll').addEventListener('click', () => {
       uncheckedKeys[state.month].clear();
+      persistUnchecked();
       render();
     });
     document.getElementById('uncheckAll').addEventListener('click', () => {
       monthRows().forEach(row => uncheckedKeys[state.month].add(row.sku));
+      persistUnchecked();
       render();
     });
 
