@@ -131,6 +131,9 @@
     .filter-option input { margin: 0; }
     td.num, th.num { text-align: right; white-space: nowrap; }
     td.name { max-width: 360px; color: #263445; }
+    tfoot td { position: sticky; bottom: 0; background: #f1f5f9; border-top: 2px solid #cbd5e1; font-weight: 700; color: #0f172a; }
+    tfoot td.label { color: #475467; letter-spacing: 0.04em; text-transform: uppercase; font-size: 12px; }
+    tfoot tr:hover td { background: #f1f5f9; }
     td.cb, th.cb { width: 34px; padding: 4px 6px; text-align: center; }
     .cb input[type=checkbox] { cursor: pointer; width: 15px; height: 15px; accent-color: var(--blue); margin: 0; }
     .check-controls { display: flex; gap: 6px; }
@@ -295,6 +298,7 @@
         <table>
           <thead id="thead"></thead>
           <tbody id="tbody"></tbody>
+          <tfoot id="tfoot"></tfoot>
         </table>
       </div>
     </section>
@@ -635,8 +639,10 @@
       const selectAllEl = document.getElementById('selectAllCb');
       if (selectAllEl && indeterminate) selectAllEl.indeterminate = true;
       const tbody = document.getElementById('tbody');
+      const tfoot = document.getElementById('tfoot');
       if (!rows.length) {
         tbody.innerHTML = `<tr><td colspan="${Math.max(activeColumns.length + 1, 1)}"><div class="empty">Нет строк под выбранные фильтры</div></td></tr>`;
+        if (tfoot) tfoot.innerHTML = '';
         updateFilterButtons();
         return;
       }
@@ -646,7 +652,36 @@
           ${activeColumns.map(column => `<td class="${column.className || ''}">${column.render(row)}</td>`).join('')}
         </tr>
       `).join('');
+      if (tfoot) tfoot.innerHTML = renderFooter(rows, activeColumns);
       updateFilterButtons();
+    }
+
+    function renderFooter(rows, activeColumns) {
+      const totalPlanQty       = sum(rows, 'planQty');
+      const totalReleaseQty    = sum(rows, 'releaseQty');
+      const totalShippedQty    = sum(rows, 'shippedQty');
+      const totalPlanRevenue   = sum(rows, 'plannedRevenue');
+      const totalPlanGp        = sum(rows, 'plannedGp');
+      const totalActualRevenue = sum(rows, 'actualRevenue');
+      const totalActualGp      = sum(rows, 'actualGp');
+      const totals = {
+        planQty:        fmtQty.format(totalPlanQty),
+        releaseQty:     fmtQty.format(totalReleaseQty),
+        shippedQty:     fmtQty.format(totalShippedQty),
+        plannedRevenue: rub(totalPlanRevenue),
+        plannedGp:      rub(totalPlanGp),
+        plannedMargin:  totalPlanRevenue ? pct(totalPlanGp / totalPlanRevenue) : '',
+        actualRevenue:  rub(totalActualRevenue),
+        actualGp:       rub(totalActualGp),
+        margin:         totalActualRevenue ? pct(totalActualGp / totalActualRevenue) : ''
+      };
+      const labelKey = activeColumns[0]?.key;
+      const cells = activeColumns.map((column, idx) => {
+        if (idx === 0) return `<td class="label">ИТОГО · ${rows.length}</td>`;
+        if (totals.hasOwnProperty(column.key)) return `<td class="${column.className || ''}">${totals[column.key]}</td>`;
+        return `<td class="${column.className || ''}"></td>`;
+      }).join('');
+      return `<tr><td class="cb"></td>${cells}</tr>`;
     }
 
     function potentialRows() {
