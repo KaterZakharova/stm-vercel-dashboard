@@ -242,6 +242,34 @@ foreach ($mc in @("2026-05", "2026-06")) {
     Write-Host "  $mc release SKUs: $($releaseBySkuNorm[$mc].Count)"
 }
 
+# ─── step 2.5: реальные остатки на складах СТМ и ПГП ──────────────────────────
+# Берём ВНаличииBalance из AccumulationRegister_ТоварыНаСкладах/Balance (текущий момент).
+# Склад СТМ        = 391dda2d-1423-11ee-b0cd-00155d640e00 (основной склад готовой продукции СТМ)
+# Склад ПГП        = c371ec92-aa22-11ea-b087-00155d640300 (полуфабрикаты готовой продукции)
+Write-Host "=== Шаг 2.5: остатки на складах СТМ и ПГП (Balance) ===" -ForegroundColor Cyan
+$StmWhKey = '391dda2d-1423-11ee-b0cd-00155d640e00'
+$PgpWhKey = 'c371ec92-aa22-11ea-b087-00155d640300'
+$stockStmByNomRef = @{}
+$stockPgpByNomRef = @{}
+foreach ($whKey in @($StmWhKey, $PgpWhKey)) {
+    $whName = if ($whKey -eq $StmWhKey) { 'СТМ' } else { 'ПГП' }
+    $target = if ($whKey -eq $StmWhKey) { $stockStmByNomRef } else { $stockPgpByNomRef }
+    $filter = [uri]::EscapeDataString("Склад_Key eq guid'$whKey'")
+    try {
+        $r = Invoke-OData "AccumulationRegister_ТоварыНаСкладах/Balance" "`$select=Номенклатура_Key,ВНаличииBalance&`$filter=$filter" 240
+        foreach ($rec in @($r.value)) {
+            $nk = [string]$rec.Номенклатура_Key
+            if (-not $nk -or $nk -eq '00000000-0000-0000-0000-000000000000') { continue }
+            $q = To-Num $rec.ВНаличииBalance
+            if (-not $target.ContainsKey($nk)) { $target[$nk] = 0.0 }
+            $target[$nk] += $q
+        }
+        Write-Host "  Склад $whName : $($target.Count) SKU с положительным остатком"
+    } catch {
+        Write-Warning "Не удалось получить остатки склада $whName : $_"
+    }
+}
+
 # ─── step 3: prices & STM classifier ─────────────────────────────────────────
 Write-Host "=== Шаг 3: классификатор и заказы ===" -ForegroundColor Cyan
 $classRows = @(Import-Csv -LiteralPath $ClassifierCsv -Delimiter ";")
@@ -401,6 +429,8 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
               elseif ($price) { if ($price.IsMonthMatch) { "Заказы месяца" } else { "Заказы другого месяца" } } `
               else { "CSV" }
 
+        $stmStockQty = if ($stockStmByNomRef.ContainsKey([string]$pd.NomRef)) { [math]::Round($stockStmByNomRef[[string]$pd.NomRef], 0) } else { 0 }
+        $pgpStockQty = if ($stockPgpByNomRef.ContainsKey([string]$pd.NomRef)) { [math]::Round($stockPgpByNomRef[[string]$pd.NomRef], 0) } else { 0 }
         $script:dataRows.Add([ordered]@{
             month           = $monthName
             sku             = $pd.Sku
@@ -411,6 +441,8 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
             releaseQty      = $releaseQty
             shippedQty      = [math]::Round($sales.ShippedQty, 3)
             remainingQty    = [math]::Round($planQty - $releaseQty, 3)
+            stockStm        = $stmStockQty
+            stockPgp        = $pgpStockQty
             manager         = if ($price -and $price.Manager) { $price.Manager } else { $sales.Managers }
             factoryPrice    = [math]::Round($fp,  2)
             clientPrice     = [math]::Round($cp,  2)
@@ -425,7 +457,7 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
             operation       = $sales.Operation
             salesRows       = $sales.Rows
         })
-        Write-Host "  $monthName | $($pd.Sku) | план=$planQty выпуск=$releaseQty отгружено=$([math]::Round($sales.ShippedQty,0))"
+        Write-Host "  $monthName | $($pd.Sku) | план=$planQty выпуск=$releaseQty отгружено=$([math]::Round($sales.ShippedQty,0)) СТМ=$stmStockQty ПГП=$pgpStockQty"
     }
 
     # rows with actual sales but not in plan
@@ -455,6 +487,9 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
         $margin = if ($marginBase -ne 0) { [math]::Round($actualGp / $marginBase, 4) } else { 0 }
         $n = Get-NomByArticle $skuNorm
         $name = if ($price -and $price.Nomenclature) { $price.Nomenclature } elseif ($n) { $n.Description } else { "" }
+        $nrk = if ($n) { [string]$n.Ref_Key } else { "" }
+        $stmStockQty = if ($nrk -and $stockStmByNomRef.ContainsKey($nrk)) { [math]::Round($stockStmByNomRef[$nrk], 0) } else { 0 }
+        $pgpStockQty = if ($nrk -and $stockPgpByNomRef.ContainsKey($nrk)) { [math]::Round($stockPgpByNomRef[$nrk], 0) } else { 0 }
 
         $script:dataRows.Add([ordered]@{
             month           = $monthName
@@ -466,6 +501,8 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
             releaseQty      = 0.0
             shippedQty      = [math]::Round($sales.ShippedQty, 3)
             remainingQty    = 0.0
+            stockStm        = $stmStockQty
+            stockPgp        = $pgpStockQty
             manager         = if ($price -and $price.Manager) { $price.Manager } else { $sales.Managers }
             factoryPrice    = [math]::Round($fp,  2)
             clientPrice     = [math]::Round($cp,  2)
