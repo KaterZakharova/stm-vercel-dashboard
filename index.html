@@ -1183,14 +1183,6 @@
         </div>
       `;
       document.body.appendChild(menu);
-      const rect = button.getBoundingClientRect();
-      const menuHeight = menu.offsetHeight;
-      const viewportGap = 12;
-      const left = Math.max(viewportGap, Math.min(rect.left, window.innerWidth - menu.offsetWidth - viewportGap));
-      const openUp = rect.bottom + menuHeight + viewportGap > window.innerHeight && rect.top > menuHeight;
-      const top = openUp ? rect.top - menuHeight - 4 : Math.min(rect.bottom + 4, window.innerHeight - menuHeight - viewportGap);
-      menu.style.left = `${left}px`;
-      menu.style.top = `${Math.max(viewportGap, top)}px`;
 
       const renderOptions = () => {
         const q = normalize(menu.querySelector('[data-filter-search]').value);
@@ -1202,6 +1194,23 @@
           </label>
         `).join('') || '<div class="empty">Нет значений</div>';
       };
+      renderOptions();
+
+      const rect = button.getBoundingClientRect();
+      const viewportGap = 12;
+      const vw = document.documentElement.clientWidth;
+      const vh = document.documentElement.clientHeight;
+      const menuWidth = menu.offsetWidth;
+      const menuHeight = menu.offsetHeight;
+      // align right edge of menu to right edge of button (естественнее для фильтра),
+      // затем жёстко зажимаем в видимую область
+      const preferLeft = Math.min(rect.left, rect.right - menuWidth);
+      const left = Math.max(viewportGap, Math.min(preferLeft, vw - menuWidth - viewportGap));
+      const openUp = rect.bottom + menuHeight + viewportGap > vh && rect.top > menuHeight + viewportGap;
+      const rawTop = openUp ? rect.top - menuHeight - 4 : rect.bottom + 4;
+      const top = Math.max(viewportGap, Math.min(rawTop, vh - menuHeight - viewportGap));
+      menu.style.left = `${left}px`;
+      menu.style.top = `${top}px`;
 
       menu.addEventListener('click', event => event.stopPropagation());
       menu.querySelector('[data-filter-search]').addEventListener('input', renderOptions);
@@ -1219,7 +1228,6 @@
         if (event.target.checked) activeDraft.add(event.target.value);
         else activeDraft.delete(event.target.value);
       });
-      renderOptions();
     }
 
     function render() {
