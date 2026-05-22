@@ -365,19 +365,19 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
 
         $planQty        = [math]::Round($pd.PlanQty, 3)
         $releaseQty     = [math]::Round([math]::Max($rel, 0), 3)
-        # no selling price anywhere → can't plan GP (don't fabricate negative qty*(0-cost))
-        $hasSellPrice   = ($cp -gt 0)
-        $plannedRevenue = if ($hasSellPrice) { [math]::Round($planQty * $cp, 2) } else { 0.0 }
-        $plannedGp      = if ($hasSellPrice) { [math]::Round($planQty * ($cp - $fp), 2) } else { 0.0 }
-        # actual GP: используем cost из 1С только если он не "битый" (см. $fp_1c_broken).
-        # Когда cost из 1С недостоверный (< 30% плановой) — считаем по плановой цене фабрики,
-        # это совпадает с логикой куба аналитиков: Выручка − ЦенаФабрики × Кол-во.
-        $actualGp = if ($sales.ShippedQty -gt 0 -and $sales.Cost -gt 0 -and -not $fp_1c_broken) {
-            [math]::Round($sales.Revenue - $sales.Cost, 2)
-        } else {
-            [math]::Round($sales.Revenue - ($sales.ShippedQty * $fp), 2)
-        }
-        $margin = if ($sales.Revenue -ne 0) { [math]::Round($actualGp / $sales.Revenue, 4) } else { 0 }
+        # plan client price (CSV/давалец) — единая база для всех "плановых" расчётов,
+        # фактическая цена не используется (отчёт куба аналитиков построен на плановой)
+        $pcPlan         = if ($cp_csv -gt 0) { $cp_csv } else { $cp }
+        $hasSellPrice   = ($pcPlan -gt 0)
+        $plannedRevenue = if ($hasSellPrice) { [math]::Round($planQty * $pcPlan, 2) } else { 0.0 }
+        $plannedGp      = if ($hasSellPrice) { [math]::Round($planQty * ($pcPlan - $fp), 2) } else { 0.0 }
+        # actualGp = плановая валовка по факт. отгруженным шт (как считает куб):
+        # ShippedQty × (планЦенаКлиента − ценаФабрики). Совпадает с отчётом аналитиков.
+        $actualGp = if ($sales.ShippedQty -gt 0 -and $hasSellPrice) {
+            [math]::Round($sales.ShippedQty * ($pcPlan - $fp), 2)
+        } else { 0.0 }
+        $marginBase = if ($sales.ShippedQty -gt 0 -and $hasSellPrice) { $sales.ShippedQty * $pcPlan } else { 0 }
+        $margin = if ($marginBase -ne 0) { [math]::Round($actualGp / $marginBase, 4) } else { 0 }
 
         $ps = if ($fp_1c_broken) { "Cost 1С битый → плановая" } `
               elseif ($fp_1c -gt 0 -or $acp -gt 0) { "Факт 1С" } `
@@ -431,12 +431,13 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
         $acp = if ($sales.ShippedQty -ne 0) { $sales.Revenue / $sales.ShippedQty } else { 0.0 }
         $cp_csv = if ($price) { [double]$price.ClientPrice } else { 0.0 }
         $cp  = if ($acp -ne 0) { $acp } elseif ($cp_csv -ne 0) { $cp_csv } else { 0.0 }
-        $actualGp = if ($sales.ShippedQty -gt 0 -and $sales.Cost -gt 0 -and -not $fp_1c_broken) {
-            [math]::Round($sales.Revenue - $sales.Cost, 2)
-        } else {
-            [math]::Round($sales.Revenue - ($sales.ShippedQty * $fp), 2)
-        }
-        $margin = if ($sales.Revenue -ne 0) { [math]::Round($actualGp / $sales.Revenue, 4) } else { 0 }
+        # плановая цена клиента (CSV) — для plan-by-shipped валовки
+        $pcPlan = if ($cp_csv -gt 0) { $cp_csv } else { $cp }
+        $actualGp = if ($sales.ShippedQty -gt 0 -and $pcPlan -gt 0 -and $fp -gt 0) {
+            [math]::Round($sales.ShippedQty * ($pcPlan - $fp), 2)
+        } else { 0.0 }
+        $marginBase = if ($sales.ShippedQty -gt 0 -and $pcPlan -gt 0) { $sales.ShippedQty * $pcPlan } else { 0 }
+        $margin = if ($marginBase -ne 0) { [math]::Round($actualGp / $marginBase, 4) } else { 0 }
         $n = Get-NomByArticle $skuNorm
         $name = if ($price -and $price.Nomenclature) { $price.Nomenclature } elseif ($n) { $n.Description } else { "" }
 
