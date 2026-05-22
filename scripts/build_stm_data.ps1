@@ -350,7 +350,10 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
         $fp_1c  = if ($sales.ShippedQty -gt 0 -and $sales.Cost -gt 0) { $sales.Cost / $sales.ShippedQty } else { 0.0 }
         $fp_csv = if ($price) { [double]$price.FactoryPrice } else { 0.0 }
         if ($fp_csv -eq 0 -and $classPrices.ContainsKey($skuNorm)) { $fp_csv = [double]$classPrices[$skuNorm] }
-        $fp = if ($fp_1c -gt 0) { $fp_1c } elseif ($fp_csv -gt 0) { $fp_csv } else { 0.0 }
+        $fp_1c_broken = ($fp_1c -gt 0 -and $fp_csv -gt 0 -and $fp_1c -lt 0.3 * $fp_csv)
+        $fp = if ($fp_1c_broken -and $fp_csv -gt 0) { $fp_csv } `
+              elseif ($fp_1c -gt 0) { $fp_1c } `
+              elseif ($fp_csv -gt 0) { $fp_csv } else { 0.0 }
         if ($fp -eq 0) { $pf = Get-OneCFactoryPrice $pd.NomRef; if ($pf -gt 0) { $fp = $pf } }
 
         # client price: факт продаж → CSV → последний Заказ давальца 1С
@@ -366,15 +369,18 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
         $hasSellPrice   = ($cp -gt 0)
         $plannedRevenue = if ($hasSellPrice) { [math]::Round($planQty * $cp, 2) } else { 0.0 }
         $plannedGp      = if ($hasSellPrice) { [math]::Round($planQty * ($cp - $fp), 2) } else { 0.0 }
-        # actual GP: use direct cost from 1C register when available
-        $actualGp = if ($sales.ShippedQty -gt 0 -and $sales.Cost -gt 0) {
+        # actual GP: используем cost из 1С только если он не "битый" (см. $fp_1c_broken).
+        # Когда cost из 1С недостоверный (< 30% плановой) — считаем по плановой цене фабрики,
+        # это совпадает с логикой куба аналитиков: Выручка − ЦенаФабрики × Кол-во.
+        $actualGp = if ($sales.ShippedQty -gt 0 -and $sales.Cost -gt 0 -and -not $fp_1c_broken) {
             [math]::Round($sales.Revenue - $sales.Cost, 2)
         } else {
             [math]::Round($sales.Revenue - ($sales.ShippedQty * $fp), 2)
         }
         $margin = if ($sales.Revenue -ne 0) { [math]::Round($actualGp / $sales.Revenue, 4) } else { 0 }
 
-        $ps = if ($fp_1c -gt 0 -or $acp -gt 0) { "Факт 1С" } `
+        $ps = if ($fp_1c_broken) { "Cost 1С битый → плановая" } `
+              elseif ($fp_1c -gt 0 -or $acp -gt 0) { "Факт 1С" } `
               elseif ($cpFromDavalec) { "Заказ давальца 1С" } `
               elseif (-not $hasSellPrice) { "Цена не найдена" } `
               elseif ($price) { if ($price.IsMonthMatch) { "Заказы месяца" } else { "Заказы другого месяца" } } `
@@ -418,11 +424,14 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
         $fp_1c  = if ($sales.ShippedQty -gt 0 -and $sales.Cost -gt 0) { $sales.Cost / $sales.ShippedQty } else { 0.0 }
         $fp_csv = if ($price) { [double]$price.FactoryPrice } else { 0.0 }
         if ($fp_csv -eq 0 -and $classPrices.ContainsKey($skuNorm)) { $fp_csv = [double]$classPrices[$skuNorm] }
-        $fp  = if ($fp_1c -gt 0) { $fp_1c } else { $fp_csv }
+        $fp_1c_broken = ($fp_1c -gt 0 -and $fp_csv -gt 0 -and $fp_1c -lt 0.3 * $fp_csv)
+        $fp = if ($fp_1c_broken -and $fp_csv -gt 0) { $fp_csv } `
+              elseif ($fp_1c -gt 0) { $fp_1c } `
+              else { $fp_csv }
         $acp = if ($sales.ShippedQty -ne 0) { $sales.Revenue / $sales.ShippedQty } else { 0.0 }
         $cp_csv = if ($price) { [double]$price.ClientPrice } else { 0.0 }
         $cp  = if ($acp -ne 0) { $acp } elseif ($cp_csv -ne 0) { $cp_csv } else { 0.0 }
-        $actualGp = if ($sales.ShippedQty -gt 0 -and $sales.Cost -gt 0) {
+        $actualGp = if ($sales.ShippedQty -gt 0 -and $sales.Cost -gt 0 -and -not $fp_1c_broken) {
             [math]::Round($sales.Revenue - $sales.Cost, 2)
         } else {
             [math]::Round($sales.Revenue - ($sales.ShippedQty * $fp), 2)
@@ -451,7 +460,7 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
             actualGp        = $actualGp
             margin          = $margin
             shipDate        = $sales.Dates
-            priceSource     = "Факт продаж"
+            priceSource     = if ($fp_1c_broken) { "Cost 1С битый → плановая" } else { "Факт продаж" }
             operation       = $sales.Operation
             salesRows       = $sales.Rows
         })
