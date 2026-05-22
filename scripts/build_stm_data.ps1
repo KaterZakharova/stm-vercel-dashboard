@@ -389,15 +389,16 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
         $price = $priceMap[$skuNorm]
         $sales = Get-SalesFact $skuNorm $mStart $mEnd
 
-        # factory price: факт 1С → CSV/классиф → прайс-лист 1С (вид "Цена Фабрики")
+        # factory price: ПЛАНОВАЯ цена фабрики (как у куба аналитики).
+        # Cost из 1С (cost/qty по реальным отгрузкам) НЕ используется в валовке —
+        # он зачастую недостоверен (битые проводки) и не отражает плановую себестоимость.
+        # Приоритеты: CSV plan → классификатор → прайс-лист 1С ("Цена Фабрики") → fp_1c (last resort)
         $fp_1c  = if ($sales.ShippedQty -gt 0 -and $sales.Cost -gt 0) { $sales.Cost / $sales.ShippedQty } else { 0.0 }
         $fp_csv = if ($price) { [double]$price.FactoryPrice } else { 0.0 }
         if ($fp_csv -eq 0 -and $classPrices.ContainsKey($skuNorm)) { $fp_csv = [double]$classPrices[$skuNorm] }
-        $fp_1c_broken = ($fp_1c -gt 0 -and $fp_csv -gt 0 -and $fp_1c -lt 0.3 * $fp_csv)
-        $fp = if ($fp_1c_broken -and $fp_csv -gt 0) { $fp_csv } `
-              elseif ($fp_1c -gt 0) { $fp_1c } `
-              elseif ($fp_csv -gt 0) { $fp_csv } else { 0.0 }
+        $fp = if ($fp_csv -gt 0) { $fp_csv } else { 0.0 }
         if ($fp -eq 0) { $pf = Get-OneCFactoryPrice $pd.NomRef; if ($pf -gt 0) { $fp = $pf } }
+        if ($fp -eq 0 -and $fp_1c -gt 0) { $fp = $fp_1c }   # last resort
 
         # client price: факт продаж → CSV → последний Заказ давальца 1С
         $acp = if ($sales.ShippedQty -ne 0) { $sales.Revenue / $sales.ShippedQty } else { 0.0 }
@@ -422,12 +423,12 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
         $marginBase = if ($sales.ShippedQty -gt 0 -and $hasSellPrice) { $sales.ShippedQty * $pcPlan } else { 0 }
         $margin = if ($marginBase -ne 0) { [math]::Round($actualGp / $marginBase, 4) } else { 0 }
 
-        $ps = if ($fp_1c_broken) { "Cost 1С битый → плановая" } `
-              elseif ($fp_1c -gt 0 -or $acp -gt 0) { "Факт 1С" } `
-              elseif ($cpFromDavalec) { "Заказ давальца 1С" } `
+        $ps = if ($cpFromDavalec) { "Заказ давальца 1С" } `
               elseif (-not $hasSellPrice) { "Цена не найдена" } `
               elseif ($price) { if ($price.IsMonthMatch) { "Заказы месяца" } else { "Заказы другого месяца" } } `
-              else { "CSV" }
+              elseif ($fp_csv -gt 0) { "CSV/классификатор" } `
+              elseif ($fp -gt 0) { "Прайс-лист 1С" } `
+              else { "Факт 1С (last resort)" }
 
         $stmStockQty = if ($stockStmByNomRef.ContainsKey([string]$pd.NomRef)) { [math]::Round($stockStmByNomRef[[string]$pd.NomRef], 0) } else { 0 }
         $pgpStockQty = if ($stockPgpByNomRef.ContainsKey([string]$pd.NomRef)) { [math]::Round($stockPgpByNomRef[[string]$pd.NomRef], 0) } else { 0 }
@@ -468,13 +469,16 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
         if ($sales.ShippedQty -eq 0 -and $sales.Revenue -eq 0) { continue }
         $included[$skuNorm] = $true
         $price = $priceMap[$skuNorm]
+        # factory price — ТОЛЬКО плановая (CSV/классиф/прайс-лист), cost из 1С — last resort
         $fp_1c  = if ($sales.ShippedQty -gt 0 -and $sales.Cost -gt 0) { $sales.Cost / $sales.ShippedQty } else { 0.0 }
         $fp_csv = if ($price) { [double]$price.FactoryPrice } else { 0.0 }
         if ($fp_csv -eq 0 -and $classPrices.ContainsKey($skuNorm)) { $fp_csv = [double]$classPrices[$skuNorm] }
-        $fp_1c_broken = ($fp_1c -gt 0 -and $fp_csv -gt 0 -and $fp_1c -lt 0.3 * $fp_csv)
-        $fp = if ($fp_1c_broken -and $fp_csv -gt 0) { $fp_csv } `
-              elseif ($fp_1c -gt 0) { $fp_1c } `
-              else { $fp_csv }
+        $fp = if ($fp_csv -gt 0) { $fp_csv } else { 0.0 }
+        if ($fp -eq 0) {
+            $n_tmp = Get-NomByArticle $skuNorm
+            if ($n_tmp) { $pf = Get-OneCFactoryPrice $n_tmp.Ref_Key; if ($pf -gt 0) { $fp = $pf } }
+        }
+        if ($fp -eq 0 -and $fp_1c -gt 0) { $fp = $fp_1c }   # last resort
         $acp = if ($sales.ShippedQty -ne 0) { $sales.Revenue / $sales.ShippedQty } else { 0.0 }
         $cp_csv = if ($price) { [double]$price.ClientPrice } else { 0.0 }
         $cp  = if ($acp -ne 0) { $acp } elseif ($cp_csv -ne 0) { $cp_csv } else { 0.0 }
@@ -513,7 +517,7 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
             actualGp        = $actualGp
             margin          = $margin
             shipDate        = $sales.Dates
-            priceSource     = if ($fp_1c_broken) { "Cost 1С битый → плановая" } else { "Факт продаж" }
+            priceSource     = if ($fp_csv -gt 0) { "Факт продаж (план CSV)" } elseif ($fp -gt 0) { "Факт продаж (прайс 1С)" } else { "Факт продаж" }
             operation       = $sales.Operation
             salesRows       = $sales.Rows
         })
