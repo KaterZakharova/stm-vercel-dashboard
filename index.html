@@ -177,6 +177,14 @@
     table.fc-drilldown tr.fc-row-muted td strong { color:#94a3b8; }
     table.fc-drilldown tr.fc-row-muted td.cb-col, table.fc-drilldown tr.fc-row-muted td:last-child { text-decoration:none; }
     table.fc-drilldown tr.fc-row-muted td.cb-col input { opacity:1; }
+    table.fc-drilldown tfoot tr.fc-foot td { position: sticky; bottom: 0; background:#f1f5f9; border-top:2px solid #cbd5e1; font-weight:700; color:#0f172a; padding:9px 10px; }
+    table.fc-drilldown tfoot td.label { letter-spacing:0.04em; text-transform:uppercase; font-size:11px; color:#475467; }
+    .fc-filter-group { display:inline-flex; gap:4px; }
+    .fc-filter-chip { display:inline-flex; align-items:center; gap:6px; padding:3px 9px; border:1px solid #cbd5e1; border-radius:999px; background:#fff; color:#475467; font-size:11px; font-weight:600; cursor:pointer; line-height:18px; }
+    .fc-filter-chip:hover { background:#f1f5f9; }
+    .fc-filter-chip-active { background:var(--blue); border-color:var(--blue); color:#fff; }
+    .fc-filter-chip-active .fc-filter-count { color:#fff; }
+    .fc-filter-count { display:inline-flex; align-items:center; justify-content:center; min-width:18px; padding:0 5px; height:16px; border-radius:999px; background:#eef2ff; color:#475467; font-size:10px; font-weight:700; }
     .row-comment-btn { background:transparent; border:1px dashed #cbd5e1; color:#64748b; border-radius:6px; padding:3px 8px; font-size:12px; cursor:pointer; max-width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .row-comment-btn.has-comment { background:#fef3f2; color:#b42318; border:1px solid #fecaca; border-style:solid; }
     .row-comment-btn:hover { border-color:var(--blue); color:var(--blue); }
@@ -320,6 +328,11 @@
         <div class="table-actions">
           <span id="rowCount"></span>
           <div class="check-controls">
+            <span class="fc-filter-group" id="tableCheckFilter">
+              <button type="button" class="fc-filter-chip fc-filter-chip-active" data-table-filter="all">Все <span class="fc-filter-count" id="tcfCntAll">0</span></button>
+              <button type="button" class="fc-filter-chip" data-table-filter="in">В расчёте <span class="fc-filter-count" id="tcfCntIn">0</span></button>
+              <button type="button" class="fc-filter-chip" data-table-filter="out">Снятые <span class="fc-filter-count" id="tcfCntOut">0</span></button>
+            </span>
             <button type="button" class="link-button" id="checkAll">Выбрать все</button>
             <button type="button" class="link-button" id="uncheckAll">Снять все</button>
           </div>
@@ -581,8 +594,16 @@
       });
     }
 
-    function filteredRows() {
+    function filteredRowsBeforeCheckFilter() {
       return baseFilteredRows().filter(row => matchesQualityFilter(row) && matchesTableFilters(row));
+    }
+    function filteredRows() {
+      return filteredRowsBeforeCheckFilter().filter(matchesCheckFilter);
+    }
+    function matchesCheckFilter(row) {
+      if (tableCheckFilter === 'in')  return isChecked(row);
+      if (tableCheckFilter === 'out') return !isChecked(row);
+      return true;
     }
 
     function matchesQualityFilter(row) {
@@ -701,6 +722,16 @@
 
     function renderTable(rows) {
       document.getElementById('rowCount').textContent = `${rows.length} строк`;
+      // обновляем счётчики фильтра по чекбоксам (считаем по rows ДО фильтрации, чтобы видеть полную картину)
+      const allForCount = filteredRowsBeforeCheckFilter();
+      const inCnt  = allForCount.filter(isChecked).length;
+      const outCnt = allForCount.length - inCnt;
+      document.getElementById('tcfCntAll').textContent = allForCount.length;
+      document.getElementById('tcfCntIn').textContent  = inCnt;
+      document.getElementById('tcfCntOut').textContent = outCnt;
+      document.querySelectorAll('#tableCheckFilter [data-table-filter]').forEach(btn => {
+        btn.classList.toggle('fc-filter-chip-active', btn.dataset.tableFilter === tableCheckFilter);
+      });
       const activeColumns = columns.filter(column => visibleColumns.has(column.key));
       const checkedCount = rows.filter(isChecked).length;
       const allCb = checkedCount === rows.length ? 'checked' : '';
@@ -789,6 +820,8 @@
     }
 
     let expandedBucket = null;
+    let bucketFilter = 'all';  // 'all' | 'in' | 'out' — фильтр чекбоксов в drill-down
+    let tableCheckFilter = 'all';  // 'all' | 'in' | 'out' — фильтр чекбоксов в основной таблице
     function bucketRows(rows, bucket) {
       const out = [];
       rows.forEach(r => {
@@ -876,21 +909,31 @@
 
     function renderForecastDrawer(rows) {
       if (!expandedBucket) return '';
-      const items = bucketRows(rows, expandedBucket);
+      const allItems = bucketRows(rows, expandedBucket);
       const titles  = { A: 'Факт уже отгружено',        B: 'Склад (готово)',         C: 'К выпуску',           opt: 'Прогноз — все вклады' };
       const qtyLbl  = { A: 'отгружено',                  B: 'на складе',              C: 'к выпуску',           opt: 'кол-во итого' };
       const headTone= { A: 'green',                      B: 'amber',                  C: 'blue',                opt: 'green' };
-      if (!items.length) {
+      if (!allItems.length) {
         return `<div class="fc-drawer"><div class="fc-drawer-head"><strong>${titles[expandedBucket]}</strong></div><div class="empty">Нет SKU в этой категории</div></div>`;
       }
+      const inCount  = allItems.filter(i => isChecked(i.row)).length;
+      const outCount = allItems.length - inCount;
+      const items = bucketFilter === 'in'  ? allItems.filter(i => isChecked(i.row))
+                  : bucketFilter === 'out' ? allItems.filter(i => !isChecked(i.row))
+                  : allItems;
       const totalContrib = items.reduce((s, i) => s + i.contribution, 0);
       const totalQty     = items.reduce((s, i) => s + (i.qty || 0), 0);
-      const excluded     = items.filter(i => !isChecked(i.row)).length;
+      const chip = (val, label, count) => `<button type="button" class="fc-filter-chip${bucketFilter===val?' fc-filter-chip-active':''}" data-bucket-filter="${val}">${label} <span class="fc-filter-count">${count}</span></button>`;
       return `
         <div class="fc-drawer">
           <div class="fc-drawer-head">
             <strong style="color:var(--${headTone[expandedBucket]})">${titles[expandedBucket]}</strong>
-            <span class="fc-drawer-meta">${items.length} SKU${excluded ? ` · ${excluded} снято` : ''} · ${fmtQty.format(totalQty)} шт · вклад в прогноз ${rub(totalContrib)}</span>
+            <span class="fc-drawer-meta">${allItems.length} SKU${outCount ? ` · ${outCount} снято` : ''} · вклад в прогноз ${rub(allItems.reduce((s, i) => s + i.contribution, 0))}</span>
+            <span class="fc-filter-group" style="margin-left:auto">
+              ${chip('all','Все',allItems.length)}
+              ${chip('in','В расчёте',inCount)}
+              ${chip('out','Снятые',outCount)}
+            </span>
           </div>
           <div class="fc-drawer-scroll">
             <table class="fc-drilldown">
@@ -903,7 +946,7 @@
                 <th class="cb-col" title="Учитывать в расчёте прогноза">В расчёте</th>
                 <th>Комментарий</th>
               </tr></thead>
-              <tbody>${items.map(i => {
+              <tbody>${items.length ? items.map(i => {
                 const checked = isChecked(i.row);
                 const c = getComment(i.row);
                 const btnCls = c ? 'row-comment-btn has-comment' : 'row-comment-btn';
@@ -917,7 +960,15 @@
                   <td class="cb-col"><input type="checkbox" data-row-sku="${escapeHtml(i.row.sku)}" ${checked ? 'checked' : ''}></td>
                   <td><button type="button" class="${btnCls}" data-comment-sku="${escapeHtml(i.row.sku)}" title="${escapeHtml(c || 'Добавить комментарий о риске/переносе')}">${btnTxt}</button></td>
                 </tr>`;
-              }).join('')}</tbody>
+              }).join('') : `<tr><td colspan="7" class="empty">Нет SKU в этом фильтре</td></tr>`}</tbody>
+              <tfoot>
+                <tr class="fc-foot">
+                  <td colspan="3" class="label">ИТОГО · ${items.length} SKU</td>
+                  <td class="num">${fmtQty.format(totalQty)}</td>
+                  <td class="num">${rub(totalContrib)}</td>
+                  <td class="cb-col"></td><td></td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         </div>
@@ -1371,6 +1422,12 @@
     });
     document.getElementById('forecastSection').addEventListener('click', event => {
       if (event.target.closest('input[type="checkbox"]')) return;
+      const filterBtn = event.target.closest('[data-bucket-filter]');
+      if (filterBtn) {
+        bucketFilter = filterBtn.dataset.bucketFilter;
+        render();
+        return;
+      }
       const chip = event.target.closest('[data-comment-sku]');
       if (chip) {
         promptComment(chip.dataset.commentSku);
@@ -1380,6 +1437,7 @@
       if (bucket) {
         const b = bucket.dataset.fcBucket;
         expandedBucket = (expandedBucket === b) ? null : b;
+        bucketFilter = 'all';  // сброс фильтра при смене карточки
         render();
       }
     });
@@ -1390,6 +1448,12 @@
       if (rowCb.checked) uncheckedKeys[state.month].delete(sku);
       else uncheckedKeys[state.month].add(sku);
       persistUnchecked();
+      render();
+    });
+    document.getElementById('tableCheckFilter').addEventListener('click', event => {
+      const btn = event.target.closest('[data-table-filter]');
+      if (!btn) return;
+      tableCheckFilter = btn.dataset.tableFilter;
       render();
     });
     document.getElementById('checkAll').addEventListener('click', () => {
