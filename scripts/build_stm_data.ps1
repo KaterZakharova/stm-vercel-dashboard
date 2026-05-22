@@ -139,11 +139,26 @@ function Get-OneCClientPrice($nomRefKey) {
     $k = ([string]$nomRefKey).Trim()
     if ($k -eq "" -or $k -eq "00000000-0000-0000-0000-000000000000") { return 0.0 }
     if ($clientPriceCache.ContainsKey($k)) { return $clientPriceCache[$k] }
-    # цена клиента = Цена в строке последнего оформленного Заказа давальца (по ДатаОтгрузки)
+    # цена клиента = последний Заказ давальца, цена БЕЗ НДС.
+    # В шапке Document_ЗаказДавальца ЦенаВключаетНДС=True (везде), поэтому
+    # СуммаСНДС включает НДС, а чистая = СуммаСНДС - СуммаНДС.
+    # Берём цену в виде (СуммаСНДС - СуммаНДС) / Количество.
     $f = [uri]::EscapeDataString("Номенклатура_Key eq guid'$k' and Отменено eq false")
     try {
-        $r = Invoke-OData "Document_ЗаказДавальца_Продукция" "`$select=Цена,ДатаОтгрузки&`$filter=$f&`$orderby=ДатаОтгрузки desc&`$top=1"
-        $val = if (@($r.value).Count -gt 0) { To-Num $r.value[0].Цена } else { 0.0 }
+        $r = Invoke-OData "Document_ЗаказДавальца_Продукция" "`$select=Цена,Количество,СуммаНДС,СуммаСНДС,ДатаОтгрузки&`$filter=$f&`$orderby=ДатаОтгрузки desc&`$top=1"
+        $val = 0.0
+        if (@($r.value).Count -gt 0) {
+            $line = $r.value[0]
+            $qty   = To-Num $line.Количество
+            $gross = To-Num $line.СуммаСНДС
+            $vat   = To-Num $line.СуммаНДС
+            if ($qty -gt 0 -and $gross -gt 0) {
+                $val = ($gross - $vat) / $qty
+            } else {
+                # fallback: Цена / 1.2 (предполагаем стандартный НДС 20%)
+                $val = (To-Num $line.Цена) / 1.2
+            }
+        }
         $clientPriceCache[$k] = $val; return $val
     } catch { $clientPriceCache[$k] = 0.0; return 0.0 }
 }
