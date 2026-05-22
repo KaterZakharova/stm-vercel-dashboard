@@ -139,28 +139,30 @@ function Get-OneCClientPrice($nomRefKey) {
     $k = ([string]$nomRefKey).Trim()
     if ($k -eq "" -or $k -eq "00000000-0000-0000-0000-000000000000") { return 0.0 }
     if ($clientPriceCache.ContainsKey($k)) { return $clientPriceCache[$k] }
-    # цена клиента = последний Заказ давальца, цена БЕЗ НДС.
-    # В шапке Document_ЗаказДавальца ЦенаВключаетНДС=True (везде), поэтому
-    # СуммаСНДС включает НДС, а чистая = СуммаСНДС - СуммаНДС.
-    # Берём цену в виде (СуммаСНДС - СуммаНДС) / Количество.
+    # Цена клиента = последний оформленный Заказ давальца (БЕЗ НДС).
+    # У нас два типа документа: Document_ЗаказДавальца (старый) и Document_ЗаказДавальца2_5 (новый, 2026+).
+    # Все заказы Мая 2026 — в 2_5. Ищем сначала в нём, потом в старом.
+    # У обоих ЦенаВключаетНДС=True, поэтому net = (СуммаСНДС - СуммаНДС) / Количество.
     $f = [uri]::EscapeDataString("Номенклатура_Key eq guid'$k' and Отменено eq false")
-    try {
-        $r = Invoke-OData "Document_ЗаказДавальца_Продукция" "`$select=Цена,Количество,СуммаНДС,СуммаСНДС,ДатаОтгрузки&`$filter=$f&`$orderby=ДатаОтгрузки desc&`$top=1"
-        $val = 0.0
-        if (@($r.value).Count -gt 0) {
-            $line = $r.value[0]
-            $qty   = To-Num $line.Количество
-            $gross = To-Num $line.СуммаСНДС
-            $vat   = To-Num $line.СуммаНДС
-            if ($qty -gt 0 -and $gross -gt 0) {
-                $val = ($gross - $vat) / $qty
-            } else {
-                # fallback: Цена / 1.2 (предполагаем стандартный НДС 20%)
-                $val = (To-Num $line.Цена) / 1.2
+    $val = 0.0
+    foreach ($docTable in @("Document_ЗаказДавальца2_5_Продукция", "Document_ЗаказДавальца_Продукция")) {
+        try {
+            $r = Invoke-OData $docTable "`$select=Цена,Количество,СуммаНДС,СуммаСНДС,ДатаОтгрузки&`$filter=$f&`$orderby=ДатаОтгрузки desc&`$top=1"
+            if (@($r.value).Count -gt 0) {
+                $line = $r.value[0]
+                $qty   = To-Num $line.Количество
+                $gross = To-Num $line.СуммаСНДС
+                $vat   = To-Num $line.СуммаНДС
+                if ($qty -gt 0 -and $gross -gt 0) {
+                    $val = ($gross - $vat) / $qty
+                } else {
+                    $val = (To-Num $line.Цена) / 1.2
+                }
+                if ($val -gt 0) { break }
             }
-        }
-        $clientPriceCache[$k] = $val; return $val
-    } catch { $clientPriceCache[$k] = 0.0; return 0.0 }
+        } catch {}
+    }
+    $clientPriceCache[$k] = $val; return $val
 }
 
 $managerCache = @{}
@@ -212,7 +214,7 @@ $relFilter = [uri]::EscapeDataString(
 )
 $relRecords = @()
 try {
-    $relRecords = Invoke-ODataPaged "AccumulationRegister_ВыпускПродукции_RecordType" $relFilter "Period,АналитикаУчетаНоменклатуры_Key,Количество"
+    $relRecords = Invoke-ODataPaged "AccumulationRegister_ВыпускПродукции_RecordType" $relFilter "Period,АналитикаУчетаНоменклатуры_Key,Количество,Recorder,Recorder_Type"
     Write-Host "  Получено записей: $($relRecords.Count)"
 } catch {
     Write-Warning "Не удалось загрузить ВыпускПродукции: $_"
@@ -220,6 +222,8 @@ try {
 
 # aggregate by analytics key first (minimizes catalog lookups)
 $releaseByAnalyticsKey = @{ "2026-05" = @{}; "2026-06" = @{} }
+# also track latest Recorder (Этап производства) per analytics key per month — нужно для трассировки до Заказа давальца
+$latestRecorderByAk = @{ "2026-05" = @{}; "2026-06" = @{} }
 foreach ($rec in $relRecords) {
     $dt = try { [datetime]$rec.Period } catch { continue }
     $mc = $dt.ToString("yyyy-MM")
@@ -227,6 +231,11 @@ foreach ($rec in $relRecords) {
     $ak = [string]$rec.АналитикаУчетаНоменклатуры_Key
     if (-not $releaseByAnalyticsKey[$mc].ContainsKey($ak)) { $releaseByAnalyticsKey[$mc][$ak] = 0.0 }
     $releaseByAnalyticsKey[$mc][$ak] += To-Num $rec.Количество
+    # сохраняем наиболее свежий регистратор (Этап производства) для этой аналитики
+    $cur = if ($latestRecorderByAk[$mc].ContainsKey($ak)) { $latestRecorderByAk[$mc][$ak] } else { $null }
+    if ($null -eq $cur -or [datetime]$rec.Period -gt [datetime]$cur.Period) {
+        $latestRecorderByAk[$mc][$ak] = [pscustomobject]@{ Period = $rec.Period; Recorder = [string]$rec.Recorder; RecorderType = [string]$rec.Recorder_Type }
+    }
 }
 
 # resolve analytics key → Номенклатура_Key → skuNorm
@@ -240,6 +249,103 @@ foreach ($mc in @("2026-05", "2026-06")) {
         $releaseBySkuNorm[$mc][$skuNorm] += $releaseByAnalyticsKey[$mc][$ak]
     }
     Write-Host "  $mc release SKUs: $($releaseBySkuNorm[$mc].Count)"
+}
+
+# ─── step 2.6: цепочка выпуск → Этап → Заказ-на-произв. → Заказ давальца2_5 ──
+# Для каждой записи выпуска находим конкретный Заказ давальца2_5, по которому
+# был сделан выпуск. Это важно, потому что один и тот же SKU может быть в
+# нескольких заказах с разной комплектацией и ценой.
+Write-Host "=== Шаг 2.6: цепочка выпуск → Заказ давальца2_5 ===" -ForegroundColor Cyan
+$etapToZakazProd = @{}     # Recorder (Этап) Ref → Заказ на производство Ref
+$zakazProdToBase = @{}     # Заказ на производство Ref → @{ OrderRef, OrderType }
+$skuToOrderRef = @{ "2026-05" = @{}; "2026-06" = @{} }  # skuNorm → ЗаказДавальца Ref (с типом)
+
+# собираем уникальные Recorder Refs из всех месяцев
+$uniqueRecorders = @{}
+foreach ($mc in @("2026-05", "2026-06")) {
+    foreach ($ak in $latestRecorderByAk[$mc].Keys) {
+        $r = $latestRecorderByAk[$mc][$ak]
+        if ($r.Recorder -and $r.RecorderType -like "*ЭтапПроизводства*") {
+            $uniqueRecorders[$r.Recorder] = $true
+        }
+    }
+}
+Write-Host "  Уникальных Этапов производства: $($uniqueRecorders.Count)"
+
+# Для каждого Этапа — получить Распоряжение_Key (Заказ на производство)
+foreach ($etapRef in $uniqueRecorders.Keys) {
+    try {
+        $f = [uri]::EscapeDataString("Ref_Key eq guid'$etapRef'")
+        $r = Invoke-OData "Document_ЭтапПроизводства2_2" "`$select=Распоряжение_Key&`$filter=$f&`$top=1"
+        if (@($r.value).Count -gt 0) {
+            $rasporKey = [string]$r.value[0].Распоряжение_Key
+            if ($rasporKey -and $rasporKey -ne "00000000-0000-0000-0000-000000000000") {
+                $etapToZakazProd[$etapRef] = $rasporKey
+            }
+        }
+    } catch {}
+}
+Write-Host "  Этапов с Распоряжением: $($etapToZakazProd.Count)"
+
+# Для каждого уникального Заказа на производство — получить ДокументОснование (Заказ давальца)
+$uniqueZakazProd = @{}
+foreach ($v in $etapToZakazProd.Values) { $uniqueZakazProd[$v] = $true }
+foreach ($zpRef in $uniqueZakazProd.Keys) {
+    try {
+        $f = [uri]::EscapeDataString("Ref_Key eq guid'$zpRef'")
+        $r = Invoke-OData "Document_ЗаказНаПроизводство2_2" "`$select=ДокументОснование,ДокументОснование_Type&`$filter=$f&`$top=1"
+        if (@($r.value).Count -gt 0) {
+            $baseRef = [string]$r.value[0].ДокументОснование
+            $baseType = [string]$r.value[0].ДокументОснование_Type
+            if ($baseRef -and $baseRef -ne "00000000-0000-0000-0000-000000000000") {
+                $zakazProdToBase[$zpRef] = [pscustomobject]@{ Ref = $baseRef; Type = $baseType }
+            }
+        }
+    } catch {}
+}
+$withZakazDav = ($zakazProdToBase.Values | Where-Object { $_.Type -match "ЗаказДавальца" }).Count
+Write-Host "  Заказов на производство с Заказом давальца: $withZakazDav из $($zakazProdToBase.Count)"
+
+# Собираем SkuNorm → Ref Заказа давальца (по последнему выпуску в месяце)
+foreach ($mc in @("2026-05", "2026-06")) {
+    foreach ($ak in $latestRecorderByAk[$mc].Keys) {
+        $rec = $latestRecorderByAk[$mc][$ak]
+        $etapRef = $rec.Recorder
+        if (-not $etapToZakazProd.ContainsKey($etapRef)) { continue }
+        $zpRef = $etapToZakazProd[$etapRef]
+        if (-not $zakazProdToBase.ContainsKey($zpRef)) { continue }
+        $base = $zakazProdToBase[$zpRef]
+        if ($base.Type -notmatch "ЗаказДавальца") { continue }
+        # разрешаем аналитику → skuNorm
+        $nomRefKey = Get-NomFromAnalyticsKey $ak; if (-not $nomRefKey) { continue }
+        $n = Get-NomByRef $nomRefKey; if (-not $n) { continue }
+        $skuNorm = Normalize-Sku $n.Артикул
+        $skuToOrderRef[$mc][$skuNorm] = $base
+    }
+    Write-Host "  $mc : SKU с разрешённым заказом давальца: $($skuToOrderRef[$mc].Count)"
+}
+
+# Функция: получить цену клиента БЕЗ НДС из конкретного Заказа давальца по конкретной номенклатуре
+$orderPriceCache = @{}
+function Get-PriceFromOrder($orderRef, $orderType, $nomRefKey) {
+    $cacheKey = "$orderRef|$nomRefKey"
+    if ($orderPriceCache.ContainsKey($cacheKey)) { return $orderPriceCache[$cacheKey] }
+    $val = 0.0
+    $table = if ($orderType -match "ЗаказДавальца2_5") { "Document_ЗаказДавальца2_5_Продукция" }
+             elseif ($orderType -match "ЗаказДавальца") { "Document_ЗаказДавальца_Продукция" }
+             else { $null }
+    if (-not $table) { $orderPriceCache[$cacheKey] = 0.0; return 0.0 }
+    $f = [uri]::EscapeDataString("Ref_Key eq guid'$orderRef' and Номенклатура_Key eq guid'$nomRefKey' and Отменено eq false")
+    try {
+        $r = Invoke-OData $table "`$select=Цена,Количество,СуммаНДС,СуммаСНДС&`$filter=$f&`$top=1"
+        if (@($r.value).Count -gt 0) {
+            $line = $r.value[0]
+            $qty = To-Num $line.Количество; $gross = To-Num $line.СуммаСНДС; $vat = To-Num $line.СуммаНДС
+            if ($qty -gt 0 -and $gross -gt 0) { $val = ($gross - $vat) / $qty }
+            else { $val = (To-Num $line.Цена) / 1.2 }
+        }
+    } catch {}
+    $orderPriceCache[$cacheKey] = $val; return $val
 }
 
 # ─── step 2.5: реальные остатки на складах СТМ и ПГП ──────────────────────────
@@ -400,18 +506,38 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
         if ($fp -eq 0) { $pf = Get-OneCFactoryPrice $pd.NomRef; if ($pf -gt 0) { $fp = $pf } }
         if ($fp -eq 0 -and $fp_1c -gt 0) { $fp = $fp_1c }   # last resort
 
-        # client price: факт продаж → CSV → последний Заказ давальца 1С
+        # client price — приоритет:
+        # 1) order-specific (трассировка выпуск → Заказ давальца2_5) — точная цена комплектации
+        # 2) CSV (плановая, но может быть от старого заказа)
+        # 3) Get-OneCClientPrice (последний оформленный заказ 2_5 или старый)
+        # 4) фактическая по продажам (acp) — на случай если нет ничего планового
+        $cp_order = 0.0; $cpFromOrder = $false
+        if ($skuToOrderRef[$monthCode].ContainsKey($skuNorm)) {
+            $oi = $skuToOrderRef[$monthCode][$skuNorm]
+            $cp_order = Get-PriceFromOrder $oi.Ref $oi.Type $pd.NomRef
+            if ($cp_order -gt 0) { $cpFromOrder = $true }
+        }
         $acp = if ($sales.ShippedQty -ne 0) { $sales.Revenue / $sales.ShippedQty } else { 0.0 }
         $cp_csv = if ($price) { [double]$price.ClientPrice } else { 0.0 }
-        $cp = if ($acp -ne 0) { $acp } elseif ($cp_csv -ne 0) { $cp_csv } else { 0.0 }
         $cpFromDavalec = $false
-        if ($cp -eq 0) { $pc = Get-OneCClientPrice $pd.NomRef; if ($pc -gt 0) { $cp = $pc; $cpFromDavalec = $true } }
+        $cp_fallback = 0.0
+        if ($cp_order -eq 0 -and $cp_csv -eq 0) {
+            $cp_fallback = Get-OneCClientPrice $pd.NomRef
+            if ($cp_fallback -gt 0) { $cpFromDavalec = $true }
+        }
+        # эффективная цена клиента (для отображения, выручки факт)
+        $cp = if ($acp -ne 0) { $acp } `
+              elseif ($cp_order -gt 0) { $cp_order } `
+              elseif ($cp_csv -gt 0) { $cp_csv } `
+              else { $cp_fallback }
 
         $planQty        = [math]::Round($pd.PlanQty, 3)
         $releaseQty     = [math]::Round([math]::Max($rel, 0), 3)
-        # plan client price (CSV/давалец) — единая база для всех "плановых" расчётов,
-        # фактическая цена не используется (отчёт куба аналитиков построен на плановой)
-        $pcPlan         = if ($cp_csv -gt 0) { $cp_csv } else { $cp }
+        # plan client price — точная цена из конкретного заказа давальца, привязанного к выпуску
+        $pcPlan         = if ($cp_order -gt 0) { $cp_order } `
+                          elseif ($cp_csv -gt 0) { $cp_csv } `
+                          elseif ($cp_fallback -gt 0) { $cp_fallback } `
+                          else { $cp }
         $hasSellPrice   = ($pcPlan -gt 0)
         $plannedRevenue = if ($hasSellPrice) { [math]::Round($planQty * $pcPlan, 2) } else { 0.0 }
         $plannedGp      = if ($hasSellPrice) { [math]::Round($planQty * ($pcPlan - $fp), 2) } else { 0.0 }
@@ -423,7 +549,8 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
         $marginBase = if ($sales.ShippedQty -gt 0 -and $hasSellPrice) { $sales.ShippedQty * $pcPlan } else { 0 }
         $margin = if ($marginBase -ne 0) { [math]::Round($actualGp / $marginBase, 4) } else { 0 }
 
-        $ps = if ($cpFromDavalec) { "Заказ давальца 1С" } `
+        $ps = if ($cpFromOrder) { "Заказ давальца → выпуск" } `
+              elseif ($cpFromDavalec) { "Заказ давальца (последний)" } `
               elseif (-not $hasSellPrice) { "Цена не найдена" } `
               elseif ($price) { if ($price.IsMonthMatch) { "Заказы месяца" } else { "Заказы другого месяца" } } `
               elseif ($fp_csv -gt 0) { "CSV/классификатор" } `
@@ -479,11 +606,30 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
             if ($n_tmp) { $pf = Get-OneCFactoryPrice $n_tmp.Ref_Key; if ($pf -gt 0) { $fp = $pf } }
         }
         if ($fp -eq 0 -and $fp_1c -gt 0) { $fp = $fp_1c }   # last resort
+        # client price: трассировка → CSV → fallback по последнему заказу
+        $cp_order = 0.0
+        if ($skuToOrderRef[$monthCode].ContainsKey($skuNorm)) {
+            $n_tmp2 = Get-NomByArticle $skuNorm
+            if ($n_tmp2) {
+                $oi = $skuToOrderRef[$monthCode][$skuNorm]
+                $cp_order = Get-PriceFromOrder $oi.Ref $oi.Type $n_tmp2.Ref_Key
+            }
+        }
         $acp = if ($sales.ShippedQty -ne 0) { $sales.Revenue / $sales.ShippedQty } else { 0.0 }
         $cp_csv = if ($price) { [double]$price.ClientPrice } else { 0.0 }
-        $cp  = if ($acp -ne 0) { $acp } elseif ($cp_csv -ne 0) { $cp_csv } else { 0.0 }
-        # плановая цена клиента (CSV) — для plan-by-shipped валовки
-        $pcPlan = if ($cp_csv -gt 0) { $cp_csv } else { $cp }
+        $cp_fallback = 0.0
+        if ($cp_order -eq 0 -and $cp_csv -eq 0) {
+            $n_tmp3 = Get-NomByArticle $skuNorm
+            if ($n_tmp3) { $cp_fallback = Get-OneCClientPrice $n_tmp3.Ref_Key }
+        }
+        $cp = if ($acp -ne 0) { $acp } `
+              elseif ($cp_order -gt 0) { $cp_order } `
+              elseif ($cp_csv -gt 0) { $cp_csv } `
+              else { $cp_fallback }
+        $pcPlan = if ($cp_order -gt 0) { $cp_order } `
+                  elseif ($cp_csv -gt 0) { $cp_csv } `
+                  elseif ($cp_fallback -gt 0) { $cp_fallback } `
+                  else { $cp }
         $actualGp = if ($sales.ShippedQty -gt 0 -and $pcPlan -gt 0 -and $fp -gt 0) {
             [math]::Round($sales.ShippedQty * ($pcPlan - $fp), 2)
         } else { 0.0 }
@@ -517,7 +663,7 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
             actualGp        = $actualGp
             margin          = $margin
             shipDate        = $sales.Dates
-            priceSource     = if ($fp_csv -gt 0) { "Факт продаж (план CSV)" } elseif ($fp -gt 0) { "Факт продаж (прайс 1С)" } else { "Факт продаж" }
+            priceSource     = if ($cp_order -gt 0) { "Заказ давальца → выпуск" } elseif ($fp_csv -gt 0) { "Факт продаж (план CSV)" } elseif ($fp -gt 0) { "Факт продаж (прайс 1С)" } else { "Факт продаж" }
             operation       = $sales.Operation
             salesRows       = $sales.Rows
         })
