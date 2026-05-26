@@ -325,6 +325,45 @@ foreach ($mc in @("2026-05", "2026-06")) {
     Write-Host "  $mc : SKU с разрешённым заказом давальца: $($skuToOrderRef[$mc].Count)"
 }
 
+# Получаем имя контрагента (юр. лица заказчика) для каждого уникального заказа давальца
+$orderToCounterpartyName = @{}
+$counterpartyCache = @{}
+$uniqueOrders = @{}
+foreach ($mc in @("2026-05", "2026-06")) {
+    foreach ($oi in $skuToOrderRef[$mc].Values) {
+        $uniqueOrders["$($oi.Type)|$($oi.Ref)"] = $oi
+    }
+}
+foreach ($entry in $uniqueOrders.GetEnumerator()) {
+    $oi = $entry.Value
+    $docTable = if ($oi.Type -match "ЗаказДавальца2_5") { "Document_ЗаказДавальца2_5" }
+                elseif ($oi.Type -match "ЗаказДавальца") { "Document_ЗаказДавальца" }
+                else { $null }
+    if (-not $docTable) { continue }
+    try {
+        $f = [uri]::EscapeDataString("Ref_Key eq guid'$($oi.Ref)'")
+        $r = Invoke-OData $docTable "`$select=Контрагент_Key&`$filter=$f&`$top=1"
+        if (@($r.value).Count -gt 0) {
+            $cpRef = [string]$r.value[0].Контрагент_Key
+            if ($cpRef -and $cpRef -ne "00000000-0000-0000-0000-000000000000") {
+                if (-not $counterpartyCache.ContainsKey($cpRef)) {
+                    try {
+                        $rf = [uri]::EscapeDataString("Ref_Key eq guid'$cpRef'")
+                        $rc = Invoke-OData "Catalog_Контрагенты" "`$select=Description&`$filter=$rf&`$top=1"
+                        if (@($rc.value).Count -gt 0) {
+                            $counterpartyCache[$cpRef] = [string]$rc.value[0].Description
+                        }
+                    } catch {}
+                }
+                if ($counterpartyCache.ContainsKey($cpRef)) {
+                    $orderToCounterpartyName[$oi.Ref] = $counterpartyCache[$cpRef]
+                }
+            }
+        }
+    } catch {}
+}
+Write-Host "  Заказов давальца с контрагентом: $($orderToCounterpartyName.Count)"
+
 # Функция: получить цену клиента БЕЗ НДС из конкретного Заказа давальца по конкретной номенклатуре
 $orderPriceCache = @{}
 function Get-PriceFromOrder($orderRef, $orderType, $nomRefKey) {
@@ -559,6 +598,11 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
 
         $stmStockQty = if ($stockStmByNomRef.ContainsKey([string]$pd.NomRef)) { [math]::Round($stockStmByNomRef[[string]$pd.NomRef], 0) } else { 0 }
         $pgpStockQty = if ($stockPgpByNomRef.ContainsKey([string]$pd.NomRef)) { [math]::Round($stockPgpByNomRef[[string]$pd.NomRef], 0) } else { 0 }
+        $counterparty = ""
+        if ($skuToOrderRef[$monthCode].ContainsKey($skuNorm)) {
+            $oref = $skuToOrderRef[$monthCode][$skuNorm].Ref
+            if ($orderToCounterpartyName.ContainsKey($oref)) { $counterparty = $orderToCounterpartyName[$oref] }
+        }
         $script:dataRows.Add([ordered]@{
             month           = $monthName
             sku             = $pd.Sku
@@ -571,6 +615,7 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
             remainingQty    = [math]::Round($planQty - $releaseQty, 3)
             stockStm        = $stmStockQty
             stockPgp        = $pgpStockQty
+            counterparty    = $counterparty
             manager         = if ($price -and $price.Manager) { $price.Manager } else { $sales.Managers }
             factoryPrice    = [math]::Round($fp,  2)
             clientPrice     = [math]::Round($cp,  2)
@@ -640,6 +685,11 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
         $nrk = if ($n) { [string]$n.Ref_Key } else { "" }
         $stmStockQty = if ($nrk -and $stockStmByNomRef.ContainsKey($nrk)) { [math]::Round($stockStmByNomRef[$nrk], 0) } else { 0 }
         $pgpStockQty = if ($nrk -and $stockPgpByNomRef.ContainsKey($nrk)) { [math]::Round($stockPgpByNomRef[$nrk], 0) } else { 0 }
+        $counterparty = ""
+        if ($skuToOrderRef[$monthCode].ContainsKey($skuNorm)) {
+            $oref = $skuToOrderRef[$monthCode][$skuNorm].Ref
+            if ($orderToCounterpartyName.ContainsKey($oref)) { $counterparty = $orderToCounterpartyName[$oref] }
+        }
 
         $script:dataRows.Add([ordered]@{
             month           = $monthName
@@ -653,6 +703,7 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
             remainingQty    = 0.0
             stockStm        = $stmStockQty
             stockPgp        = $pgpStockQty
+            counterparty    = $counterparty
             manager         = if ($price -and $price.Manager) { $price.Manager } else { $sales.Managers }
             factoryPrice    = [math]::Round($fp,  2)
             clientPrice     = [math]::Round($cp,  2)
