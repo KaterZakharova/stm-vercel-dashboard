@@ -31,7 +31,21 @@ $ODataHeaders = @{ "X-API-Key" = $OData.Key }
 
 function Invoke-OData($entity, $query, $timeout = 120) {
     $uri = "$($OData.Url)/odata/${entity}?`$format=json&$query"
-    Invoke-RestMethod -Method Get -Uri $uri -Headers $ODataHeaders -TimeoutSec $timeout
+    $maxAttempts = 5
+    $attempt = 0
+    while ($true) {
+        $attempt++
+        try {
+            return Invoke-RestMethod -Method Get -Uri $uri -Headers $ODataHeaders -TimeoutSec $timeout
+        } catch {
+            $msg = $_.Exception.Message
+            $isUpstream = $msg -match 'upstream error' -or $msg -match '50\d' -or $msg -match 'timeout' -or $msg -match 'timed out'
+            if (-not $isUpstream -or $attempt -ge $maxAttempts) { throw }
+            $delay = [Math]::Min(60, [Math]::Pow(2, $attempt) * 2)
+            Write-Host "  ! upstream error на $entity (попытка $attempt/$maxAttempts), retry через $delay сек..." -ForegroundColor Yellow
+            Start-Sleep -Seconds $delay
+        }
+    }
 }
 
 function Invoke-ODataPaged($entity, $filterEncoded, $selectRaw, $pageSize = 1000) {

@@ -2,7 +2,7 @@ name: Daily data refresh → Vercel
 
 on:
   schedule:
-    - cron: '50 5 * * *'    # 08:50 МСК (UTC+3), ежедневно
+    - cron: '45 5 * * *'    # 08:45 МСК (UTC+3), ежедневно
   workflow_dispatch:          # ручной запуск
 
 jobs:
