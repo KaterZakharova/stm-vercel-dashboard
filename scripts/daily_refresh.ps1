@@ -24,8 +24,8 @@ if ($LASTEXITCODE -ne 0) {
     $today = Get-Date -Format 'dd.MM.yyyy'
     git commit -m "data: auto-refresh $today" 2>&1 | Tee-Object -FilePath $log -Append | Out-Null
     git push 2>&1                                  | Tee-Object -FilePath $log -Append | Out-Null
-    gh workflow run deploy.yml 2>&1                | Tee-Object -FilePath $log -Append | Out-Null
-    "deploy triggered"                              | Tee-Object -FilePath $log -Append | Out-Null
+    & "$env:APPDATA\npm\vercel.cmd" --prod --yes 2>&1 | Tee-Object -FilePath $log -Append | Out-Null
+    "deploy exit: $LASTEXITCODE"                    | Tee-Object -FilePath $log -Append | Out-Null
 } else {
     "index.html не изменился — пропускаю commit/deploy" | Tee-Object -FilePath $log -Append | Out-Null
 }
