@@ -8,7 +8,8 @@ $KeysPath      = "C:\Users\eklementeva\.codex\skills\odata-proxy\keys.env"
 $DataDir       = Join-Path $ProjectDir "data"
 $MatchedCsv    = Join-Path $DataDir "stm_matched_orders.csv"
 $ClassifierCsv = Join-Path $DataDir "1c_classifier_probe.csv"
-$PlanDocNumber = "ЦБ-00000218"
+# Источники плана: ЦБ-00000218 — Май; ЦБ-00000220 — Июнь/Июль/Август (создан 29.05.2026)
+$PlanDocNumbers = @("ЦБ-00000218", "ЦБ-00000220")
 
 $MayStart  = "2026-05-01T00:00:00"
 $JuneStart = "2026-06-01T00:00:00"
@@ -193,33 +194,44 @@ function Get-ManagerName($managerKey) {
 }
 
 # ─── step 1: production plan ─────────────────────────────────────────────────
-Write-Host "=== Шаг 1: план производства $PlanDocNumber ===" -ForegroundColor Cyan
-$safe = Escape-OData $PlanDocNumber
-$f = [uri]::EscapeDataString("Number eq '$safe' and DeletionMark eq false")
-$docResp = Invoke-OData "Document_ПланПроизводства" "`$filter=$f&`$top=1" 180
-if ($docResp.value.Count -eq 0) { throw "Документ ПланПроизводства '$PlanDocNumber' не найден" }
-$planDoc = $docResp.value[0]
-
+Write-Host "=== Шаг 1: план производства ($($PlanDocNumbers -join ', ')) ===" -ForegroundColor Cyan
 $planByMonth = @{ "2026-05" = @{}; "2026-06" = @{} }
-foreach ($line in @($planDoc.Продукция)) {
-    if ($line.Отменено -eq $true) { continue }
-    $qty = To-Num $line.Количество
-    if ($qty -le 0) { continue }
-    $n = Get-NomByRef $line.Номенклатура_Key
-    if ($null -eq $n) { continue }
-    $skuNorm = Normalize-Sku $n.Артикул
-    $rd = if ($line.ДатаВыпуска) { try { [datetime]$line.ДатаВыпуска } catch { $null } } else { $null }
-    $monthCode = if ($rd -and $rd.Year -gt 1900) { $rd.ToString("yyyy-MM") } else { "" }
-    if ($monthCode -notin @("2026-05", "2026-06")) { continue }
-    if (-not $planByMonth[$monthCode].ContainsKey($skuNorm)) {
-        $planByMonth[$monthCode][$skuNorm] = [pscustomobject]@{
-            Sku = [string]$n.Артикул; SkuNorm = $skuNorm
-            Name = [string]$n.Description; PlanQty = 0.0; NomRef = [string]$n.Ref_Key
-        }
+foreach ($planNum in $PlanDocNumbers) {
+    $safe = Escape-OData $planNum
+    # ищем по подстроке (Number eq иногда падает с AUTOORDER ошибкой), затем дочитываем по Ref_Key
+    $tail = ($planNum -replace '[^\d]', '')
+    $f = [uri]::EscapeDataString("substringof('$tail',Number) and DeletionMark eq false")
+    $listResp = Invoke-OData "Document_ПланПроизводства" "`$filter=$f&`$select=Ref_Key,Number" 180
+    $match = @($listResp.value) | Where-Object { $_.Number -eq $planNum } | Select-Object -First 1
+    if (-not $match) {
+        Write-Warning "Документ ПланПроизводства '$planNum' не найден — пропускаю"
+        continue
     }
-    $planByMonth[$monthCode][$skuNorm].PlanQty += $qty
+    # читаем сам документ с табличной частью Продукция через entity-key URL
+    $planDoc = Invoke-RestMethod -Method Get -Uri "$($OData.Url)/odata/Document_ПланПроизводства(guid'$($match.Ref_Key)')?`$format=json" -Headers $ODataHeaders -TimeoutSec 180
+    $added = @{ "2026-05" = 0; "2026-06" = 0 }
+    foreach ($line in @($planDoc.Продукция)) {
+        if ($line.Отменено -eq $true) { continue }
+        $qty = To-Num $line.Количество
+        if ($qty -le 0) { continue }
+        $n = Get-NomByRef $line.Номенклатура_Key
+        if ($null -eq $n) { continue }
+        $skuNorm = Normalize-Sku $n.Артикул
+        $rd = if ($line.ДатаВыпуска) { try { [datetime]$line.ДатаВыпуска } catch { $null } } else { $null }
+        $monthCode = if ($rd -and $rd.Year -gt 1900) { $rd.ToString("yyyy-MM") } else { "" }
+        if ($monthCode -notin @("2026-05", "2026-06")) { continue }
+        if (-not $planByMonth[$monthCode].ContainsKey($skuNorm)) {
+            $planByMonth[$monthCode][$skuNorm] = [pscustomobject]@{
+                Sku = [string]$n.Артикул; SkuNorm = $skuNorm
+                Name = [string]$n.Description; PlanQty = 0.0; NomRef = [string]$n.Ref_Key
+            }
+        }
+        $planByMonth[$monthCode][$skuNorm].PlanQty += $qty
+        $added[$monthCode] += 1
+    }
+    Write-Host "  $planNum : +$($added['2026-05']) строк Мая, +$($added['2026-06']) строк Июня"
 }
-Write-Host "  Май: $($planByMonth['2026-05'].Count) SKU, Июнь: $($planByMonth['2026-06'].Count) SKU"
+Write-Host "  Итого Май: $($planByMonth['2026-05'].Count) SKU, Июнь: $($planByMonth['2026-06'].Count) SKU"
 
 # ─── step 2: actual release (Выпуск продукции) ───────────────────────────────
 Write-Host "=== Шаг 2: фактический выпуск (ВыпускПродукции) ===" -ForegroundColor Cyan
@@ -532,6 +544,15 @@ function Get-SalesFact($skuNorm, $monthStart, $monthEnd) {
 Write-Host "=== Шаг 5: сборка строк ===" -ForegroundColor Cyan
 $dataRows = [System.Collections.Generic.List[object]]::new()
 
+function Get-MayCarryTag($skuNorm) {
+    if (-not $script:mayCarryByNorm -or -not $script:mayCarryByNorm.ContainsKey($skuNorm)) { return "" }
+    $c = $script:mayCarryByNorm[$skuNorm]
+    $parts = @()
+    if ($c.Deficit  -gt 0) { $parts += "ушло из мая: -$($c.Deficit) шт" }
+    if ($c.Leftover -gt 0) { $parts += "выпущено в мае: +$($c.Leftover) шт" }
+    return ($parts -join "; ")
+}
+
 function Build-MonthRows($monthCode, $monthName, $priceMap) {
     $planMonth    = $planByMonth[$monthCode]
     $releaseMonth = $releaseBySkuNorm[$monthCode]
@@ -643,6 +664,7 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
             priceSource     = $ps
             operation       = $sales.Operation
             salesRows       = $sales.Rows
+            mayCarry        = if ($monthCode -eq "2026-06") { Get-MayCarryTag $skuNorm } else { "" }
         })
         Write-Host "  $monthName | $($pd.Sku) | план=$planQty выпуск=$releaseQty отгружено=$([math]::Round($sales.ShippedQty,0)) СТМ=$stmStockQty ПГП=$pgpStockQty"
     }
@@ -731,12 +753,86 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
             priceSource     = if ($cp_order -gt 0) { "Заказ давальца → выпуск" } elseif ($fp_csv -gt 0) { "Факт продаж (план CSV)" } elseif ($fp -gt 0) { "Факт продаж (прайс 1С)" } else { "Факт продаж" }
             operation       = $sales.Operation
             salesRows       = $sales.Rows
+            mayCarry        = if ($monthCode -eq "2026-06") { Get-MayCarryTag $skuNorm } else { "" }
         })
         Write-Host "  $monthName | $skuNorm | вне плана отгружено=$([math]::Round($sales.ShippedQty,0))"
+    }
+
+    # carry-over из Мая для Июня — SKU с дефицитом/остатком, которых нет ни в плане Июня,
+    # ни среди фактических продаж Июня. Показываем со statQty=0, чтобы пользователь видел
+    # позиции, которые сами «вылезли» из Мая и требуют решения.
+    if ($monthCode -eq "2026-06" -and $script:mayCarryByNorm) {
+        foreach ($skuNorm in $script:mayCarryByNorm.Keys) {
+            if ($included.ContainsKey($skuNorm)) { continue }
+            $n = Get-NomByArticle $skuNorm
+            if (-not $n) { continue }
+            $nrk = [string]$n.Ref_Key
+            $stmQ = if ($stockStmByNomRef.ContainsKey($nrk)) { [math]::Round($stockStmByNomRef[$nrk], 0) } else { 0 }
+            $pgpQ = if ($stockPgpByNomRef.ContainsKey($nrk)) { [math]::Round($stockPgpByNomRef[$nrk], 0) } else { 0 }
+            $tag = Get-MayCarryTag $skuNorm
+            $price = $priceMap[$skuNorm]
+            $script:dataRows.Add([ordered]@{
+                month           = $monthName
+                sku             = $skuNorm
+                isNew           = if ($price) { $price.IsNew } else { "" }
+                name            = [string]$n.Description
+                order           = if ($price) { $price.Orders } else { "" }
+                planQty         = 0.0
+                releaseQty      = 0.0
+                shippedQty      = 0.0
+                remainingQty    = 0.0
+                stockStm        = $stmQ
+                stockPgp        = $pgpQ
+                counterparty    = ""
+                manager         = if ($price -and $price.Manager) { $price.Manager } else { "" }
+                factoryPrice    = 0.0
+                clientPrice     = 0.0
+                actualClientPrice = 0.0
+                plannedRevenue  = 0.0
+                actualRevenue   = 0.0
+                plannedGp       = 0.0
+                actualGp        = 0.0
+                margin          = 0
+                shipDate        = ""
+                priceSource     = "carry-over из Мая"
+                operation       = ""
+                salesRows       = 0
+                mayCarry        = $tag
+            })
+            $included[$skuNorm] = $true
+            Write-Host "  $monthName | $skuNorm | carry-over: $tag"
+        }
     }
 }
 
 Build-MonthRows "2026-05" "Май"   $mayPriceMap
+
+# carry-over из Мая: для каждого SKU считаем дефицит производства и складской остаток,
+# который пойдёт в Июнь
+$script:mayCarryByNorm = @{}
+foreach ($r in $script:dataRows) {
+    if ($r.month -ne "Май") { continue }
+    $norm = Normalize-Sku $r.sku
+    $plan = [double]$r.planQty
+    $rel  = [double]$r.releaseQty
+    $ship = [double]$r.shippedQty
+    $stockTotal = ([double]$r.stockStm) + ([double]$r.stockPgp)
+    $deficit  = [math]::Max(0.0, $plan - $rel)
+    # «выпущено в мае, но не ушло» — берём фактический складской остаток (он надёжнее, чем release-ship,
+    # потому что часть могла быть списана/перемещена)
+    $leftover = [math]::Round($stockTotal, 0)
+    if ($deficit -gt 0 -or $leftover -gt 0) {
+        $script:mayCarryByNorm[$norm] = [pscustomobject]@{
+            Deficit  = [math]::Round($deficit, 0)
+            Leftover = $leftover
+            MayPlan  = $plan
+            MayRel   = $rel
+            MayShip  = $ship
+        }
+    }
+}
+Write-Host "  Carry-over из Мая: $($script:mayCarryByNorm.Count) SKU"
+
 Build-MonthRows "2026-06" "Июнь"  $junePriceMap
 Write-Host "Всего строк: $($dataRows.Count)"
 
