@@ -1,3 +1,24 @@
 node_modules/
 .DS_Store
 .vercel
+.claude/
+.claude-terminal/
+build_stm.log
+daily_refresh.log
+
+# временные исследовательские артефакты (OLAP/OData probes)
+olap_*.xml
+olap_*.txt
+scripts/olap_*.xml
+data/probe_*.json
+data/all_orders.json
+data/order_*.json
+data/orders_*.json
+data/plan_218*.json
+data/plans_*.json
+data/lines_probe.json
+data/cube_vs_dash_report.csv
+data/totals_may.txt
+data/may_top_skus.txt
+data/june_plan_lines.json
+data/valovka_kub*.csv
