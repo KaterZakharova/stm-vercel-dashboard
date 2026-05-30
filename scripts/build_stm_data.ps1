@@ -836,48 +836,126 @@ Write-Host "  Carry-over из Мая: $($script:mayCarryByNorm.Count) SKU"
 Build-MonthRows "2026-06" "Июнь"  $junePriceMap
 Write-Host "Всего строк: $($dataRows.Count)"
 
-# ─── step 6: потенциал из Google Sheets ──────────────────────────────────────
-Write-Host "=== Шаг 6: потенциал из Google Sheets ===" -ForegroundColor Cyan
-$PotentialUrl = "https://docs.google.com/spreadsheets/d/1OxBfhc5Mmnfo2o_-1_k_lP8dSMWdt9FC4hLnO3E48EA/export?format=csv&gid=2092893482"
-$monthMap = @{ "май"="Май"; "июнь"="Июнь"; "июль"="Июль"; "август"="Август"; "сентябрь"="Сентябрь"; "октябрь"="Октябрь"; "ноябрь"="Ноябрь"; "декабрь"="Декабрь" }
+# ─── step 6: прогноз из открытых Заказов давальца2_5 ─────────────────────────
+# Заказ давальца2_5 → потенциал производства/выручки. Сверяем с планом:
+#   планQty ≈ orderQty (±5%) → в плане полностью → не показываем
+#   планQty < orderQty       → частично в плане (uncertain=true) → показываем разницу
+#   планQty = 0              → нет в плане (РС не готова) → показываем целиком
+Write-Host "=== Шаг 6: прогноз из ЗаказДавальца2_5 ===" -ForegroundColor Cyan
 $potentialRows = [System.Collections.Generic.List[object]]::new()
+$monthNameMap = @{ "2026-05"="Май"; "2026-06"="Июнь"; "2026-07"="Июль" }
 try {
-    $wc = New-Object System.Net.WebClient; $wc.Encoding = [System.Text.Encoding]::UTF8
-    $csvText = $wc.DownloadString($PotentialUrl)
-    $csvLines = $csvText -split "`n" | Where-Object { $_.Trim() -ne "" }
-    $header = $csvLines[0] -split ","
-    foreach ($line in ($csvLines | Select-Object -Skip 1)) {
-        # RFC 4180 CSV split: respect quoted fields
-        $fields = [System.Collections.Generic.List[string]]::new()
-        $inQuote = $false; $cur = [System.Text.StringBuilder]::new()
-        foreach ($ch in $line.ToCharArray()) {
-            if ($ch -eq '"') { $inQuote = -not $inQuote }
-            elseif ($ch -eq ',' -and -not $inQuote) { $fields.Add($cur.ToString()); $cur = [System.Text.StringBuilder]::new() }
-            else { $cur.Append($ch) | Out-Null }
+    # список 2026-х заказов
+    $f = [uri]::EscapeDataString("Posted eq true and DeletionMark eq false")
+    $listResp = Invoke-OData "Document_ЗаказДавальца2_5" "`$filter=$f&`$select=Ref_Key,Number,Date,Контрагент_Key,Менеджер_Key&`$top=10000" 180
+    $y2026 = @($listResp.value) | Where-Object { ([string]$_.Date).StartsWith("2026") }
+    Write-Host "  2026 заказов давальца: $($y2026.Count)"
+
+    $aggByKey = @{}
+    $i = 0
+    foreach ($order in $y2026) {
+        $i++
+        if ($i % 25 -eq 0) { Write-Host "    обработано $i / $($y2026.Count)" }
+        try {
+            $doc = Invoke-RestMethod -Method Get -Uri "$($OData.Url)/odata/Document_ЗаказДавальца2_5(guid'$($order.Ref_Key)')?`$format=json" -Headers $ODataHeaders -TimeoutSec 60
+        } catch { continue }
+        foreach ($line in @($doc.Продукция)) {
+            if ($line.Отменено) { continue }
+            $rd = try { [datetime]$line.ДатаОтгрузки } catch { $null }
+            if (-not $rd -or $rd.Year -lt 1900) { continue }
+            $mc = $rd.ToString("yyyy-MM")
+            if (-not $monthNameMap.ContainsKey($mc)) { continue }
+            $n = Get-NomByRef $line.Номенклатура_Key
+            if (-not $n) { continue }
+            $skuNorm = Normalize-Sku $n.Артикул
+            $qty = To-Num $line.Количество
+            if ($qty -le 0) { continue }
+            # цена клиента без НДС
+            $sumNoVat = (To-Num $line.СуммаСНДС) - (To-Num $line.СуммаНДС)
+            $pricePerUnit = if ($qty -gt 0 -and $sumNoVat -gt 0) { $sumNoVat / $qty } else { 0 }
+
+            $key = "$mc|$skuNorm"
+            if (-not $aggByKey.ContainsKey($key)) {
+                $aggByKey[$key] = [pscustomobject]@{
+                    Month = $mc; SkuNorm = $skuNorm; Sku = [string]$n.Артикул; Name = [string]$n.Description
+                    NomRef = [string]$n.Ref_Key; OrderQty = 0.0; Price = 0.0
+                    OrderNumbers = @(); Managers = @(); Counterparties = @()
+                }
+            }
+            $a = $aggByKey[$key]
+            $a.OrderQty += $qty
+            if ($pricePerUnit -gt 0) { $a.Price = $pricePerUnit }
+            if ($a.OrderNumbers -notcontains $order.Number) { $a.OrderNumbers += $order.Number }
+            $mgr = Get-ManagerName $order.Менеджер_Key
+            if ($mgr -and ($a.Managers -notcontains $mgr)) { $a.Managers += $mgr }
+            $cpRef = [string]$order.Контрагент_Key
+            $cpName = if ($counterpartyCache.ContainsKey($cpRef)) { $counterpartyCache[$cpRef] } else {
+                try {
+                    $rf = [uri]::EscapeDataString("Ref_Key eq guid'$cpRef'")
+                    $rc = Invoke-OData "Catalog_Контрагенты" "`$select=Description&`$filter=$rf&`$top=1"
+                    if (@($rc.value).Count -gt 0) {
+                        $counterpartyCache[$cpRef] = [string]$rc.value[0].Description
+                        $counterpartyCache[$cpRef]
+                    } else { "" }
+                } catch { "" }
+            }
+            if ($cpName -and ($a.Counterparties -notcontains $cpName)) { $a.Counterparties += $cpName }
         }
-        $fields.Add($cur.ToString())
-        $monthRaw = $fields[0].Trim().ToLower()
-        $monthRu  = if ($monthMap.ContainsKey($monthRaw)) { $monthMap[$monthRaw] } else { continue }
+    }
+    Write-Host "  Агрегатов (sku × месяц): $($aggByKey.Count)"
+
+    foreach ($a in $aggByKey.Values) {
+        $planQty = if ($planByMonth.ContainsKey($a.Month) -and $planByMonth[$a.Month].ContainsKey($a.SkuNorm)) {
+            $planByMonth[$a.Month][$a.SkuNorm].PlanQty
+        } else { 0.0 }
+
+        # допуск 5% — если plan ≈ order, считаем что план уже покрывает
+        $tol = $a.OrderQty * 0.05
+        if ($planQty -gt 0 -and [math]::Abs($planQty - $a.OrderQty) -le $tol) { continue }
+        # план шире заказа — пропускаем (избыточное планирование, не потенциал)
+        if ($planQty -ge $a.OrderQty) { continue }
+
+        $potentialQty = $a.OrderQty - $planQty
+        $uncertain = $false
+        $status = if ($planQty -eq 0) { "нет в плане" } else {
+            $uncertain = $true
+            "частично в плане: $([math]::Round($planQty,0))/$([math]::Round($a.OrderQty,0))"
+        }
+
+        # factory price — плановая (CSV→классификатор→прайс 1С)
+        $fp = 0.0
+        if ($classPrices.ContainsKey($a.SkuNorm)) { $fp = [double]$classPrices[$a.SkuNorm] }
+        if ($fp -eq 0) { $pf = Get-OneCFactoryPrice $a.NomRef; if ($pf -gt 0) { $fp = $pf } }
+
+        $cp = $a.Price
+        $revenue = $potentialQty * $cp
+        $gp      = $potentialQty * ($cp - $fp)
+        $margin  = if ($revenue -ne 0) { [math]::Round($gp / $revenue, 4) } else { 0 }
+
         $potentialRows.Add([ordered]@{
-            month        = $monthRu
-            sku          = $fields[1].Trim()
-            name         = $fields[2].Trim()
-            client       = $fields[3].Trim()
-            manager      = $fields[4].Trim()
-            qty          = To-Num $fields[5]
-            factoryPrice = To-Num $fields[6]
-            clientPrice  = To-Num $fields[7]
-            revenue      = To-Num $fields[8]
-            gp           = To-Num $fields[9]
-            margin       = To-Num $fields[10]
-            status       = if ($fields.Count -gt 11) { $fields[11].Trim() } else { "" }
-            comment      = if ($fields.Count -gt 12) { $fields[12].Trim() } else { "" }
-            source       = "Ручной потенциал"
+            month        = $monthNameMap[$a.Month]
+            sku          = $a.Sku
+            name         = $a.Name
+            client       = ($a.Counterparties -join ", ")
+            manager      = ($a.Managers -join ", ")
+            qty          = [math]::Round($potentialQty, 0)
+            factoryPrice = [math]::Round($fp, 2)
+            clientPrice  = [math]::Round($cp, 2)
+            revenue      = [math]::Round($revenue, 2)
+            gp           = [math]::Round($gp, 2)
+            margin       = $margin
+            status       = $status
+            comment      = ""
+            source       = "Прогноз"
+            uncertain    = $uncertain
+            planQty      = [math]::Round($planQty, 0)
+            orderQty     = [math]::Round($a.OrderQty, 0)
+            orderRefs    = ($a.OrderNumbers -join "; ")
         })
     }
-    Write-Host "  Потенциал: $($potentialRows.Count) строк"
+    Write-Host "  Прогноз: $($potentialRows.Count) строк ($(($potentialRows | Where-Object { $_.uncertain }).Count) с сомнением)"
 } catch {
-    Write-Warning "Не удалось загрузить потенциал из Google Sheets: $_"
+    Write-Warning "Не удалось построить прогноз: $_"
 }
 
 # ─── step 7: inject into index.html ──────────────────────────────────────────
