@@ -15,6 +15,13 @@ $MayStart  = "2026-05-01T00:00:00"
 $JuneStart = "2026-06-01T00:00:00"
 $JuneEnd   = "2026-07-01T00:00:00"
 
+# Ручные override менеджеров для SKU без активного 2_5 заказа и без карточных реквизитов.
+# Имеет наивысший приоритет в Build-MonthRows.
+$ManualManagerBySku = @{
+    "EUR003"  = "Темрина Наталья"
+    "OKEA008" = "Лигостаева Елена Александровна"
+}
+
 # ─── helpers ────────────────────────────────────────────────────────────────
 function Read-Keys {
     # env vars take priority (GitHub Actions), fall back to local keys file
@@ -828,7 +835,7 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
             stockStm        = $stmStockQty
             stockPgp        = $pgpStockQty
             counterparty    = $counterparty
-            manager         = if ($price -and $price.Manager) { $price.Manager } elseif ($latestOrd -and $latestOrd.Manager) { $latestOrd.Manager } elseif ($sales.Managers) { $sales.Managers } else { Get-NomManager $nrk }
+            manager         = if ($ManualManagerBySku.ContainsKey($skuNorm)) { $ManualManagerBySku[$skuNorm] } elseif ($price -and $price.Manager) { $price.Manager } elseif ($latestOrd -and $latestOrd.Manager) { $latestOrd.Manager } elseif ($sales.Managers) { $sales.Managers } else { Get-NomManager $nrk }
             factoryPrice    = [math]::Round($fp,  2)
             clientPrice     = [math]::Round($cp,  2)
             actualClientPrice = [math]::Round($acp, 2)
@@ -930,7 +937,7 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
             stockStm        = $stmStockQty
             stockPgp        = $pgpStockQty
             counterparty    = $counterparty
-            manager         = if ($price -and $price.Manager) { $price.Manager } elseif ($latestOrd -and $latestOrd.Manager) { $latestOrd.Manager } elseif ($sales.Managers) { $sales.Managers } else { Get-NomManager $nrk }
+            manager         = if ($ManualManagerBySku.ContainsKey($skuNorm)) { $ManualManagerBySku[$skuNorm] } elseif ($price -and $price.Manager) { $price.Manager } elseif ($latestOrd -and $latestOrd.Manager) { $latestOrd.Manager } elseif ($sales.Managers) { $sales.Managers } else { Get-NomManager $nrk }
             factoryPrice    = [math]::Round($fp,  2)
             clientPrice     = [math]::Round($cp,  2)
             actualClientPrice = [math]::Round($acp, 2)
@@ -975,7 +982,7 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
                 stockStm        = $stmQ
                 stockPgp        = $pgpQ
                 counterparty    = $(if ($latestOrd2 -and $latestOrd2.Counterparty) { $latestOrd2.Counterparty } else { Get-NomCounterparty $nrk })
-                manager         = $(if ($price -and $price.Manager) { $price.Manager } elseif ($latestOrd2 -and $latestOrd2.Manager) { $latestOrd2.Manager } else { Get-NomManager $nrk })
+                manager         = $(if ($ManualManagerBySku.ContainsKey($skuNorm)) { $ManualManagerBySku[$skuNorm] } elseif ($price -and $price.Manager) { $price.Manager } elseif ($latestOrd2 -and $latestOrd2.Manager) { $latestOrd2.Manager } else { Get-NomManager $nrk })
                 factoryPrice    = 0.0
                 clientPrice     = 0.0
                 actualClientPrice = 0.0
