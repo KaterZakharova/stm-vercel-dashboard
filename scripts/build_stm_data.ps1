@@ -196,6 +196,70 @@ function Get-ManagerName($managerKey) {
     } catch { $managerCache[$k] = ""; return "" }
 }
 
+# Менеджер из доп.реквизитов карточки номенклатуры.
+# Категорийный менеджер (key b145e2d0) → Catalog_ЗначенияСвойствОбъектов
+# Бренд-менеджер (key 7d7ee396)        → Catalog_ФизическиеЛица
+$nomManagerCache = @{}
+$catManagerPropKey   = 'b145e2d0-621c-11eb-b0a9-00155d640300'
+$brandManagerPropKey = '7d7ee396-cc4c-11f0-b0dc-00155d640e00'
+$propValueCache = @{}
+function Resolve-PropValue($valueKey, $catalogs) {
+    $k = ([string]$valueKey).Trim()
+    if ($k -eq "" -or $k -eq "00000000-0000-0000-0000-000000000000") { return "" }
+    if ($propValueCache.ContainsKey($k)) { return $propValueCache[$k] }
+    foreach ($c in $catalogs) {
+        try {
+            $r = Invoke-RestMethod -Method Get -Uri "$($OData.Url)/odata/$c(guid'$k')?`$format=json&`$select=Description" -Headers $ODataHeaders -TimeoutSec 30
+            if ($r.Description) { $propValueCache[$k] = [string]$r.Description; return $propValueCache[$k] }
+        } catch {}
+    }
+    $propValueCache[$k] = ""; return ""
+}
+function Get-NomManager($nomRefKey) {
+    $k = ([string]$nomRefKey).Trim()
+    if ($k -eq "" -or $k -eq "00000000-0000-0000-0000-000000000000") { return "" }
+    if ($nomManagerCache.ContainsKey($k)) { return $nomManagerCache[$k] }
+    $f = [uri]::EscapeDataString("Ref_Key eq guid'$k'")
+    try {
+        $r = Invoke-OData "Catalog_Номенклатура_ДополнительныеРеквизиты" "`$select=Свойство_Key,Значение&`$filter=$f&`$top=50"
+        $cat = ""; $brand = ""
+        foreach ($a in @($r.value)) {
+            $pk = [string]$a.Свойство_Key
+            $vk = [string]$a.Значение
+            if ($pk -eq $catManagerPropKey -and -not $cat) {
+                $cat = Resolve-PropValue $vk @('Catalog_ЗначенияСвойствОбъектов')
+            } elseif ($pk -eq $brandManagerPropKey -and -not $brand) {
+                $brand = Resolve-PropValue $vk @('Catalog_ФизическиеЛица','Catalog_Пользователи')
+            }
+        }
+        # приоритет: категорийный → бренд
+        $name = if ($cat) { $cat } else { $brand }
+        $nomManagerCache[$k] = $name; return $name
+    } catch { $nomManagerCache[$k] = ""; return "" }
+}
+
+# Контрагент-заказчик из любого активного Заказа Давальца 2_5,
+# где есть эта номенклатура. Если в карточке STM-SKU действующий заказ —
+# заказчик там и есть юр.лицо клиента.
+$nomCounterpartyCache = @{}
+function Get-NomCounterparty($nomRefKey) {
+    $k = ([string]$nomRefKey).Trim()
+    if ($k -eq "" -or $k -eq "00000000-0000-0000-0000-000000000000") { return "" }
+    if ($nomCounterpartyCache.ContainsKey($k)) { return $nomCounterpartyCache[$k] }
+    try {
+        $f = [uri]::EscapeDataString("Номенклатура_Key eq guid'$k' and Отменено eq false")
+        $r = Invoke-OData "Document_ЗаказДавальца2_5_Продукция" "`$select=Ref_Key&`$filter=$f&`$top=1"
+        if (-not $r.value -or $r.value.Count -eq 0) { $nomCounterpartyCache[$k] = ""; return "" }
+        $orderRef = [string]$r.value[0].Ref_Key
+        $ro = Invoke-RestMethod -Method Get -Uri "$($OData.Url)/odata/Document_ЗаказДавальца2_5(guid'$orderRef')?`$format=json&`$select=Контрагент_Key" -Headers $ODataHeaders -TimeoutSec 30
+        $cpRef = [string]$ro.Контрагент_Key
+        if (-not $cpRef -or $cpRef -eq "00000000-0000-0000-0000-000000000000") { $nomCounterpartyCache[$k] = ""; return "" }
+        $rc = Invoke-RestMethod -Method Get -Uri "$($OData.Url)/odata/Catalog_Контрагенты(guid'$cpRef')?`$format=json&`$select=Description" -Headers $ODataHeaders -TimeoutSec 30
+        $name = [string]$rc.Description
+        $nomCounterpartyCache[$k] = $name; return $name
+    } catch { $nomCounterpartyCache[$k] = ""; return "" }
+}
+
 # ─── step 1: production plan ─────────────────────────────────────────────────
 Write-Host "=== Шаг 1: план производства ($($PlanDocNumbers -join ', ')) ===" -ForegroundColor Cyan
 $planByMonth = @{ "2026-05" = @{}; "2026-06" = @{} }
@@ -677,6 +741,7 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
             $oref = $skuToOrderRef[$monthCode][$skuNorm].Ref
             if ($orderToCounterpartyName.ContainsKey($oref)) { $counterparty = $orderToCounterpartyName[$oref] }
         }
+        if (-not $counterparty) { $counterparty = Get-NomCounterparty $nrk }
         $script:dataRows.Add([ordered]@{
             month           = $monthName
             sku             = $pd.Sku
@@ -690,7 +755,7 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
             stockStm        = $stmStockQty
             stockPgp        = $pgpStockQty
             counterparty    = $counterparty
-            manager         = if ($price -and $price.Manager) { $price.Manager } else { $sales.Managers }
+            manager         = if ($price -and $price.Manager) { $price.Manager } elseif ($sales.Managers) { $sales.Managers } else { Get-NomManager $nrk }
             factoryPrice    = [math]::Round($fp,  2)
             clientPrice     = [math]::Round($cp,  2)
             actualClientPrice = [math]::Round($acp, 2)
@@ -775,6 +840,7 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
             $oref = $skuToOrderRef[$monthCode][$skuNorm].Ref
             if ($orderToCounterpartyName.ContainsKey($oref)) { $counterparty = $orderToCounterpartyName[$oref] }
         }
+        if (-not $counterparty) { $counterparty = Get-NomCounterparty $nrk }
 
         $script:dataRows.Add([ordered]@{
             month           = $monthName
@@ -789,7 +855,7 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
             stockStm        = $stmStockQty
             stockPgp        = $pgpStockQty
             counterparty    = $counterparty
-            manager         = if ($price -and $price.Manager) { $price.Manager } else { $sales.Managers }
+            manager         = if ($price -and $price.Manager) { $price.Manager } elseif ($sales.Managers) { $sales.Managers } else { Get-NomManager $nrk }
             factoryPrice    = [math]::Round($fp,  2)
             clientPrice     = [math]::Round($cp,  2)
             actualClientPrice = [math]::Round($acp, 2)
@@ -832,8 +898,8 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
                 remainingQty    = 0.0
                 stockStm        = $stmQ
                 stockPgp        = $pgpQ
-                counterparty    = ""
-                manager         = if ($price -and $price.Manager) { $price.Manager } else { "" }
+                counterparty    = (Get-NomCounterparty $nrk)
+                manager         = if ($price -and $price.Manager) { $price.Manager } else { Get-NomManager $nrk }
                 factoryPrice    = 0.0
                 clientPrice     = 0.0
                 actualClientPrice = 0.0
@@ -990,7 +1056,7 @@ try {
             sku          = $a.Sku
             name         = $a.Name
             client       = ($a.Counterparties -join ", ")
-            manager      = ($a.Managers -join ", ")
+            manager      = if ($a.Managers.Count -gt 0) { ($a.Managers -join ", ") } else { Get-NomManager $a.NomRef }
             qty          = [math]::Round($potentialQty, 0)
             factoryPrice = [math]::Round($fp, 2)
             clientPrice  = [math]::Round($cp, 2)
