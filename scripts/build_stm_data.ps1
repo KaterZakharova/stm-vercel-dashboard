@@ -114,8 +114,11 @@ function Get-AnalyticsKeys($nomRefKey) {
     if ($analyticsCache.ContainsKey($nomRefKey)) { return $analyticsCache[$nomRefKey] }
     $f = [uri]::EscapeDataString("Номенклатура_Key eq guid'$nomRefKey'")
     try {
-        $r = Invoke-OData "Catalog_КлючиАналитикиУчетаНоменклатуры" "`$select=Ref_Key&`$filter=$f&`$top=200"
-        $keys = @($r.value | Select-Object -ExpandProperty Ref_Key)
+        # paged — у часто отгружаемых SKU (например, HEALTH001) более 200 исторических
+        # ключей аналитики; без paging фактические июньские ключи могут не попасть
+        # в первые 200 → отгрузки теряются
+        $arr = Invoke-ODataPaged "Catalog_КлючиАналитикиУчетаНоменклатуры" $f "Ref_Key" 500
+        $keys = @($arr | Select-Object -ExpandProperty Ref_Key)
         $analyticsCache[$nomRefKey] = $keys; return $keys
     } catch { $analyticsCache[$nomRefKey] = @(); return @() }
 }
@@ -553,6 +556,42 @@ function Get-MayCarryTag($skuNorm) {
     return ($parts -join "; ")
 }
 
+# Подтягивает SKU, фактически отгруженные по ОтчетДавальцу2_5 за месяц.
+# Закрывает дыру: если артикул отгружен в Июне, но Заказ Давальца на него
+# с ДатаОтгрузки в Мае (или нет в priceMap по другой причине), out-of-plan
+# pass его не подбирает. Эта функция страхует — операция ОтчетДавальцу2_5
+# гарантирует, что это STM/контрактное производство.
+$factSkusCache = @{}
+function Get-FactStmSkus($monthStart, $monthEnd) {
+    $cacheKey = "$monthStart|$monthEnd"
+    if ($factSkusCache.ContainsKey($cacheKey)) { return $factSkusCache[$cacheKey] }
+    $found = @{}
+    $f = [uri]::EscapeDataString("Period ge datetime'$monthStart' and Period lt datetime'$monthEnd' and Active eq true and Сторно eq false and ХозяйственнаяОперация eq 'ОтчетДавальцу2_5'")
+    try {
+        $pageSize = 5000
+        $skip = 0
+        do {
+            $resp = Invoke-OData "AccumulationRegister_ВыручкаИСебестоимостьПродаж_RecordType" "`$select=АналитикаУчетаНоменклатуры_Key&`$filter=$f&`$top=$pageSize&`$skip=$skip" 180
+            $page = @($resp.value)
+            foreach ($r in $page) {
+                $ak = [string]$r.АналитикаУчетаНоменклатуры_Key
+                if (-not $ak) { continue }
+                $nomKey = Get-NomFromAnalyticsKey $ak
+                if (-not $nomKey) { continue }
+                $nom = Get-NomByRef $nomKey
+                if (-not $nom -or -not $nom.Артикул) { continue }
+                $sn = Normalize-Sku $nom.Артикул
+                $found[$sn] = $true
+            }
+            $skip += $pageSize
+        } while ($page.Count -eq $pageSize)
+    } catch {
+        Write-Warning "Get-FactStmSkus ошибка: $_"
+    }
+    $factSkusCache[$cacheKey] = $found
+    return $found
+}
+
 function Build-MonthRows($monthCode, $monthName, $priceMap) {
     $planMonth    = $planByMonth[$monthCode]
     $releaseMonth = $releaseBySkuNorm[$monthCode]
@@ -670,9 +709,19 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
     }
 
     # rows with actual sales but not in plan
-    foreach ($skuNorm in $priceMap.Keys) {
+    # Pass 2a: дополнительно подтянуть SKU, реально отгруженные по ОтчетДавальцу2_5,
+    # но отсутствующие в priceMap (Заказ Давальца на них с ДатаОтгрузки не в этом месяце)
+    $factStmSkus = Get-FactStmSkus $mStart $mEnd
+    Write-Host "  Pass2a: STM-артикулов из фактов ОтчетДавальцу2_5: $($factStmSkus.Count)"
+    $iterSkus = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($k in $priceMap.Keys)     { [void]$iterSkus.Add($k) }
+    foreach ($k in $factStmSkus.Keys) { [void]$iterSkus.Add($k) }
+    foreach ($skuNorm in $iterSkus) {
         if ($included.ContainsKey($skuNorm)) { continue }
-        if (-not $stmSkus.ContainsKey($skuNorm)) { continue }
+        # факт-открытие из ОтчетДавальцу2_5 = доверяем (это STM по определению);
+        # из priceMap — проверяем классификатор
+        $fromFacts = $factStmSkus.ContainsKey($skuNorm)
+        if (-not $fromFacts -and -not $stmSkus.ContainsKey($skuNorm)) { continue }
         $sales = Get-SalesFact $skuNorm $mStart $mEnd
         if ($sales.ShippedQty -eq 0 -and $sales.Revenue -eq 0) { continue }
         $included[$skuNorm] = $true
