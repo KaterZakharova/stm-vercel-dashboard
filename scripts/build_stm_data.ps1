@@ -848,7 +848,11 @@ try {
     # список 2026-х заказов
     $f = [uri]::EscapeDataString("Posted eq true and DeletionMark eq false")
     $listResp = Invoke-OData "Document_ЗаказДавальца2_5" "`$filter=$f&`$select=Ref_Key,Number,Date,Контрагент_Key,Менеджер_Key&`$top=10000" 180
-    $y2026 = @($listResp.value) | Where-Object { ([string]$_.Date).StartsWith("2026") }
+    # Дата может прийти в двух форматах: "2026-05-30T..." (ISO) или "30.05.2026 0:00:00" (dd.MM.yyyy)
+    $y2026 = @($listResp.value) | Where-Object {
+        $d = [string]$_.Date
+        $d.StartsWith("2026") -or ($d.Length -ge 10 -and $d.Substring(6,4) -eq "2026")
+    }
     Write-Host "  2026 заказов давальца: $($y2026.Count)"
 
     $aggByKey = @{}

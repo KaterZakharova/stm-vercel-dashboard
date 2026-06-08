@@ -6,7 +6,14 @@ $ts  = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
 $log = Join-Path $repo 'daily_refresh.log'
 "=== $ts START ==="                                       | Tee-Object -FilePath $log -Append | Out-Null
 
+# подчищаем артефакты прошлого упавшего билда, чтобы git pull --ff-only не падал
+git checkout -- index.html 2>&1                           | Tee-Object -FilePath $log -Append | Out-Null
+
 git pull --ff-only 2>&1                                   | Tee-Object -FilePath $log -Append | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    "=== $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') GIT PULL FAILED ===" | Tee-Object -FilePath $log -Append | Out-Null
+    exit 1
+}
 
 & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repo 'scripts\build_stm_data.ps1') 2>&1 |
     Tee-Object -FilePath $log -Append | Out-Null
