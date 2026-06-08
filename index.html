@@ -94,6 +94,13 @@
     .bar-track { height: 12px; background: #edf1f6; border-radius: 999px; overflow: hidden; cursor: pointer; }
     .bar-fill { height: 100%; background: var(--green); border-radius: inherit; }
     .bar-value { font-size: 12px; color: var(--muted); text-align: right; white-space: nowrap; }
+    .goals-list { display: grid; gap: 12px; }
+    .goal-row { display: grid; grid-template-columns: minmax(140px, 1fr) minmax(110px, auto) minmax(110px, auto) minmax(72px, auto); gap: 12px; align-items: center; border-bottom: 1px solid #edf0f5; padding-bottom: 10px; }
+    .goal-row:last-child { border-bottom: 0; padding-bottom: 0; }
+    .goal-name { font-weight: 600; color: #1f2937; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .goal-fact { font-weight: 700; font-size: 15px; text-align: right; color: #0f172a; }
+    .goal-target { color: var(--muted); font-size: 12px; text-align: right; white-space: nowrap; }
+    .goal-pct { text-align: right; }
     .split-list { display: grid; gap: 10px; }
     .split-item { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; border-bottom: 1px solid #edf0f5; padding-bottom: 9px; }
     .split-item:last-child { border-bottom: 0; padding-bottom: 0; }
@@ -318,10 +325,9 @@
       </div>
       <div class="section">
         <div class="section-head">
-          <h2>Контроль данных</h2>
-          <button type="button" class="link-button" id="clearQualityFilter">Все строки</button>
+          <h2>Цель по марже</h2>
         </div>
-        <div class="split-list" id="dataQuality"></div>
+        <div class="goals-list" id="managerGoals"></div>
       </div>
     </section>
 
@@ -433,6 +439,19 @@
     const TARGETS = {
       'Май': { gp: 14000000, qty: 700000 },
       'Июнь': { gp: 14000000, qty: 0 }
+    };
+    // Цели по марже на менеджера и месяц. Пустой/0 — нет цели. Имя должно совпадать с manager в DATA.
+    const MANAGER_GOALS = {
+      'Май': {
+        'Темрина Наталья': 0,
+        'Лигостаева Елена Александровна': 0,
+        'Ягнакова Надежда': 0
+      },
+      'Июнь': {
+        'Темрина Наталья': 8000000,
+        'Лигостаева Елена Александровна': 2800000,
+        'Ягнакова Надежда': 3200000
+      }
     };
     const state = { view: 'main', month: 'Июнь', search: '', manager: '', newness: '', priceSource: '', status: '', quality: '', managerPlanOnly: false };
     const UNCHECKED_STORAGE_KEY = 'stmUnchecked_v1';
@@ -745,21 +764,27 @@
       `).join('') : '<div class="empty">Нет данных для выбранных фильтров</div>';
     }
 
-    function renderQuality(rows) {
-      const noPrice = rows.filter(row => row.priceSource === 'Цена не найдена').length;
-      const outOfPlan = rows.filter(row => row.shippedQty > 0 && row.planQty === 0).length;
-      const shipped = rows.filter(row => row.shippedQty > 0).length;
-      const newItems = rows.filter(row => row.isNew === 'Да').length;
-      const items = [
-        ['shipped', 'SKU с отгрузкой', shipped, 'green'],
-        ['outOfPlan', 'Отгружено вне плана месяца', outOfPlan, outOfPlan ? 'amber' : 'blue'],
-        ['noPrice', 'Без цены', noPrice, noPrice ? 'red' : 'green'],
-        ['newItems', 'Новинки', newItems, 'blue']
-      ];
-      document.getElementById('dataQuality').innerHTML = items.map(([key, label, value, color]) => `
-        <div class="split-item clickable ${state.quality === key ? 'active-quality' : ''}" data-quality-filter="${key}" title="Показать строки: ${label}">
-          <span>${label}</span>
-          <span class="badge ${color}">${value}</span>
+    function renderManagerGoals(rows) {
+      const goals = MANAGER_GOALS[state.month] || {};
+      const factByMgr = new Map();
+      rows.forEach(row => {
+        if (!(row.shippedQty > 0)) return;
+        const m = row.manager || 'Без менеджера';
+        factByMgr.set(m, (factByMgr.get(m) || 0) + Number(row.actualGp || 0));
+      });
+      const items = Object.keys(goals).map(name => {
+        const goal = Number(goals[name] || 0);
+        const fact = Number(factByMgr.get(name) || 0);
+        const pct = goal > 0 ? fact / goal : 0;
+        const color = goal === 0 ? 'blue' : (pct >= 1 ? 'green' : pct >= 0.6 ? 'amber' : 'red');
+        return { name, goal, fact, pct, color };
+      });
+      document.getElementById('managerGoals').innerHTML = items.map(it => `
+        <div class="goal-row">
+          <div class="goal-name" title="${escapeHtml(it.name)}">${escapeHtml(it.name)}</div>
+          <div class="goal-fact">${rub(it.fact)}</div>
+          <div class="goal-target">из ${rub(it.goal)}</div>
+          <div class="goal-pct"><span class="badge ${it.color}">${it.goal > 0 ? pct(it.pct) : '—'}</span></div>
         </div>
       `).join('');
     }
@@ -1449,7 +1474,7 @@
       const qualityRows = baseFilteredRows().filter(row => matchesTableFilters(row));
       renderHero(rows);
       renderBars(rows);
-      renderQuality(qualityRows);
+      renderManagerGoals(qualityRows);
       renderForecast(rows);
       renderTable(rows);
     }
@@ -1528,12 +1553,7 @@
       setManagerPlanFilter(row.dataset.managerFilter);
     });
     document.getElementById('clearManagerFilter').addEventListener('click', clearManagerShipmentFilter);
-    document.getElementById('dataQuality').addEventListener('click', event => {
-      const row = event.target.closest('[data-quality-filter]');
-      if (!row) return;
-      setQualityFilter(row.dataset.qualityFilter);
-    });
-    document.getElementById('clearQualityFilter').addEventListener('click', clearQualityFilter);
+    // Контроль данных удалён, заменён на «Цель по марже». Хендлеры больше не нужны.
 
     // checkbox column — event delegation on table-wrap
     document.querySelector('.table-wrap').addEventListener('change', event => {
