@@ -607,6 +607,77 @@ function Get-SalesFact($skuNorm, $monthStart, $monthEnd) {
     $salesCache[$key] = $result; return $result
 }
 
+# ─── step 4a: индекс активных Заказов Давальца 2_5 по SKU ───────────────────
+# Для каждого SKU собираем все активные заказы с (Date, Менеджер, Контрагент),
+# сортируем по дате DESC → берём свежайший. Заполняем dashboard'ные пробелы
+# по менеджеру и контрагенту из реального активного заказа.
+Write-Host "=== Шаг 4a: индекс активных заказов давальца 2_5 ===" -ForegroundColor Cyan
+$script:skuOrderIndex = @{}  # skuNorm → list of {Date, Manager, Counterparty, Number}
+try {
+    $f = [uri]::EscapeDataString("Posted eq true and DeletionMark eq false")
+    $listResp = Invoke-OData "Document_ЗаказДавальца2_5" "`$filter=$f&`$select=Ref_Key,Number,Date,Контрагент_Key,Менеджер_Key&`$top=10000" 180
+    # фильтруем 2026-е (даты в OData приходят либо ISO либо dd.MM.yyyy)
+    $orders = @($listResp.value) | Where-Object {
+        $d = [string]$_.Date
+        $d.StartsWith("2026") -or ($d.Length -ge 10 -and $d.Substring(6,4) -eq "2026")
+    }
+    Write-Host "  Активных заказов давальца 2_5 (2026): $($orders.Count)"
+    $i = 0
+    foreach ($order in $orders) {
+        $i++
+        if ($i % 25 -eq 0) { Write-Host "    обработано $i / $($orders.Count)" }
+        try {
+            $doc = Invoke-RestMethod -Method Get -Uri "$($OData.Url)/odata/Document_ЗаказДавальца2_5(guid'$($order.Ref_Key)')?`$format=json" -Headers $ODataHeaders -TimeoutSec 60
+        } catch { continue }
+        $orderDate = try { [datetime]$order.Date } catch { [datetime]'1900-01-01' }
+        $mgr = Get-ManagerName $order.Менеджер_Key
+        $cpRef = [string]$order.Контрагент_Key
+        $cpName = ""
+        if ($cpRef -and $cpRef -ne "00000000-0000-0000-0000-000000000000") {
+            if ($counterpartyCache.ContainsKey($cpRef)) { $cpName = $counterpartyCache[$cpRef] }
+            else {
+                try {
+                    $rc = Invoke-RestMethod -Method Get -Uri "$($OData.Url)/odata/Catalog_Контрагенты(guid'$cpRef')?`$format=json&`$select=Description" -Headers $ODataHeaders -TimeoutSec 30
+                    $cpName = [string]$rc.Description
+                    $counterpartyCache[$cpRef] = $cpName
+                } catch {}
+            }
+        }
+        $seenSku = @{}
+        foreach ($line in @($doc.Продукция)) {
+            if ($line.Отменено) { continue }
+            $n = Get-NomByRef $line.Номенклатура_Key
+            if (-not $n -or -not $n.Артикул) { continue }
+            $sn = Normalize-Sku $n.Артикул
+            if ($seenSku.ContainsKey($sn)) { continue }
+            $seenSku[$sn] = $true
+            if (-not $script:skuOrderIndex.ContainsKey($sn)) {
+                $script:skuOrderIndex[$sn] = [System.Collections.Generic.List[object]]::new()
+            }
+            $script:skuOrderIndex[$sn].Add([pscustomobject]@{
+                Date = $orderDate; Manager = $mgr; Counterparty = $cpName; Number = [string]$order.Number
+            })
+        }
+    }
+    # сортировка от свежей к старой
+    foreach ($sn in @($script:skuOrderIndex.Keys)) {
+        $sorted = @($script:skuOrderIndex[$sn] | Sort-Object Date -Descending)
+        $script:skuOrderIndex[$sn] = $sorted
+    }
+    Write-Host "  SKU в индексе: $($script:skuOrderIndex.Count)"
+} catch {
+    Write-Warning "Шаг 4a не удался: $_"
+    $script:skuOrderIndex = @{}
+}
+
+# Получить свежайший активный заказ для SKU (Manager + Counterparty)
+function Get-LatestOrderInfo($skuNorm) {
+    if (-not $script:skuOrderIndex.ContainsKey($skuNorm)) { return $null }
+    $list = $script:skuOrderIndex[$skuNorm]
+    if (-not $list -or $list.Count -eq 0) { return $null }
+    return $list[0]
+}
+
 # ─── step 5: build DATA rows ──────────────────────────────────────────────────
 Write-Host "=== Шаг 5: сборка строк ===" -ForegroundColor Cyan
 $dataRows = [System.Collections.Generic.List[object]]::new()
@@ -736,11 +807,13 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
 
         $stmStockQty = if ($stockStmByNomRef.ContainsKey([string]$pd.NomRef)) { [math]::Round($stockStmByNomRef[[string]$pd.NomRef], 0) } else { 0 }
         $pgpStockQty = if ($stockPgpByNomRef.ContainsKey([string]$pd.NomRef)) { [math]::Round($stockPgpByNomRef[[string]$pd.NomRef], 0) } else { 0 }
+        $latestOrd = Get-LatestOrderInfo $skuNorm
         $counterparty = ""
         if ($skuToOrderRef[$monthCode].ContainsKey($skuNorm)) {
             $oref = $skuToOrderRef[$monthCode][$skuNorm].Ref
             if ($orderToCounterpartyName.ContainsKey($oref)) { $counterparty = $orderToCounterpartyName[$oref] }
         }
+        if (-not $counterparty -and $latestOrd) { $counterparty = $latestOrd.Counterparty }
         if (-not $counterparty) { $counterparty = Get-NomCounterparty $nrk }
         $script:dataRows.Add([ordered]@{
             month           = $monthName
@@ -755,7 +828,7 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
             stockStm        = $stmStockQty
             stockPgp        = $pgpStockQty
             counterparty    = $counterparty
-            manager         = if ($price -and $price.Manager) { $price.Manager } elseif ($sales.Managers) { $sales.Managers } else { Get-NomManager $nrk }
+            manager         = if ($price -and $price.Manager) { $price.Manager } elseif ($latestOrd -and $latestOrd.Manager) { $latestOrd.Manager } elseif ($sales.Managers) { $sales.Managers } else { Get-NomManager $nrk }
             factoryPrice    = [math]::Round($fp,  2)
             clientPrice     = [math]::Round($cp,  2)
             actualClientPrice = [math]::Round($acp, 2)
@@ -835,11 +908,13 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
         $nrk = if ($n) { [string]$n.Ref_Key } else { "" }
         $stmStockQty = if ($nrk -and $stockStmByNomRef.ContainsKey($nrk)) { [math]::Round($stockStmByNomRef[$nrk], 0) } else { 0 }
         $pgpStockQty = if ($nrk -and $stockPgpByNomRef.ContainsKey($nrk)) { [math]::Round($stockPgpByNomRef[$nrk], 0) } else { 0 }
+        $latestOrd = Get-LatestOrderInfo $skuNorm
         $counterparty = ""
         if ($skuToOrderRef[$monthCode].ContainsKey($skuNorm)) {
             $oref = $skuToOrderRef[$monthCode][$skuNorm].Ref
             if ($orderToCounterpartyName.ContainsKey($oref)) { $counterparty = $orderToCounterpartyName[$oref] }
         }
+        if (-not $counterparty -and $latestOrd) { $counterparty = $latestOrd.Counterparty }
         if (-not $counterparty) { $counterparty = Get-NomCounterparty $nrk }
 
         $script:dataRows.Add([ordered]@{
@@ -855,7 +930,7 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
             stockStm        = $stmStockQty
             stockPgp        = $pgpStockQty
             counterparty    = $counterparty
-            manager         = if ($price -and $price.Manager) { $price.Manager } elseif ($sales.Managers) { $sales.Managers } else { Get-NomManager $nrk }
+            manager         = if ($price -and $price.Manager) { $price.Manager } elseif ($latestOrd -and $latestOrd.Manager) { $latestOrd.Manager } elseif ($sales.Managers) { $sales.Managers } else { Get-NomManager $nrk }
             factoryPrice    = [math]::Round($fp,  2)
             clientPrice     = [math]::Round($cp,  2)
             actualClientPrice = [math]::Round($acp, 2)
@@ -886,6 +961,7 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
             $pgpQ = if ($stockPgpByNomRef.ContainsKey($nrk)) { [math]::Round($stockPgpByNomRef[$nrk], 0) } else { 0 }
             $tag = Get-MayCarryTag $skuNorm
             $price = $priceMap[$skuNorm]
+            $latestOrd2 = Get-LatestOrderInfo $skuNorm
             $script:dataRows.Add([ordered]@{
                 month           = $monthName
                 sku             = $skuNorm
@@ -898,8 +974,8 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
                 remainingQty    = 0.0
                 stockStm        = $stmQ
                 stockPgp        = $pgpQ
-                counterparty    = (Get-NomCounterparty $nrk)
-                manager         = if ($price -and $price.Manager) { $price.Manager } else { Get-NomManager $nrk }
+                counterparty    = $(if ($latestOrd2 -and $latestOrd2.Counterparty) { $latestOrd2.Counterparty } else { Get-NomCounterparty $nrk })
+                manager         = $(if ($price -and $price.Manager) { $price.Manager } elseif ($latestOrd2 -and $latestOrd2.Manager) { $latestOrd2.Manager } else { Get-NomManager $nrk })
                 factoryPrice    = 0.0
                 clientPrice     = 0.0
                 actualClientPrice = 0.0
