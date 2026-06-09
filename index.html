@@ -174,7 +174,14 @@
     .fc-drawer { margin-top:14px; padding-top:12px; border-top:1px dashed #e6e9f0; }
     .fc-drawer-head { display:flex; align-items:baseline; gap:10px; margin-bottom:8px; font-size:14px; }
     .fc-drawer-meta { color:#64748b; font-size:12px; }
-    .fc-drawer-scroll { max-height:340px; overflow:auto; border:1px solid #e6e9f0; border-radius:8px; }
+    .fc-drawer-scroll { height:340px; min-height:200px; max-height:80vh; overflow:auto; border:1px solid #e6e9f0; border-radius:8px; resize:vertical; }
+    .fc-drilldown tr.fc-filter-row th { background:#fbfdff; padding:4px 8px; border-bottom:1px solid #e6e9f0; position:sticky; top:32px; z-index:1; }
+    .fc-drilldown tr.fc-filter-row input, .fc-drilldown tr.fc-filter-row select { width:100%; height:24px; border:1px solid #cbd5e1; border-radius:4px; padding:0 6px; font-size:11px; background:#fff; }
+    .fc-drilldown tr.fc-filter-row input:focus, .fc-drilldown tr.fc-filter-row select:focus { border-color:var(--blue); outline:none; }
+    .fc-drilldown td.pct, .fc-drilldown th.pct { text-align:right; white-space:nowrap; width:72px; }
+    .fc-drilldown .pct-bad   { color:var(--red);   font-weight:700; }
+    .fc-drilldown .pct-warn  { color:var(--amber); font-weight:600; }
+    .fc-drilldown .pct-ok    { color:var(--green); font-weight:600; }
     table.fc-drilldown { width:100%; border-collapse:collapse; font-size:12px; }
     table.fc-drilldown th { position:sticky; top:0; background:#f8fafc; color:#475467; font-weight:700; padding:8px 10px; border-bottom:1px solid #e6e9f0; text-align:left; }
     table.fc-drilldown td { padding:7px 10px; border-bottom:1px solid #f1f5f9; vertical-align:top; }
@@ -908,29 +915,99 @@
 
     let expandedBucket = null;
     let bucketFilter = 'all';  // 'all' | 'in' | 'out' — фильтр чекбоксов в drill-down
+    // фильтры по колонкам drilldown — substring match (для текстовых) / select (для В расчёте)
+    const fcDrillFilters = { sku:'', name:'', counterparty:'', manager:'', qty:'', contrib:'', marginPct:'', checked:'all', comment:'' };
+    let fcFocusedFilter = null;  // какой input был сфокусирован — чтобы вернуть фокус после re-render
+    const FC_DRAWER_HEIGHT_KEY = 'stmFcDrawerHeight_v1';
+    function getFcDrawerHeight() { return parseInt(localStorage.getItem(FC_DRAWER_HEIGHT_KEY)) || 340; }
+    function applyDrillFilters(items) {
+      const f = fcDrillFilters;
+      const txt = (v, q) => !q || ((v||'').toString().toLowerCase().includes(q.toLowerCase()));
+      const num = (v, q) => {
+        if (!q) return true;
+        const qq = q.trim().replace(',','.');
+        const m = qq.match(/^([<>]=?)\s*(-?\d+(?:\.\d+)?)$/);
+        const n = Number(v) || 0;
+        if (m) {
+          const op = m[1], target = Number(m[2]);
+          if (op === '>')  return n > target;
+          if (op === '>=') return n >= target;
+          if (op === '<')  return n < target;
+          if (op === '<=') return n <= target;
+        }
+        return (n.toString()).includes(qq);
+      };
+      return items.filter(i => {
+        const checked = isChecked(i.row);
+        if (f.checked === 'in'  && !checked) return false;
+        if (f.checked === 'out' &&  checked) return false;
+        if (!txt(i.row.sku,         f.sku))         return false;
+        if (!txt(i.row.name,        f.name))        return false;
+        if (!txt(i.row.counterparty,f.counterparty))return false;
+        if (!txt(i.row.manager,     f.manager))     return false;
+        if (!num(i.qty,             f.qty))         return false;
+        if (!num(i.fullContribution,f.contrib))     return false;
+        if (f.marginPct) {
+          if (i.marginPct == null) return false;
+          if (!num(Math.round(i.marginPct * 100), f.marginPct)) return false;
+        }
+        if (!txt(getComment(i.row), f.comment))     return false;
+        return true;
+      });
+    }
+    function setDrillFilter(key, value) {
+      fcDrillFilters[key] = value;
+      const rows = filteredRows();
+      // re-render только drawer'а — не весь forecastSection (чтобы не пересоздать поля поиска)
+      const root = document.querySelector('#forecastSection .fc-drawer');
+      if (root) {
+        const wrap = document.createElement('div');
+        wrap.innerHTML = renderForecastDrawer(rows);
+        const fresh = wrap.firstElementChild;
+        if (fresh) {
+          root.replaceWith(fresh);
+          if (fcFocusedFilter) {
+            const inp = document.querySelector(`[data-fc-filter="${fcFocusedFilter}"]`);
+            if (inp) { inp.focus(); if (inp.setSelectionRange) inp.setSelectionRange(inp.value.length, inp.value.length); }
+          }
+        }
+      }
+    }
     let tableCheckFilter = 'all';  // 'all' | 'in' | 'out' — фильтр чекбоксов в основной таблице
     function bucketRows(rows, bucket) {
       // contribution     — учитывается в общей сумме (для снятых = 0)
       // fullContribution — полная сумма вклада SKU, всегда показывается в строке
+      // revenue          — выручка по qty (для расчёта marginPct)
+      // marginPct        — рассчитанная маржа в % (contribution / revenue), null если нет данных
       const out = [];
       rows.forEach(r => {
         const v = valovkaPerUnit(r);
         const checked = isChecked(r);
         const stockAll = stockQty(r) + stockPgpQty(r);
+        const cp = Number(r.actualClientPrice || r.clientPrice || 0);
+        const shippedRev = Number(r.actualRevenue || 0);
+        const shippedQ   = Number(r.shippedQty || 0);
+        const makeItem = (qty, contribution, fullContribution, revenue) => {
+          const mp = revenue > 0 ? fullContribution / revenue : null;
+          return { row: r, qty, contribution, fullContribution, revenue, marginPct: mp };
+        };
         if (bucket === 'A') {
-          if (r.shippedQty > 0 || Number(r.actualGp || 0) !== 0) {
+          if (shippedQ > 0 || Number(r.actualGp || 0) !== 0) {
             const a = Number(r.actualGp || 0);
-            out.push({ row: r, qty: r.shippedQty || 0, contribution: a, fullContribution: a });
+            out.push(makeItem(shippedQ, a, a, shippedRev));
           }
         } else if (bucket === 'B') {
           if (stockAll > 0) {
             const full = stockAll * v;
-            out.push({ row: r, qty: stockAll, contribution: checked ? full : 0, fullContribution: full });
+            const rev  = stockAll * cp;
+            out.push(makeItem(stockAll, checked ? full : 0, full, rev));
           }
         } else if (bucket === 'C') {
           if (toProduceQty(r) > 0) {
-            const full = toProduceQty(r) * v;
-            out.push({ row: r, qty: toProduceQty(r), contribution: checked ? full : 0, fullContribution: full });
+            const q = toProduceQty(r);
+            const full = q * v;
+            const rev  = q * cp;
+            out.push(makeItem(q, checked ? full : 0, full, rev));
           }
         } else if (bucket === 'opt') {
           const a = Number(r.actualGp || 0);
@@ -939,12 +1016,12 @@
           if (a !== 0 || stockPot > 0 || futPot > 0) {
             const full = a + stockPot + futPot;
             const contribution = a + (checked ? stockPot + futPot : 0);
-            const qty = (r.shippedQty || 0) + stockAll + toProduceQty(r);
-            out.push({ row: r, qty, contribution, fullContribution: full });
+            const qty = shippedQ + stockAll + toProduceQty(r);
+            const rev = shippedRev + (stockAll + toProduceQty(r)) * cp;
+            out.push(makeItem(qty, contribution, full, rev));
           }
         }
       });
-      // сортируем по полному вкладу, чтобы снятые тоже шли по значимости, а не падали в конец
       return out.sort((a, b) => b.fullContribution - a.fullContribution);
     }
 
@@ -1012,12 +1089,27 @@
       }
       const inCount  = allItems.filter(i => isChecked(i.row)).length;
       const outCount = allItems.length - inCount;
-      const items = bucketFilter === 'in'  ? allItems.filter(i => isChecked(i.row))
-                  : bucketFilter === 'out' ? allItems.filter(i => !isChecked(i.row))
-                  : allItems;
+      let items = bucketFilter === 'in'  ? allItems.filter(i => isChecked(i.row))
+                : bucketFilter === 'out' ? allItems.filter(i => !isChecked(i.row))
+                : allItems;
+      // фильтры по колонкам
+      items = applyDrillFilters(items);
       const totalContrib = items.reduce((s, i) => s + i.contribution, 0);
       const totalQty     = items.reduce((s, i) => s + (i.qty || 0), 0);
+      const totalRev     = items.reduce((s, i) => s + (i.revenue || 0), 0);
+      const totalFullContrib = items.reduce((s, i) => s + i.fullContribution, 0);
+      const totalMarginPct = totalRev > 0 ? totalFullContrib / totalRev : null;
       const chip = (val, label, count) => `<button type="button" class="fc-filter-chip${bucketFilter===val?' fc-filter-chip-active':''}" data-bucket-filter="${val}">${label} <span class="fc-filter-count">${count}</span></button>`;
+      const pctClass = p => p == null ? '' : p >= 0.30 ? 'pct-ok' : p >= 0.15 ? 'pct-warn' : 'pct-bad';
+      const fmtPct = p => p == null ? '—' : (p * 100).toFixed(1) + '%';
+      const fcd = fcDrillFilters;
+      const f = (key, ph='Поиск', isNum=false) => `<input type="search" data-fc-filter="${key}" placeholder="${ph}" value="${escapeHtml(fcd[key])}"${isNum?' inputmode="numeric"':''}>`;
+      const fSel = (key) => `<select data-fc-filter="${key}">
+        <option value="all"${fcd[key]==='all'?' selected':''}>Все</option>
+        <option value="in"${fcd[key]==='in'?' selected':''}>В расчёте</option>
+        <option value="out"${fcd[key]==='out'?' selected':''}>Снятые</option>
+      </select>`;
+      const drawerH = getFcDrawerHeight();
       return `
         <div class="fc-drawer">
           <div class="fc-drawer-head">
@@ -1030,18 +1122,32 @@
             </span>
             <button type="button" class="export-btn" data-export-drilldown title="Сохранить в Excel (CSV)">⬇ Excel</button>
           </div>
-          <div class="fc-drawer-scroll">
+          <div class="fc-drawer-scroll" style="height:${drawerH}px">
             <table class="fc-drilldown">
-              <thead><tr>
-                <th>Артикул</th>
-                <th>Наименование</th>
-                <th>Юр лицо</th>
-                <th>Менеджер</th>
-                <th class="num">${qtyLbl[expandedBucket]}</th>
-                <th class="num">Вклад в валовку</th>
-                <th class="cb-col" title="Учитывать в расчёте прогноза">В расчёте</th>
-                <th>Комментарий</th>
-              </tr></thead>
+              <thead>
+                <tr>
+                  <th>Артикул</th>
+                  <th>Наименование</th>
+                  <th>Юр лицо</th>
+                  <th>Менеджер</th>
+                  <th class="num">${qtyLbl[expandedBucket]}</th>
+                  <th class="num">Вклад в валовку</th>
+                  <th class="pct" title="Маржа = вклад / выручка ×100%. Использует факт цены, если SKU отгружался; иначе — плановая.">Маржа, %</th>
+                  <th class="cb-col" title="Учитывать в расчёте прогноза">В расчёте</th>
+                  <th>Комментарий</th>
+                </tr>
+                <tr class="fc-filter-row">
+                  <th>${f('sku')}</th>
+                  <th>${f('name')}</th>
+                  <th>${f('counterparty')}</th>
+                  <th>${f('manager')}</th>
+                  <th class="num">${f('qty','напр. >100',true)}</th>
+                  <th class="num">${f('contrib','напр. >50000',true)}</th>
+                  <th class="pct">${f('marginPct','напр. >30',true)}</th>
+                  <th class="cb-col">${fSel('checked')}</th>
+                  <th>${f('comment')}</th>
+                </tr>
+              </thead>
               <tbody>${items.length ? items.map(i => {
                 const checked = isChecked(i.row);
                 const c = getComment(i.row);
@@ -1057,15 +1163,17 @@
                   <td>${escapeHtml(i.row.manager || '')}</td>
                   <td class="num">${fmtQty.format(i.qty)}</td>
                   <td class="num">${contribCell}</td>
+                  <td class="pct"><span class="${pctClass(i.marginPct)}">${fmtPct(i.marginPct)}</span></td>
                   <td class="cb-col"><input type="checkbox" data-row-sku="${escapeHtml(i.row.sku)}" ${checked ? 'checked' : ''}></td>
                   <td><button type="button" class="${btnCls}" data-comment-sku="${escapeHtml(i.row.sku)}" title="${escapeHtml(c || 'Добавить комментарий о риске/переносе')}">${btnTxt}</button></td>
                 </tr>`;
-              }).join('') : `<tr><td colspan="8" class="empty">Нет SKU в этом фильтре</td></tr>`}</tbody>
+              }).join('') : `<tr><td colspan="9" class="empty">Нет SKU в этом фильтре</td></tr>`}</tbody>
               <tfoot>
                 <tr class="fc-foot">
                   <td colspan="4" class="label">ИТОГО · ${items.length} SKU</td>
                   <td class="num">${fmtQty.format(totalQty)}</td>
                   <td class="num">${rub(totalContrib)}</td>
+                  <td class="pct"><span class="${pctClass(totalMarginPct)}">${fmtPct(totalMarginPct)}</span></td>
                   <td class="cb-col"></td><td></td>
                 </tr>
               </tfoot>
@@ -1079,12 +1187,13 @@
       if (!expandedBucket) return;
       const rows = filteredRows();
       const all = bucketRows(rows, expandedBucket);
-      const items = bucketFilter === 'in'  ? all.filter(i => isChecked(i.row))
-                  : bucketFilter === 'out' ? all.filter(i => !isChecked(i.row))
-                  : all;
+      let items = bucketFilter === 'in'  ? all.filter(i => isChecked(i.row))
+                : bucketFilter === 'out' ? all.filter(i => !isChecked(i.row))
+                : all;
+      items = applyDrillFilters(items);
       const titles = { A: 'Факт_отгружено', B: 'Склад_готово', C: 'К_выпуску', opt: 'Прогноз_все' };
       const qtyLbl = { A: 'Отгружено',     B: 'На складе',    C: 'К выпуску', opt: 'Кол-во' };
-      const headers = ['Артикул', 'Наименование', 'Юр лицо', 'Менеджер', qtyLbl[expandedBucket], 'Вклад в валовку, ₽', 'Вклад в расчёт, ₽', 'В расчёте', 'Комментарий'];
+      const headers = ['Артикул', 'Наименование', 'Юр лицо', 'Менеджер', qtyLbl[expandedBucket], 'Вклад в валовку, ₽', 'Вклад в расчёт, ₽', 'Маржа, %', 'В расчёте', 'Комментарий'];
       const data = items.map(i => [
         i.row.sku,
         i.row.name,
@@ -1093,6 +1202,7 @@
         Math.round(i.qty),
         Math.round(i.fullContribution),
         Math.round(i.contribution),
+        i.marginPct == null ? '' : (i.marginPct * 100).toFixed(1),
         isChecked(i.row) ? 'Да' : 'Нет',
         getComment(i.row) || ''
       ]);
@@ -1646,13 +1756,48 @@
     });
     document.getElementById('forecastSection').addEventListener('change', event => {
       const rowCb = event.target.closest('[data-row-sku]');
-      if (!rowCb) return;
-      const sku = rowCb.dataset.rowSku;
-      if (rowCb.checked) uncheckedKeys[state.month].delete(sku);
-      else uncheckedKeys[state.month].add(sku);
-      persistUnchecked();
-      render();
+      if (rowCb) {
+        const sku = rowCb.dataset.rowSku;
+        if (rowCb.checked) uncheckedKeys[state.month].delete(sku);
+        else uncheckedKeys[state.month].add(sku);
+        persistUnchecked();
+        render();
+        return;
+      }
+      // select-фильтр по «В расчёте»
+      const sel = event.target.closest('select[data-fc-filter]');
+      if (sel) {
+        fcFocusedFilter = sel.dataset.fcFilter;
+        setDrillFilter(sel.dataset.fcFilter, sel.value);
+      }
     });
+    // фильтры по колонкам drilldown — input live-фильтрация
+    document.getElementById('forecastSection').addEventListener('input', event => {
+      const inp = event.target.closest('input[data-fc-filter]');
+      if (!inp) return;
+      fcFocusedFilter = inp.dataset.fcFilter;
+      setDrillFilter(inp.dataset.fcFilter, inp.value);
+    });
+    document.getElementById('forecastSection').addEventListener('focusin', event => {
+      const f = event.target.closest('[data-fc-filter]');
+      if (f) fcFocusedFilter = f.dataset.fcFilter;
+    });
+    // следим за изменением высоты drawer'а (browser native resize) — сохраняем в localStorage
+    new MutationObserver(() => {
+      const scroll = document.querySelector('.fc-drawer-scroll');
+      if (!scroll) return;
+      if (scroll._fcRsizeObs) return;
+      const ro = new ResizeObserver(entries => {
+        for (const e of entries) {
+          const h = Math.round(e.contentRect.height);
+          if (h > 100 && h !== getFcDrawerHeight()) {
+            try { localStorage.setItem(FC_DRAWER_HEIGHT_KEY, String(h)); } catch (e) {}
+          }
+        }
+      });
+      ro.observe(scroll);
+      scroll._fcRsizeObs = ro;
+    }).observe(document.getElementById('forecastSection'), { childList:true, subtree:true });
     document.getElementById('tableCheckFilter').addEventListener('click', event => {
       const btn = event.target.closest('[data-table-filter]');
       if (!btn) return;
