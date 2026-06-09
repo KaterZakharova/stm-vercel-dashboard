@@ -769,15 +769,20 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
         $price = $priceMap[$skuNorm]
         $sales = Get-SalesFact $skuNorm $mStart $mEnd
 
-        # factory price: ПЛАНОВАЯ цена фабрики (как у куба аналитики).
+        # factory price: ПЛАНОВАЯ цена фабрики.
         # Cost из 1С (cost/qty по реальным отгрузкам) НЕ используется в валовке —
-        # он зачастую недостоверен (битые проводки) и не отражает плановую себестоимость.
-        # Приоритеты: CSV plan → классификатор → прайс-лист 1С ("Цена Фабрики") → fp_1c (last resort)
+        # он зачастую недостоверен (битые проводки).
+        # Логика: берём MAX(CSV-плановая, 1С «Цена Фабрики») — это защита от устаревших
+        # CSV-цен, которые занижают себестоимость → раздувают маржу. Пример: VKVL004
+        # в CSV 26.85 (Плановая цена 17.12.2025), а в 1С «Цена Фабрики» 85.69 (21.04.2026).
         $fp_1c  = if ($sales.ShippedQty -gt 0 -and $sales.Cost -gt 0) { $sales.Cost / $sales.ShippedQty } else { 0.0 }
         $fp_csv = if ($price) { [double]$price.FactoryPrice } else { 0.0 }
         if ($fp_csv -eq 0 -and $classPrices.ContainsKey($skuNorm)) { $fp_csv = [double]$classPrices[$skuNorm] }
-        $fp = if ($fp_csv -gt 0) { $fp_csv } else { 0.0 }
-        if ($fp -eq 0) { $pf = Get-OneCFactoryPrice $pd.NomRef; if ($pf -gt 0) { $fp = $pf } }
+        $fp_1cFactory = Get-OneCFactoryPrice $pd.NomRef
+        $fp = if ($fp_csv -gt 0 -and $fp_1cFactory -gt 0) { [Math]::Max($fp_csv, $fp_1cFactory) } `
+              elseif ($fp_csv -gt 0)      { $fp_csv } `
+              elseif ($fp_1cFactory -gt 0) { $fp_1cFactory } `
+              else                         { 0.0 }
         if ($fp -eq 0 -and $fp_1c -gt 0) { $fp = $fp_1c }   # last resort
 
         # client price — приоритет:
@@ -890,15 +895,18 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
         if ($sales.ShippedQty -eq 0 -and $sales.Revenue -eq 0) { continue }
         $included[$skuNorm] = $true
         $price = $priceMap[$skuNorm]
-        # factory price — ТОЛЬКО плановая (CSV/классиф/прайс-лист), cost из 1С — last resort
+        # factory price: MAX(CSV, 1С «Цена Фабрики») — защита от устаревших plan-cost
+        # (см. подробности в plan-rows ветке выше)
         $fp_1c  = if ($sales.ShippedQty -gt 0 -and $sales.Cost -gt 0) { $sales.Cost / $sales.ShippedQty } else { 0.0 }
         $fp_csv = if ($price) { [double]$price.FactoryPrice } else { 0.0 }
         if ($fp_csv -eq 0 -and $classPrices.ContainsKey($skuNorm)) { $fp_csv = [double]$classPrices[$skuNorm] }
-        $fp = if ($fp_csv -gt 0) { $fp_csv } else { 0.0 }
-        if ($fp -eq 0) {
-            $n_tmp = Get-NomByArticle $skuNorm
-            if ($n_tmp) { $pf = Get-OneCFactoryPrice $n_tmp.Ref_Key; if ($pf -gt 0) { $fp = $pf } }
-        }
+        $fp_1cFactory = 0.0
+        $n_tmp = Get-NomByArticle $skuNorm
+        if ($n_tmp) { $fp_1cFactory = Get-OneCFactoryPrice $n_tmp.Ref_Key }
+        $fp = if ($fp_csv -gt 0 -and $fp_1cFactory -gt 0) { [Math]::Max($fp_csv, $fp_1cFactory) } `
+              elseif ($fp_csv -gt 0)       { $fp_csv } `
+              elseif ($fp_1cFactory -gt 0) { $fp_1cFactory } `
+              else                          { 0.0 }
         if ($fp -eq 0 -and $fp_1c -gt 0) { $fp = $fp_1c }   # last resort
         # client price: трассировка → CSV → fallback по последнему заказу
         $cp_order = 0.0
