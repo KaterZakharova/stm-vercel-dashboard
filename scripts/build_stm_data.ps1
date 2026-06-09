@@ -14,6 +14,20 @@ $PlanDocNumbers = @("ЦБ-00000218", "ЦБ-00000220")
 $MayStart  = "2026-05-01T00:00:00"
 $JuneStart = "2026-06-01T00:00:00"
 $JuneEnd   = "2026-07-01T00:00:00"
+$JulyStart = "2026-07-01T00:00:00"
+$JulyEnd   = "2026-08-01T00:00:00"
+$AugStart  = "2026-08-01T00:00:00"
+$AugEnd    = "2026-09-01T00:00:00"
+
+# централизованный список месяцев + границ для loop-based кода
+$MonthCodes = @("2026-05", "2026-06", "2026-07", "2026-08")
+$MonthBounds = @{
+    "2026-05" = @{ Start = $MayStart;  End = $JuneStart }
+    "2026-06" = @{ Start = $JuneStart; End = $JuneEnd   }
+    "2026-07" = @{ Start = $JulyStart; End = $JulyEnd   }
+    "2026-08" = @{ Start = $AugStart;  End = $AugEnd    }
+}
+function New-MonthHash { $h = @{}; foreach ($mc in $MonthCodes) { $h[$mc] = @{} }; return $h }
 
 # Ручные override менеджеров для SKU без активного 2_5 заказа и без карточных реквизитов.
 # Имеет наивысший приоритет в Build-MonthRows.
@@ -269,7 +283,7 @@ function Get-NomCounterparty($nomRefKey) {
 
 # ─── step 1: production plan ─────────────────────────────────────────────────
 Write-Host "=== Шаг 1: план производства ($($PlanDocNumbers -join ', ')) ===" -ForegroundColor Cyan
-$planByMonth = @{ "2026-05" = @{}; "2026-06" = @{} }
+$planByMonth = New-MonthHash
 foreach ($planNum in $PlanDocNumbers) {
     $safe = Escape-OData $planNum
     # ищем по подстроке (Number eq иногда падает с AUTOORDER ошибкой), затем дочитываем по Ref_Key
@@ -283,7 +297,7 @@ foreach ($planNum in $PlanDocNumbers) {
     }
     # читаем сам документ с табличной частью Продукция через entity-key URL
     $planDoc = Invoke-RestMethod -Method Get -Uri "$($OData.Url)/odata/Document_ПланПроизводства(guid'$($match.Ref_Key)')?`$format=json" -Headers $ODataHeaders -TimeoutSec 180
-    $added = @{ "2026-05" = 0; "2026-06" = 0 }
+    $added = @{}; foreach ($mc in $MonthCodes) { $added[$mc] = 0 }
     foreach ($line in @($planDoc.Продукция)) {
         if ($line.Отменено -eq $true) { continue }
         $qty = To-Num $line.Количество
@@ -293,7 +307,7 @@ foreach ($planNum in $PlanDocNumbers) {
         $skuNorm = Normalize-Sku $n.Артикул
         $rd = if ($line.ДатаВыпуска) { try { [datetime]$line.ДатаВыпуска } catch { $null } } else { $null }
         $monthCode = if ($rd -and $rd.Year -gt 1900) { $rd.ToString("yyyy-MM") } else { "" }
-        if ($monthCode -notin @("2026-05", "2026-06")) { continue }
+        if ($monthCode -notin $MonthCodes) { continue }
         if (-not $planByMonth[$monthCode].ContainsKey($skuNorm)) {
             $planByMonth[$monthCode][$skuNorm] = [pscustomobject]@{
                 Sku = [string]$n.Артикул; SkuNorm = $skuNorm
@@ -303,14 +317,16 @@ foreach ($planNum in $PlanDocNumbers) {
         $planByMonth[$monthCode][$skuNorm].PlanQty += $qty
         $added[$monthCode] += 1
     }
-    Write-Host "  $planNum : +$($added['2026-05']) строк Мая, +$($added['2026-06']) строк Июня"
+    $parts = foreach ($mc in $MonthCodes) { "+$($added[$mc]) $mc" }
+    Write-Host "  $planNum : $($parts -join ', ')"
 }
-Write-Host "  Итого Май: $($planByMonth['2026-05'].Count) SKU, Июнь: $($planByMonth['2026-06'].Count) SKU"
+$totals = foreach ($mc in $MonthCodes) { "$mc=$($planByMonth[$mc].Count) SKU" }
+Write-Host "  Итого: $($totals -join '; ')"
 
 # ─── step 2: actual release (Выпуск продукции) ───────────────────────────────
 Write-Host "=== Шаг 2: фактический выпуск (ВыпускПродукции) ===" -ForegroundColor Cyan
 $relFilter = [uri]::EscapeDataString(
-    "Period ge datetime'$MayStart' and Period lt datetime'$JuneEnd' and Active eq true"
+    "Period ge datetime'$MayStart' and Period lt datetime'$AugEnd' and Active eq true"
 )
 $relRecords = @()
 try {
@@ -321,13 +337,13 @@ try {
 }
 
 # aggregate by analytics key first (minimizes catalog lookups)
-$releaseByAnalyticsKey = @{ "2026-05" = @{}; "2026-06" = @{} }
+$releaseByAnalyticsKey = New-MonthHash
 # also track latest Recorder (Этап производства) per analytics key per month — нужно для трассировки до Заказа давальца
-$latestRecorderByAk = @{ "2026-05" = @{}; "2026-06" = @{} }
+$latestRecorderByAk = New-MonthHash
 foreach ($rec in $relRecords) {
     $dt = try { [datetime]$rec.Period } catch { continue }
     $mc = $dt.ToString("yyyy-MM")
-    if ($mc -notin @("2026-05", "2026-06")) { continue }
+    if ($mc -notin $MonthCodes) { continue }
     $ak = [string]$rec.АналитикаУчетаНоменклатуры_Key
     if (-not $releaseByAnalyticsKey[$mc].ContainsKey($ak)) { $releaseByAnalyticsKey[$mc][$ak] = 0.0 }
     $releaseByAnalyticsKey[$mc][$ak] += To-Num $rec.Количество
@@ -339,8 +355,8 @@ foreach ($rec in $relRecords) {
 }
 
 # resolve analytics key → Номенклатура_Key → skuNorm
-$releaseBySkuNorm = @{ "2026-05" = @{}; "2026-06" = @{} }
-foreach ($mc in @("2026-05", "2026-06")) {
+$releaseBySkuNorm = New-MonthHash
+foreach ($mc in $MonthCodes) {
     foreach ($ak in $releaseByAnalyticsKey[$mc].Keys) {
         $nomRefKey = Get-NomFromAnalyticsKey $ak; if ($null -eq $nomRefKey) { continue }
         $n = Get-NomByRef $nomRefKey; if ($null -eq $n) { continue }
@@ -358,11 +374,11 @@ foreach ($mc in @("2026-05", "2026-06")) {
 Write-Host "=== Шаг 2.6: цепочка выпуск → Заказ давальца2_5 ===" -ForegroundColor Cyan
 $etapToZakazProd = @{}     # Recorder (Этап) Ref → Заказ на производство Ref
 $zakazProdToBase = @{}     # Заказ на производство Ref → @{ OrderRef, OrderType }
-$skuToOrderRef = @{ "2026-05" = @{}; "2026-06" = @{} }  # skuNorm → ЗаказДавальца Ref (с типом)
+$skuToOrderRef = New-MonthHash  # skuNorm → ЗаказДавальца Ref (с типом)
 
 # собираем уникальные Recorder Refs из всех месяцев
 $uniqueRecorders = @{}
-foreach ($mc in @("2026-05", "2026-06")) {
+foreach ($mc in $MonthCodes) {
     foreach ($ak in $latestRecorderByAk[$mc].Keys) {
         $r = $latestRecorderByAk[$mc][$ak]
         if ($r.Recorder -and $r.RecorderType -like "*ЭтапПроизводства*") {
@@ -407,7 +423,7 @@ $withZakazDav = ($zakazProdToBase.Values | Where-Object { $_.Type -match "Зак
 Write-Host "  Заказов на производство с Заказом давальца: $withZakazDav из $($zakazProdToBase.Count)"
 
 # Собираем SkuNorm → Ref Заказа давальца (по последнему выпуску в месяце)
-foreach ($mc in @("2026-05", "2026-06")) {
+foreach ($mc in $MonthCodes) {
     foreach ($ak in $latestRecorderByAk[$mc].Keys) {
         $rec = $latestRecorderByAk[$mc][$ak]
         $etapRef = $rec.Recorder
@@ -429,7 +445,7 @@ foreach ($mc in @("2026-05", "2026-06")) {
 $orderToCounterpartyName = @{}
 $counterpartyCache = @{}
 $uniqueOrders = @{}
-foreach ($mc in @("2026-05", "2026-06")) {
+foreach ($mc in $MonthCodes) {
     foreach ($oi in $skuToOrderRef[$mc].Values) {
         $uniqueOrders["$($oi.Type)|$($oi.Ref)"] = $oi
     }
@@ -572,8 +588,11 @@ function Build-PriceMap($month) {
     return $map
 }
 
-$mayPriceMap  = Build-PriceMap "2026-05"
-$junePriceMap = Build-PriceMap "2026-06"
+$priceMapByMonth = @{}
+foreach ($mc in $MonthCodes) { $priceMapByMonth[$mc] = Build-PriceMap $mc }
+# backward compat aliases (если где-то ещё дёргаются)
+$mayPriceMap  = $priceMapByMonth["2026-05"]
+$junePriceMap = $priceMapByMonth["2026-06"]
 
 # ─── step 4: sales facts ─────────────────────────────────────────────────────
 Write-Host "=== Шаг 4: факт продаж ===" -ForegroundColor Cyan
@@ -737,8 +756,8 @@ function Get-FactStmSkus($monthStart, $monthEnd) {
 function Build-MonthRows($monthCode, $monthName, $priceMap) {
     $planMonth    = $planByMonth[$monthCode]
     $releaseMonth = $releaseBySkuNorm[$monthCode]
-    $mStart = if ($monthCode -eq "2026-05") { $MayStart  } else { $JuneStart }
-    $mEnd   = if ($monthCode -eq "2026-05") { $JuneStart } else { $JuneEnd   }
+    $mStart = $MonthBounds[$monthCode].Start
+    $mEnd   = $MonthBounds[$monthCode].End
     $included = @{}
 
     # rows from production plan — план ЦБ-00000218 сам источник истины по СТМ,
@@ -1032,6 +1051,8 @@ foreach ($r in $script:dataRows) {
 Write-Host "  Carry-over из Мая: $($script:mayCarryByNorm.Count) SKU"
 
 Build-MonthRows "2026-06" "Июнь"  $junePriceMap
+Build-MonthRows "2026-07" "Июль"  $priceMapByMonth["2026-07"]
+Build-MonthRows "2026-08" "Август" $priceMapByMonth["2026-08"]
 Write-Host "Всего строк: $($dataRows.Count)"
 
 # ─── step 6: прогноз из открытых Заказов давальца2_5 ─────────────────────────
@@ -1041,7 +1062,7 @@ Write-Host "Всего строк: $($dataRows.Count)"
 #   планQty = 0              → нет в плане (РС не готова) → показываем целиком
 Write-Host "=== Шаг 6: прогноз из ЗаказДавальца2_5 ===" -ForegroundColor Cyan
 $potentialRows = [System.Collections.Generic.List[object]]::new()
-$monthNameMap = @{ "2026-05"="Май"; "2026-06"="Июнь"; "2026-07"="Июль" }
+$monthNameMap = @{ "2026-05"="Май"; "2026-06"="Июнь"; "2026-07"="Июль"; "2026-08"="Август" }
 try {
     # список 2026-х заказов
     $f = [uri]::EscapeDataString("Posted eq true and DeletionMark eq false")
