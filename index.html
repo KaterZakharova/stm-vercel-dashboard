@@ -1757,11 +1757,19 @@
     document.getElementById('forecastSection').addEventListener('change', event => {
       const rowCb = event.target.closest('[data-row-sku]');
       if (rowCb) {
+        // сохраняем скролл drawer'а + scroll окна (страница тоже двигается)
+        const scrollEl = document.querySelector('.fc-drawer-scroll');
+        const savedDrawerScroll = scrollEl ? scrollEl.scrollTop : 0;
+        const savedWindowScroll = window.scrollY;
         const sku = rowCb.dataset.rowSku;
         if (rowCb.checked) uncheckedKeys[state.month].delete(sku);
         else uncheckedKeys[state.month].add(sku);
         persistUnchecked();
         render();
+        // восстанавливаем скролл после полного re-render'а
+        const newScrollEl = document.querySelector('.fc-drawer-scroll');
+        if (newScrollEl) newScrollEl.scrollTop = savedDrawerScroll;
+        window.scrollTo(window.scrollX, savedWindowScroll);
         return;
       }
       // select-фильтр по «В расчёте»
