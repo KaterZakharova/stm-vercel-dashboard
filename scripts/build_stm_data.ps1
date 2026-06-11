@@ -34,6 +34,7 @@ function New-MonthHash { $h = @{}; foreach ($mc in $MonthCodes) { $h[$mc] = @{} 
 $ManualManagerBySku = @{
     "EUR003"  = "Темрина Наталья"
     "OKEA008" = "Лигостаева Елена Александровна"
+    "VKVL009" = "Ягнакова Надежда"
 }
 
 # ─── helpers ────────────────────────────────────────────────────────────────
@@ -704,6 +705,76 @@ function Get-LatestOrderInfo($skuNorm) {
     return $list[0]
 }
 
+# ─── step 4b: услуги S3 КОНТРАКТНОЕ ПРОИЗВОДСТВО (отдельный массив SERVICES) ──
+# Тянем РеализацияКлиенту с ТипЗапасов=Услуга по подразделению S3 КП.
+# Это не входит в товарный план (плана у услуг нет), но даёт валовку (СС=0).
+$S3KpKey = '0e8fa905-b302-11eb-b0b0-00155d640300'
+$partnerByAnalyticsCache = @{}
+function Get-PartnerFromAnalyticsKey($analyticsKey) {
+    $k = ([string]$analyticsKey).Trim()
+    if ($k -eq "" -or $k -eq "00000000-0000-0000-0000-000000000000") { return "" }
+    if ($partnerByAnalyticsCache.ContainsKey($k)) { return $partnerByAnalyticsCache[$k] }
+    $f = [uri]::EscapeDataString("Ref_Key eq guid'$k'")
+    try {
+        $r = Invoke-OData "Catalog_КлючиАналитикиУчетаПоПартнерам" "`$select=Партнер_Key&`$filter=$f&`$top=1"
+        $pk = if ($r.value.Count -gt 0) { [string]$r.value[0].Партнер_Key } else { "" }
+        if ($pk -and $pk -ne "00000000-0000-0000-0000-000000000000") {
+            $p = Invoke-RestMethod -Method Get -Uri "$($OData.Url)/odata/Catalog_Партнеры(guid'$pk')?`$format=json&`$select=Description" -Headers $ODataHeaders -TimeoutSec 30
+            $partnerByAnalyticsCache[$k] = [string]$p.Description; return $partnerByAnalyticsCache[$k]
+        }
+    } catch {}
+    $partnerByAnalyticsCache[$k] = ""; return ""
+}
+
+function Get-S3Services($monthCode, $monthStart, $monthEnd) {
+    $rows = @()
+    $f = [uri]::EscapeDataString("Подразделение_Key eq guid'$S3KpKey' and Period ge datetime'$monthStart' and Period lt datetime'$monthEnd' and Active eq true and Сторно eq false and ХозяйственнаяОперация eq 'РеализацияКлиенту' and ТипЗапасов eq 'Услуга'")
+    $sel = "Period,АналитикаУчетаНоменклатуры_Key,АналитикаУчетаПоПартнерам_Key,Менеджер_Key,Количество,СуммаВыручкиБезНДС,СтоимостьБезНДС"
+    try {
+        $uri = "$($OData.Url)/odata/AccumulationRegister_ВыручкаИСебестоимостьПродаж_RecordType?`$format=json&`$select=$sel&`$filter=$f&`$top=2000"
+        $resp = Invoke-RestMethod -Method Get -Uri $uri -Headers $ODataHeaders -TimeoutSec 180
+        foreach ($r in @($resp.value)) {
+            $ak = [string]$r.АналитикаУчетаНоменклатуры_Key
+            $nomKey = Get-NomFromAnalyticsKey $ak
+            $nom    = if ($nomKey) { Get-NomByRef $nomKey } else { $null }
+            $name   = if ($nom) { [string]$nom.Description } else { "" }
+            $code   = if ($nom) { [string]$nom.Артикул } else { "" }
+            $client = Get-PartnerFromAnalyticsKey ([string]$r.АналитикаУчетаПоПартнерам_Key)
+            $mgr    = Get-ManagerName $r.Менеджер_Key
+            $shipDt = try { ([datetime]$r.Period).ToString('dd.MM.yyyy') } catch { "" }
+            $qty    = [double]$(if ($r.Количество) { $r.Количество } else { 0 })
+            $rev    = [double]$(if ($r.СуммаВыручкиБезНДС) { $r.СуммаВыручкиБезНДС } else { 0 })
+            $cost   = [double]$(if ($r.СтоимостьБезНДС) { $r.СтоимостьБезНДС } else { 0 })
+            $rows += [pscustomobject]@{
+                month    = $monthCode
+                shipDate = $shipDt
+                name     = $name
+                code     = $code
+                client   = $client
+                manager  = $mgr
+                qty      = [math]::Round($qty, 3)
+                revenue  = [math]::Round($rev, 2)
+                cost     = [math]::Round($cost, 2)
+                gp       = [math]::Round($rev - $cost, 2)
+            }
+        }
+    } catch {
+        Write-Warning "Get-S3Services ($monthCode) ошибка: $_"
+    }
+    return $rows
+}
+
+Write-Host "=== Шаг 4b: услуги S3 КП по месяцам ===" -ForegroundColor Cyan
+$monthNameMap4b = @{ "2026-05" = "Май"; "2026-06" = "Июнь"; "2026-07" = "Июль"; "2026-08" = "Август" }
+$servicesAll = [System.Collections.Generic.List[object]]::new()
+foreach ($mc in $MonthCodes) {
+    $b = $MonthBounds[$mc]
+    $svc = Get-S3Services $monthNameMap4b[$mc] $b.Start $b.End
+    foreach ($s in $svc) { $servicesAll.Add($s) }
+    $totalRev = ($svc | Measure-Object revenue -Sum).Sum
+    Write-Host "  $($monthNameMap4b[$mc]): $($svc.Count) услуг, выручка = $([math]::Round($totalRev,0))"
+}
+
 # ─── step 5: build DATA rows ──────────────────────────────────────────────────
 Write-Host "=== Шаг 5: сборка строк ===" -ForegroundColor Cyan
 $dataRows = [System.Collections.Generic.List[object]]::new()
@@ -859,7 +930,7 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
             stockStm        = $stmStockQty
             stockPgp        = $pgpStockQty
             counterparty    = $counterparty
-            manager         = if ($ManualManagerBySku.ContainsKey($skuNorm)) { $ManualManagerBySku[$skuNorm] } elseif ($price -and $price.Manager) { $price.Manager } elseif ($latestOrd -and $latestOrd.Manager) { $latestOrd.Manager } elseif ($sales.Managers) { $sales.Managers } else { Get-NomManager $nrk }
+            manager         = if ($ManualManagerBySku.ContainsKey($skuNorm)) { $ManualManagerBySku[$skuNorm] } elseif ($sales.Managers) { $sales.Managers } elseif ($latestOrd -and $latestOrd.Manager) { $latestOrd.Manager } elseif ($price -and $price.Manager) { $price.Manager } else { Get-NomManager $nrk }
             factoryPrice    = [math]::Round($fp,  2)
             clientPrice     = [math]::Round($cp,  2)
             actualClientPrice = [math]::Round($acp, 2)
@@ -964,7 +1035,7 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
             stockStm        = $stmStockQty
             stockPgp        = $pgpStockQty
             counterparty    = $counterparty
-            manager         = if ($ManualManagerBySku.ContainsKey($skuNorm)) { $ManualManagerBySku[$skuNorm] } elseif ($price -and $price.Manager) { $price.Manager } elseif ($latestOrd -and $latestOrd.Manager) { $latestOrd.Manager } elseif ($sales.Managers) { $sales.Managers } else { Get-NomManager $nrk }
+            manager         = if ($ManualManagerBySku.ContainsKey($skuNorm)) { $ManualManagerBySku[$skuNorm] } elseif ($sales.Managers) { $sales.Managers } elseif ($latestOrd -and $latestOrd.Manager) { $latestOrd.Manager } elseif ($price -and $price.Manager) { $price.Manager } else { Get-NomManager $nrk }
             factoryPrice    = [math]::Round($fp,  2)
             clientPrice     = [math]::Round($cp,  2)
             actualClientPrice = [math]::Round($acp, 2)
@@ -1009,7 +1080,7 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
                 stockStm        = $stmQ
                 stockPgp        = $pgpQ
                 counterparty    = $(if ($latestOrd2 -and $latestOrd2.Counterparty) { $latestOrd2.Counterparty } else { Get-NomCounterparty $nrk })
-                manager         = $(if ($ManualManagerBySku.ContainsKey($skuNorm)) { $ManualManagerBySku[$skuNorm] } elseif ($price -and $price.Manager) { $price.Manager } elseif ($latestOrd2 -and $latestOrd2.Manager) { $latestOrd2.Manager } else { Get-NomManager $nrk })
+                manager         = $(if ($ManualManagerBySku.ContainsKey($skuNorm)) { $ManualManagerBySku[$skuNorm] } elseif ($latestOrd2 -and $latestOrd2.Manager) { $latestOrd2.Manager } elseif ($price -and $price.Manager) { $price.Manager } else { Get-NomManager $nrk })
                 factoryPrice    = 0.0
                 clientPrice     = 0.0
                 actualClientPrice = 0.0
@@ -1191,17 +1262,22 @@ try {
 
 # ─── step 7: inject into index.html ──────────────────────────────────────────
 Write-Host "=== Шаг 7: обновляем index.html ===" -ForegroundColor Cyan
-$jsonStr      = ($dataRows.ToArray()      | ConvertTo-Json -Compress -Depth 5)
-$jsonPotential = ($potentialRows.ToArray() | ConvertTo-Json -Compress -Depth 5)
+$jsonStr       = ($dataRows.ToArray()       | ConvertTo-Json -Compress -Depth 5)
+$jsonPotential = ($potentialRows.ToArray()  | ConvertTo-Json -Compress -Depth 5)
+$jsonServices  = ($servicesAll.ToArray()    | ConvertTo-Json -Compress -Depth 5)
+if (-not $jsonServices) { $jsonServices = "[]" }
 $html = Get-Content -LiteralPath $IndexPath -Raw -Encoding UTF8
 if ($html -notmatch '(?s)const DATA = \[.*?\];') { throw "Паттерн 'const DATA = [...]' не найден в index.html" }
 $newHtml = $html -replace '(?s)const DATA = \[.*?\];', "const DATA = $jsonStr;"
 if ($potentialRows.Count -gt 0 -and $newHtml -match '(?s)const MANUAL_POTENTIAL = \[.*?\];') {
     $newHtml = $newHtml -replace '(?s)const MANUAL_POTENTIAL = \[.*?\];', "const MANUAL_POTENTIAL = $jsonPotential;"
 }
+if ($newHtml -match '(?s)const SERVICES = \[.*?\];') {
+    $newHtml = $newHtml -replace '(?s)const SERVICES = \[.*?\];', "const SERVICES = $jsonServices;"
+}
 if ($newHtml -ceq $html) {
     Write-Host "Данные не изменились, файл не перезаписан | $(Get-Date -Format 'dd.MM.yyyy HH:mm')" -ForegroundColor Yellow
 } else {
     [System.IO.File]::WriteAllText($IndexPath, $newHtml, [System.Text.UTF8Encoding]::new($false))
-    Write-Host "Готово! DATA: $($dataRows.Count) строк, Потенциал: $($potentialRows.Count) строк | $(Get-Date -Format 'dd.MM.yyyy HH:mm')" -ForegroundColor Green
+    Write-Host "Готово! DATA: $($dataRows.Count), Потенциал: $($potentialRows.Count), Услуг: $($servicesAll.Count) | $(Get-Date -Format 'dd.MM.yyyy HH:mm')" -ForegroundColor Green
 }

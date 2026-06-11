@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Continue'
+﻿$ErrorActionPreference = 'Continue'
 $repo       = 'C:\Users\eklementeva\Cowork\stm-vercel-dashboard'
 $deployRepo = 'C:\Users\eklementeva\Cowork\hub-stm-deploy'
 $deployRel  = 'hub-v2/public/stm-dashboard/index.html'
