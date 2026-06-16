@@ -1067,6 +1067,12 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
             $tag = Get-MayCarryTag $skuNorm
             $price = $priceMap[$skuNorm]
             $latestOrd2 = Get-LatestOrderInfo $skuNorm
+            # carry-over: товар уже выпущен в прошлом месяце и лежит на складе.
+            # planQty=0, но цены для расчёта валовки взять из priceMap (CSV plan) с fallback на 1С.
+            $fpCarry = if ($price -and [double]$price.FactoryPrice -gt 0) { [double]$price.FactoryPrice } else { Get-OneCFactoryPrice $nrk }
+            $cpCarry = if ($price -and [double]$price.ClientPrice  -gt 0) { [double]$price.ClientPrice  } else { Get-OneCClientPrice  $nrk }
+            $stockAllCarry = $stmQ + $pgpQ
+            $potentialGp   = if ($cpCarry -gt 0 -and $stockAllCarry -gt 0) { [math]::Round($stockAllCarry * ($cpCarry - $fpCarry), 2) } else { 0.0 }
             $script:dataRows.Add([ordered]@{
                 month           = $monthName
                 sku             = $skuNorm
@@ -1081,12 +1087,12 @@ function Build-MonthRows($monthCode, $monthName, $priceMap) {
                 stockPgp        = $pgpQ
                 counterparty    = $(if ($latestOrd2 -and $latestOrd2.Counterparty) { $latestOrd2.Counterparty } else { Get-NomCounterparty $nrk })
                 manager         = $(if ($ManualManagerBySku.ContainsKey($skuNorm)) { $ManualManagerBySku[$skuNorm] } elseif ($latestOrd2 -and $latestOrd2.Manager) { $latestOrd2.Manager } elseif ($price -and $price.Manager) { $price.Manager } else { Get-NomManager $nrk })
-                factoryPrice    = 0.0
-                clientPrice     = 0.0
+                factoryPrice    = [math]::Round($fpCarry, 2)
+                clientPrice     = [math]::Round($cpCarry, 2)
                 actualClientPrice = 0.0
                 plannedRevenue  = 0.0
                 actualRevenue   = 0.0
-                plannedGp       = 0.0
+                plannedGp       = $potentialGp
                 actualGp        = 0.0
                 margin          = 0
                 shipDate        = ""
