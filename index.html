@@ -1741,12 +1741,25 @@
     function saveColWidths() { try { localStorage.setItem(COL_WIDTHS_KEY, JSON.stringify(colWidths)); } catch {} }
     function tableId(table) {
       if (table.dataset.resizeId) return table.dataset.resizeId;
-      const wrap = table.closest('.fc-drawer') ? 'drilldown' : (table.closest('.table-wrap') ? 'main' : 'table');
-      table.dataset.resizeId = wrap;
-      return wrap;
+      let id;
+      if (table.closest('.fc-drawer')) {
+        id = 'drilldown';
+      } else {
+        const wrap = table.closest('.table-wrap');
+        if (wrap) {
+          if (wrap.id) id = 'main:' + wrap.id;
+          else if (wrap.classList.contains('manager-potential-table')) id = 'main:managerPotential';
+          else if (wrap.classList.contains('potential-table')) id = 'main:potential';
+          else id = 'main:sku';
+        } else {
+          id = 'table';
+        }
+      }
+      table.dataset.resizeId = id;
+      return id;
     }
     function applyColumnResizers() {
-      document.querySelectorAll('table.fc-drilldown, .table-wrap > table').forEach(table => {
+      document.querySelectorAll('table.fc-drilldown, .table-wrap table').forEach(table => {
         const tid = tableId(table);
         const headRow = table.tHead && table.tHead.rows[0];
         if (!headRow) return;
