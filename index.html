@@ -218,7 +218,7 @@
     th.col-resizable .col-resizer::after { content: ''; position: absolute; top: 4px; bottom: 4px; left: 50%; width: 1px; background: #cbd5e1; transform: translateX(-50%); }
     th.col-resizable .col-resizer:hover::after, th.col-resizable .col-resizer.dragging::after { background: var(--blue); width: 2px; }
     th.col-resizable .col-resizer:hover, th.col-resizable .col-resizer.dragging { background: rgba(59,130,246,.12); }
-    .services-gp-big { font-size: 18px; font-weight: 800; color: var(--green); }
+    .services-gp-big { font-size: 20px; font-weight: 800; color: #fff; background: var(--green); padding: 2px 10px; border-radius: 6px; box-shadow: 0 1px 3px rgba(22,138,91,.35); }
     td.cb, th.cb { width: 34px; padding: 4px 6px; text-align: center; }
     .cb input[type=checkbox] { cursor: pointer; width: 15px; height: 15px; accent-color: var(--blue); margin: 0; }
     .check-controls { display: flex; gap: 6px; }
@@ -354,32 +354,6 @@
 
     <section class="forecast-section" id="forecastSection"></section>
 
-    <section class="table-wrap" id="servicesSection" hidden>
-      <div class="table-head">
-        <h2>Услуги S3 КП · <span id="servicesMonth"></span></h2>
-        <span id="servicesSummary" class="muted"></span>
-      </div>
-      <div class="scroll">
-        <table>
-          <thead>
-            <tr class="header-labels">
-              <th>Дата</th>
-              <th>Наименование</th>
-              <th>Артикул</th>
-              <th>Клиент</th>
-              <th>Менеджер</th>
-              <th class="num">Кол-во</th>
-              <th class="num">Выручка</th>
-              <th class="num">Валовка</th>
-              <th class="num">Маржа %</th>
-            </tr>
-          </thead>
-          <tbody id="servicesTbody"></tbody>
-          <tfoot id="servicesTfoot"></tfoot>
-        </table>
-      </div>
-    </section>
-
     <section class="table-wrap">
       <div class="table-head">
         <h2>SKU в отчете</h2>
@@ -416,6 +390,32 @@
           <thead id="thead"></thead>
           <tbody id="tbody"></tbody>
           <tfoot id="tfoot"></tfoot>
+        </table>
+      </div>
+    </section>
+
+    <section class="table-wrap" id="servicesSection" hidden>
+      <div class="table-head">
+        <h2>Услуги S3 КП · <span id="servicesMonth"></span></h2>
+        <span id="servicesSummary" class="muted"></span>
+      </div>
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr class="header-labels">
+              <th>Дата</th>
+              <th>Наименование</th>
+              <th>Артикул</th>
+              <th>Клиент</th>
+              <th>Менеджер</th>
+              <th class="num">Кол-во</th>
+              <th class="num">Выручка</th>
+              <th class="num">Валовка</th>
+              <th class="num">Маржа %</th>
+            </tr>
+          </thead>
+          <tbody id="servicesTbody"></tbody>
+          <tfoot id="servicesTfoot"></tfoot>
         </table>
       </div>
     </section>
