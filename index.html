@@ -175,6 +175,11 @@
     .fc-drawer-head { display:flex; align-items:baseline; gap:10px; margin-bottom:8px; font-size:14px; }
     .fc-drawer-meta { color:#64748b; font-size:12px; }
     .fc-drawer-scroll { height:340px; min-height:200px; max-height:80vh; overflow:auto; border:1px solid #e6e9f0; border-radius:8px; resize:vertical; }
+    .fc-drawer-resizer { height:10px; margin-top:4px; border-radius:5px; background:linear-gradient(#eef2f7,#dbe0ea); cursor:ns-resize; position:relative; user-select:none; }
+    .fc-drawer-resizer::after { content:''; position:absolute; left:50%; top:50%; width:56px; height:3px; background:#94a3b8; border-radius:2px; transform:translate(-50%,-50%); }
+    .fc-drawer-resizer:hover { background:linear-gradient(#dbe5f2,#b9c8e0); }
+    .fc-drawer-resizer:hover::after, .fc-drawer-resizer.dragging::after { background:var(--blue); }
+    .fc-drawer-resizer.dragging { background:linear-gradient(#dbe5f2,#b9c8e0); }
     .fc-drilldown tr.fc-filter-row th { background:#fbfdff; padding:4px 8px; border-bottom:1px solid #e6e9f0; position:sticky; top:32px; z-index:1; }
     .fc-drilldown tr.fc-filter-row input, .fc-drilldown tr.fc-filter-row select { width:100%; height:24px; border:1px solid #cbd5e1; border-radius:4px; padding:0 6px; font-size:11px; background:#fff; }
     .fc-drilldown tr.fc-filter-row input:focus, .fc-drilldown tr.fc-filter-row select:focus { border-color:var(--blue); outline:none; }
@@ -241,46 +246,9 @@
       .month-toggle { width: 100%; }
       .month-toggle button { flex: 1; }
     }
-    #auth-overlay{position:fixed;inset:0;z-index:9999;background:var(--bg);display:flex;align-items:center;justify-content:center}
-    #auth-box{background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:40px 36px;width:320px;text-align:center}
-    #auth-box h2{margin:0 0 6px;font-size:20px;color:var(--ink)}
-    #auth-box p{margin:0 0 22px;color:var(--muted);font-size:13px}
-    #auth-box input{width:100%;height:40px;border:1px solid var(--line);border-radius:8px;padding:0 12px;font-size:15px;letter-spacing:2px;text-align:center;margin-bottom:14px;outline:none}
-    #auth-box input:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(47,111,237,.12)}
-    #auth-box input.shake{animation:shake .35s}
-    @keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
-    #auth-box button{width:100%;height:40px;background:var(--blue);color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer}
-    #auth-box button:hover{background:#1d4ed8}
-    #auth-error{color:var(--red);font-size:13px;margin-top:10px;min-height:18px}
   </style>
 </head>
 <body>
-<div id="auth-overlay">
-  <div id="auth-box">
-    <h2>СТМ Дашборд</h2>
-    <p>План, выпуск и отгрузки</p>
-    <input id="auth-input" type="password" placeholder="Введите пароль" autocomplete="current-password">
-    <button id="auth-btn">Войти</button>
-    <div id="auth-error"></div>
-  </div>
-</div>
-<script>
-(function(){
-  const PASS='STM12345',KEY='stm_auth',overlay=document.getElementById('auth-overlay');
-  function unlock(){overlay.style.display='none';sessionStorage.setItem(KEY,'1');}
-  if(sessionStorage.getItem(KEY)==='1'){unlock();return;}
-  function attempt(){
-    const inp=document.getElementById('auth-input');
-    if(inp.value===PASS){unlock();}
-    else{
-      document.getElementById('auth-error').textContent='Неверный пароль';
-      inp.value='';inp.classList.remove('shake');void inp.offsetWidth;inp.classList.add('shake');
-    }
-  }
-  document.getElementById('auth-btn').addEventListener('click',attempt);
-  document.getElementById('auth-input').addEventListener('keydown',e=>{if(e.key==='Enter')attempt();});
-})();
-</script>
   <main class="shell">
     <div class="topbar">
       <div class="title">
@@ -1294,6 +1262,7 @@
               </tfoot>
             </table>
           </div>
+          <div class="fc-drawer-resizer" title="Потяните вниз, чтобы расширить таблицу"></div>
         </div>
       `;
     }
@@ -2039,6 +2008,28 @@
       ro.observe(scroll);
       scroll._fcRsizeObs = ro;
     }).observe(document.getElementById('forecastSection'), { childList:true, subtree:true });
+    // явный JS-handle для расширения таблицы drawer'а вертикально
+    document.getElementById('forecastSection').addEventListener('mousedown', event => {
+      const handle = event.target.closest('.fc-drawer-resizer');
+      if (!handle) return;
+      const drawer = handle.previousElementSibling;
+      if (!drawer || !drawer.classList.contains('fc-drawer-scroll')) return;
+      event.preventDefault();
+      const startY = event.clientY;
+      const startH = drawer.getBoundingClientRect().height;
+      handle.classList.add('dragging');
+      const onMove = ev => {
+        const h = Math.max(180, Math.round(startH + (ev.clientY - startY)));
+        drawer.style.height = h + 'px';
+      };
+      const onUp = () => {
+        handle.classList.remove('dragging');
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
     document.getElementById('tableCheckFilter').addEventListener('click', event => {
       const btn = event.target.closest('[data-table-filter]');
       if (!btn) return;
