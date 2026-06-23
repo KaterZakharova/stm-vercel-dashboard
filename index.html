@@ -157,6 +157,7 @@
     .fc-cell .label { font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em; }
     .fc-cell .value { font-size:24px; font-weight:800; color:#0f172a; line-height:1.1; }
     .fc-cell .value.big { font-size:30px; }
+    .fc-cell .qty { font-size:13px; color:#334155; font-weight:600; }
     .fc-cell .sub { font-size:12px; color:#475467; }
     .fc-bar { margin-top:14px; height:10px; border-radius:6px; background:#eef2f7; overflow:hidden; }
     .fc-bar > span { display:block; height:100%; }
@@ -973,20 +974,31 @@
 
     function computeForecast(rows) {
       let A = 0, B = 0, C = 0, lostB = 0, lostC = 0;
+      let qtyA = 0, qtyB = 0, qtyC = 0, lostQtyB = 0, lostQtyC = 0;
       const risks = [];
       rows.forEach(r => {
         A += Number(r.actualGp || 0);
+        qtyA += Number(r.shippedQty || 0);
         const v = valovkaPerUnit(r);
         // Склад = СТМ + ПГП (ПГП = полуфабрикат, уже почти готов)
-        const stock = (stockQty(r) + stockPgpQty(r)) * v;
-        const future = toProduceQty(r) * v;
-        if (isChecked(r)) { B += stock; C += future; }
-        else {
+        const stockQ = stockQty(r) + stockPgpQty(r);
+        const stock = stockQ * v;
+        const futureQ = toProduceQty(r);
+        const future = futureQ * v;
+        if (isChecked(r)) {
+          B += stock; C += future;
+          qtyB += stockQ; qtyC += futureQ;
+        } else {
           lostB += stock; lostC += future;
+          lostQtyB += stockQ; lostQtyC += futureQ;
           if (stock + future > 0 || getComment(r)) risks.push(r);
         }
       });
-      return { A, B, C, safe: A + B, opt: A + B + C, lostB, lostC, risks };
+      return {
+        A, B, C, safe: A + B, opt: A + B + C,
+        qtyA, qtyB, qtyC, qtySafe: qtyA + qtyB, qtyOpt: qtyA + qtyB + qtyC,
+        lostB, lostC, lostQtyB, lostQtyC, risks,
+      };
     }
 
     let expandedBucket = null;
@@ -1120,27 +1132,35 @@
         </div>` : '';
       const cellCls = b => `fc-cell fc-clickable${expandedBucket === b ? ' fc-active' : ''}`;
       const caret = b => `<span class="fc-caret">${expandedBucket === b ? '▾' : '▸'}</span>`;
+      const tipA = 'Факт уже отгружено — валовка по уже отгруженным SKU за месяц (из регистра 1С). Снятие галки на SKU отгрузку не отменяет.';
+      const tipB = 'Склад (готово) — выпущено производством и лежит на складах СТМ + ПГП (полуфабрикат), но ещё не отгружено клиенту. В прогноз идут только SKU с галкой; снятые попадают в «Под риском». Формула: (склад СТМ + склад ПГП) × валовка/шт.';
+      const tipC = 'К выпуску — то, что ещё нужно физически произвести, чтобы закрыть план. Формула: план − уже отгружено − склад СТМ − склад ПГП. То, что уже лежит готовое, сюда не дублируется (оно в блоке «Склад»). В прогноз идут только SKU с галкой.';
+      const tipOpt = 'Прогноз (оптимистичный) = A + B + C: если ВСЁ выпустим и отгрузим до конца месяца. Снятие галки на SKU убирает её из B и C, в этом блоке тоже минусуется (и по деньгам, и по штукам).';
       document.getElementById('forecastSection').innerHTML = `
         <h2>Прогноз конца месяца · ${escapeHtml(state.month)}</h2>
         <div class="fc-grid">
-          <div class="${cellCls('A')}" data-fc-bucket="A">
+          <div class="${cellCls('A')}" data-fc-bucket="A" title="${escapeHtml(tipA)}">
             <div class="label">${caret('A')} Факт уже отгружено</div>
             <div class="value">${rub(f.A)}</div>
+            <div class="qty">${fmtQty.format(f.qtyA)} шт</div>
             <div class="sub">из регистра 1С</div>
           </div>
-          <div class="${cellCls('B')}" data-fc-bucket="B">
+          <div class="${cellCls('B')}" data-fc-bucket="B" title="${escapeHtml(tipB)}">
             <div class="label">${caret('B')} + Склад (готово)</div>
             <div class="value">+${rub(f.B)}</div>
+            <div class="qty">+${fmtQty.format(f.qtyB)} шт</div>
             <div class="sub">выпущено, не отгружено</div>
           </div>
-          <div class="${cellCls('C')}" data-fc-bucket="C">
+          <div class="${cellCls('C')}" data-fc-bucket="C" title="${escapeHtml(tipC)}">
             <div class="label">${caret('C')} + К выпуску</div>
             <div class="value">+${rub(f.C)}</div>
-            <div class="sub">план − выпущено</div>
+            <div class="qty">+${fmtQty.format(f.qtyC)} шт</div>
+            <div class="sub">план − отгружено − склад СТМ/ПГП</div>
           </div>
-          <div class="${cellCls('opt')}" data-fc-bucket="opt">
+          <div class="${cellCls('opt')}" data-fc-bucket="opt" title="${escapeHtml(tipOpt)}">
             <div class="label">${caret('opt')} Прогноз (оптимистичный)</div>
             <div class="value big" style="color:var(--${optColor})">${rub(f.opt)}</div>
+            <div class="qty">${fmtQty.format(f.qtyOpt)} шт</div>
             <div class="sub">из ${rub(target.gp)} цель${target.gp ? ` · <strong style="color:var(--${optColor})">${pct(optPct)}</strong>` : ''}</div>
           </div>
         </div>
