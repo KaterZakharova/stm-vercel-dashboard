@@ -151,6 +151,7 @@
     td.comment-col .row-comment-btn { max-width: 100%; }
     th .th-vat { display:block; font-weight: 500; font-size: 10px; color: #64748b; text-transform: none; letter-spacing: 0; margin-top:2px; }
     .carry-check { display:inline-block; font-weight:800; color:#16a34a; font-size:16px; line-height:1; }
+    td .muted { color:#94a3b8; cursor:help; }
     /* колонка Источник держит ширину под зелёный бэйдж «Заказ давальца → выпуск» */
     th[data-col-key="priceSource"], td[data-col-key="priceSource"] { min-width: 180px; }
     tfoot td { position: sticky; bottom: 0; background: #f1f5f9; border-top: 2px solid #cbd5e1; font-weight: 700; color: #0f172a; }
@@ -633,16 +634,28 @@
     }
     // Цены БЕЗ НДС: clientPrice/factoryPrice в данных уже без НДС.
     // Если факта нет — показываем плановую выручку/валовку/маржу.
+    // Если plannedGp >= plannedRevenue (cost=0, не подтянулась себестоимость из 1С) — считаем валовку/маржу недостоверными.
+    function planGpReliable(row) {
+      const fp = Number(row.factoryPrice || 0);
+      if (fp <= 0) return false;
+      const rev = Number(row.plannedRevenue || 0);
+      const gp  = Number(row.plannedGp || 0);
+      return rev > 0 && gp < rev;
+    }
     function rowRevenueNoVat(row) {
       return row.actualRevenue ? row.actualRevenue : (row.plannedRevenue || 0);
     }
     function rowGpNoVat(row) {
-      return row.actualGp ? row.actualGp : (row.plannedGp || 0);
+      if (row.actualGp) return row.actualGp;
+      if (!planGpReliable(row)) return null;
+      return row.plannedGp || 0;
     }
     function rowMarginNoVat(row) {
       const rev = rowRevenueNoVat(row);
       if (!rev) return null;
-      return rowGpNoVat(row) / rev;
+      const gp = rowGpNoVat(row);
+      if (gp == null) return null;
+      return gp / rev;
     }
     const columns = [
       { key: 'sku', label: 'Артикул', defaultVisible: true, render: row => `<strong>${escapeHtml(row.sku)}</strong>` },
@@ -658,7 +671,10 @@
       { key: 'factoryPrice', label: 'ЦФ без НДС', defaultVisible: false, className: 'num', render: row => row.factoryPrice ? fmtPrice.format(row.factoryPrice) : '' },
       { key: 'clientPrice', label: 'ЦК без НДС', defaultVisible: false, className: 'num', render: row => row.clientPrice ? fmtPrice.format(row.clientPrice) : '' },
       { key: 'actualRevenue', label: 'Выручка<br><span class="th-vat">без НДС</span>', defaultVisible: true, className: 'num', render: row => rub(rowRevenueNoVat(row)) },
-      { key: 'actualGp', label: 'Упр. валовка<br><span class="th-vat">без НДС</span>', defaultVisible: true, className: 'num', render: row => rub(rowGpNoVat(row)) },
+      { key: 'actualGp', label: 'Упр. валовка<br><span class="th-vat">без НДС</span>', defaultVisible: true, className: 'num', render: row => {
+        const gp = rowGpNoVat(row);
+        return gp == null ? '<span class="muted" title="Себестоимость не подтянулась из 1С — валовка недостоверна">—</span>' : rub(gp);
+      } },
       { key: 'margin', label: 'Маржа<br><span class="th-vat">без НДС</span>', defaultVisible: true, className: 'num', render: row => {
         const m = rowMarginNoVat(row);
         return m == null ? '' : pct(m);
@@ -969,7 +985,7 @@
     function renderFooter(rows, activeColumns) {
       const totalPlanQty       = sum(rows, 'planQty');
       const totalRevenueNoVat  = rows.reduce((a, r) => a + rowRevenueNoVat(r), 0);
-      const totalGpNoVat       = rows.reduce((a, r) => a + rowGpNoVat(r), 0);
+      const totalGpNoVat       = rows.reduce((a, r) => { const g = rowGpNoVat(r); return a + (g == null ? 0 : g); }, 0);
       const totalStock         = rows.reduce((a, r) => a + stockQty(r), 0);
       const totalStockPgp      = rows.reduce((a, r) => a + stockPgpQty(r), 0);
       const totalToProduce     = rows.reduce((a, r) => a + toProduceQty(r), 0);
@@ -1353,7 +1369,7 @@
           if (c.key === 'toProduceQty')  return toProduceQty(row);
           if (c.key === 'mayCarry')      return isCarryOver(row) ? 'да' : '';
           if (c.key === 'actualRevenue') return Math.round(rowRevenueNoVat(row));
-          if (c.key === 'actualGp')      return Math.round(rowGpNoVat(row));
+          if (c.key === 'actualGp')      { const g = rowGpNoVat(row); return g == null ? '' : Math.round(g); }
           if (c.key === 'margin')        { const m = rowMarginNoVat(row); return m == null ? '' : +m.toFixed(4); }
           if (c.key === 'comment')       return getComment(row) || '';
           const v = row[c.key];
