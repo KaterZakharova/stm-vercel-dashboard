@@ -146,11 +146,13 @@
     .filter-option:hover { background: #f1f5f9; }
     .filter-option input { margin: 0; }
     td.num, th.num { text-align: right; white-space: nowrap; }
-    td.name { min-width: 320px; color: #263445; white-space: normal; word-break: break-word; line-height: 1.35; }
-    td.comment-col { min-width: 260px; max-width: 360px; white-space: normal; word-break: break-word; }
-    td.comment-col .row-comment-btn { max-width: none; white-space: normal; text-align: left; line-height: 1.3; }
+    td.name { min-width: 320px; color: #263445; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    td.comment-col { min-width: 240px; max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    td.comment-col .row-comment-btn { max-width: 100%; }
     th .th-vat { display:block; font-weight: 500; font-size: 10px; color: #64748b; text-transform: none; letter-spacing: 0; margin-top:2px; }
     .carry-check { display:inline-block; font-weight:800; color:#16a34a; font-size:16px; line-height:1; }
+    /* колонка Источник держит ширину под зелёный бэйдж «Заказ давальца → выпуск» */
+    th[data-col-key="priceSource"], td[data-col-key="priceSource"] { min-width: 180px; }
     tfoot td { position: sticky; bottom: 0; background: #f1f5f9; border-top: 2px solid #cbd5e1; font-weight: 700; color: #0f172a; }
     tfoot td.label { color: #475467; letter-spacing: 0.04em; text-transform: uppercase; font-size: 12px; }
     tfoot tr:hover td { background: #f1f5f9; }
@@ -937,11 +939,11 @@
       document.getElementById('thead').innerHTML = `
         <tr class="header-labels">
           <th class="cb"><input type="checkbox" id="selectAllCb" ${allCb} ${indeterminate} title="Выбрать / снять все"></th>
-          ${activeColumns.map(column => `<th class="${column.className || ''}">${column.label}</th>`).join('')}
+          ${activeColumns.map(column => `<th class="${column.className || ''}" data-col-key="${column.key}">${column.label}</th>`).join('')}
         </tr>
         <tr class="header-filters">
           <th class="cb"></th>
-          ${activeColumns.map(column => `<th><button class="table-filter-btn" data-filter-menu="${column.key}">Все <span class="filter-arrow">▼</span></button></th>`).join('')}
+          ${activeColumns.map(column => `<th data-col-key="${column.key}"><button class="table-filter-btn" data-filter-menu="${column.key}">Все <span class="filter-arrow">▼</span></button></th>`).join('')}
         </tr>
       `;
       const selectAllEl = document.getElementById('selectAllCb');
@@ -957,7 +959,7 @@
       tbody.innerHTML = rows.map(row => `
         <tr>
           <td class="cb"><input type="checkbox" data-row-sku="${escapeHtml(row.sku)}" ${isChecked(row) ? 'checked' : ''}></td>
-          ${activeColumns.map(column => `<td class="${column.className || ''}">${column.render(row)}</td>`).join('')}
+          ${activeColumns.map(column => `<td class="${column.className || ''}" data-col-key="${column.key}">${column.render(row)}</td>`).join('')}
         </tr>
       `).join('');
       if (tfoot) tfoot.innerHTML = renderFooter(rows, activeColumns);
