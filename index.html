@@ -151,6 +151,8 @@
     td.comment-col .row-comment-btn { max-width: 100%; }
     th .th-vat { display:block; font-weight: 500; font-size: 10px; color: #64748b; text-transform: none; letter-spacing: 0; margin-top:2px; }
     .carry-check { display:inline-block; font-weight:800; color:#16a34a; font-size:16px; line-height:1; }
+    .auto-check { display:inline-block; font-weight:800; color:#16a34a; font-size:16px; line-height:1; cursor:help; }
+    .auto-check-off { color:#cbd5e1; font-weight:700; font-size:16px; cursor:help; }
     td .muted { color:#94a3b8; cursor:help; }
     /* колонка Источник держит ширину под зелёный бэйдж «Заказ давальца → выпуск» */
     th[data-col-key="priceSource"], td[data-col-key="priceSource"] { min-width: 180px; }
@@ -1040,7 +1042,7 @@
     let expandedBucket = null;
     let bucketFilter = 'all';  // 'all' | 'in' | 'out' — фильтр чекбоксов в drill-down
     // фильтры по колонкам drilldown — substring match (для текстовых) / select (для В расчёте)
-    const fcDrillFilters = { sku:'', name:'', counterparty:'', manager:'', qty:'', contrib:'', marginPct:'', checked:'all', comment:'' };
+    const fcDrillFilters = { sku:'', name:'', counterparty:'', manager:'', qty:'', contrib:'', marginPct:'', shipped:'all', checked:'all', comment:'' };
     let fcFocusedFilter = null;  // какой input был сфокусирован — чтобы вернуть фокус после re-render
     const FC_DRAWER_HEIGHT_KEY = 'stmFcDrawerHeight_v1';
     function getFcDrawerHeight() { return parseInt(localStorage.getItem(FC_DRAWER_HEIGHT_KEY)) || 340; }
@@ -1063,8 +1065,11 @@
       };
       return items.filter(i => {
         const checked = isChecked(i.row);
+        const shipped = Number(i.row.shippedQty || 0) > 0;
         if (f.checked === 'in'  && !checked) return false;
         if (f.checked === 'out' &&  checked) return false;
+        if (f.shipped === 'yes' && !shipped) return false;
+        if (f.shipped === 'no'  &&  shipped) return false;
         if (!txt(i.row.sku,         f.sku))         return false;
         if (!txt(i.row.name,        f.name))        return false;
         if (!txt(i.row.counterparty,f.counterparty))return false;
@@ -1241,6 +1246,12 @@
         <option value="in"${fcd[key]==='in'?' selected':''}>В расчёте</option>
         <option value="out"${fcd[key]==='out'?' selected':''}>Снятые</option>
       </select>`;
+      const fSelShipped = () => `<select data-fc-filter="shipped">
+        <option value="all"${fcd.shipped==='all'?' selected':''}>Все</option>
+        <option value="yes"${fcd.shipped==='yes'?' selected':''}>Отгружено</option>
+        <option value="no"${fcd.shipped==='no'?' selected':''}>Нет</option>
+      </select>`;
+      const shippedTotal = items.filter(i => Number(i.row.shippedQty || 0) > 0).length;
       const drawerH = getFcDrawerHeight();
       return `
         <div class="fc-drawer">
@@ -1265,6 +1276,7 @@
                   <th class="num">${qtyLbl[expandedBucket]}</th>
                   <th class="num">Вклад в валовку</th>
                   <th class="pct" title="Маржа = вклад / выручка ×100%. Использует факт цены, если SKU отгружался; иначе — плановая.">Маржа, %</th>
+                  <th class="cb-col" title="Уже отгружено в этом месяце (shippedQty > 0). Сама проставляется по факту из 1С.">Отгружено</th>
                   <th class="cb-col" title="Учитывать в расчёте прогноза">В расчёте</th>
                   <th>Комментарий</th>
                   <th title="Плановая дата отгрузки (вручную, общая для всех)">Дата отгрузки</th>
@@ -1277,6 +1289,7 @@
                   <th class="num">${f('qty','напр. >100',true)}</th>
                   <th class="num">${f('contrib','напр. >50000',true)}</th>
                   <th class="pct">${f('marginPct','напр. >30',true)}</th>
+                  <th class="cb-col">${fSelShipped()}</th>
                   <th class="cb-col">${fSel('checked')}</th>
                   <th>${f('comment')}</th>
                   <th></th>
@@ -1294,6 +1307,10 @@
                 const shipCell = (expandedBucket === 'B' || expandedBucket === 'C' || expandedBucket === 'opt')
                   ? `<input type="date" class="ship-date-input" data-ship-sku="${escapeHtml(i.row.sku)}" data-month="${escapeHtml(i.row.month)}" value="${escapeHtml(shipDateVal)}">`
                   : escapeHtml(i.row.shipDate || '');
+                const shippedFact = Number(i.row.shippedQty || 0) > 0;
+                const shippedCell = shippedFact
+                  ? `<span class="auto-check" title="Уже отгружено: ${fmtQty.format(Number(i.row.shippedQty || 0))} шт">✓</span>`
+                  : `<span class="auto-check-off" title="Ещё не отгружалось в этом месяце">·</span>`;
                 return `<tr class="${checked ? '' : 'fc-row-muted'}">
                   <td><strong>${escapeHtml(i.row.sku)}</strong></td>
                   <td class="name">${escapeHtml(i.row.name)}</td>
@@ -1302,18 +1319,19 @@
                   <td class="num">${fmtQty.format(i.qty)}</td>
                   <td class="num">${contribCell}</td>
                   <td class="pct"><span class="${pctClass(i.marginPct)}">${fmtPct(i.marginPct)}</span></td>
+                  <td class="cb-col">${shippedCell}</td>
                   <td class="cb-col"><input type="checkbox" data-row-sku="${escapeHtml(i.row.sku)}" ${checked ? 'checked' : ''}></td>
                   <td><button type="button" class="${btnCls}" data-comment-sku="${escapeHtml(i.row.sku)}" title="${escapeHtml(c || 'Добавить комментарий о риске/переносе')}">${btnTxt}</button></td>
                   <td class="ship-cell">${shipCell}</td>
                 </tr>`;
-              }).join('') : `<tr><td colspan="10" class="empty">Нет SKU в этом фильтре</td></tr>`}</tbody>
+              }).join('') : `<tr><td colspan="11" class="empty">Нет SKU в этом фильтре</td></tr>`}</tbody>
               <tfoot>
                 <tr class="fc-foot">
-                  <td colspan="4" class="label">ИТОГО · ${items.length} SKU</td>
+                  <td colspan="4" class="label">ИТОГО · ${items.length} SKU${shippedTotal ? ` · ✓ отгружено ${shippedTotal}` : ''}</td>
                   <td class="num">${fmtQty.format(totalQty)}</td>
                   <td class="num">${rub(totalContrib)}</td>
                   <td class="pct"><span class="${pctClass(totalMarginPct)}">${fmtPct(totalMarginPct)}</span></td>
-                  <td class="cb-col"></td><td></td><td></td>
+                  <td class="cb-col"></td><td class="cb-col"></td><td></td><td></td>
                 </tr>
               </tfoot>
             </table>
@@ -1333,7 +1351,7 @@
       items = applyDrillFilters(items);
       const titles = { A: 'Факт_отгружено', B: 'Склад_готово', C: 'К_выпуску', opt: 'Прогноз_все' };
       const qtyLbl = { A: 'Отгружено',     B: 'На складе',    C: 'К выпуску', opt: 'Кол-во' };
-      const headers = ['Артикул', 'Наименование', 'Юр лицо', 'Менеджер', qtyLbl[expandedBucket], 'Вклад в валовку, ₽', 'Вклад в расчёт, ₽', 'Маржа, %', 'В расчёте', 'Комментарий'];
+      const headers = ['Артикул', 'Наименование', 'Юр лицо', 'Менеджер', qtyLbl[expandedBucket], 'Вклад в валовку, ₽', 'Вклад в расчёт, ₽', 'Маржа, %', 'Отгружено', 'В расчёте', 'Комментарий'];
       const data = items.map(i => [
         i.row.sku,
         i.row.name,
@@ -1343,6 +1361,7 @@
         Math.round(i.fullContribution),
         Math.round(i.contribution),
         i.marginPct == null ? '' : (i.marginPct * 100).toFixed(1),
+        Number(i.row.shippedQty || 0) > 0 ? 'Да' : '',
         isChecked(i.row) ? 'Да' : 'Нет',
         getComment(i.row) || ''
       ]);
