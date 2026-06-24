@@ -596,23 +596,31 @@
       try { localStorage.setItem(FORECAST_COVERED_KEY, JSON.stringify([...forecastCovered])); } catch {}
     }
 
-    // Валовка/штука. Возвращает null если данные ненадёжны (factoryPrice=0 → plannedGp = plannedRevenue → 100% маржа).
-    // Тогда SKU исключается из B/C/opt прогнозa и помечается ⚠ в drilldown.
+    // Валовка/штука. Возвращает число всегда (если данные есть), даже когда factoryPrice не подтянулся —
+    // в этом случае валовка ≈ plannedRevenue (т.к. cost=0). Это лучше нуля, но маржу показывать нельзя
+    // (она получится 100% — заведомо неверно). См. isGpUnreliable().
     function valovkaPerUnit(row) {
       // ФАКТ — самый надёжный путь.
       if (row.shippedQty > 0 && row.actualGp) return row.actualGp / row.shippedQty;
-      const fp = Number(row.factoryPrice || 0);
-      // ПЛАН — только если factoryPrice > 0 И plannedGp реально меньше plannedRevenue (т.е. себестоимость подтянулась).
-      if (row.planQty > 0 && row.plannedGp && fp > 0 && row.plannedGp < row.plannedRevenue) {
-        return row.plannedGp / row.planQty;
-      }
-      // Carry-over: считаем только если обе цены > 0.
+      // ПЛАН — используем plannedGp если он есть (даже если завышен из-за FP=0; маржа в этом случае скрывается).
+      if (row.planQty > 0 && row.plannedGp) return row.plannedGp / row.planQty;
+      // Carry-over: cp − fp (без FP — fp=0).
       const cp = Number(row.clientPrice || 0);
-      if (cp > 0 && fp > 0) return cp - fp;
-      return null;
+      const fp = Number(row.factoryPrice || 0);
+      if (cp > 0) return cp - fp;
+      return 0;
     }
-    function valovkaPerUnitOrZero(row) { const v = valovkaPerUnit(row); return v == null ? 0 : v; }
-    function isGpUnreliable(row) { return valovkaPerUnit(row) == null; }
+    function valovkaPerUnitOrZero(row) { return valovkaPerUnit(row); }
+    // GP считается ненадёжным когда FP=0 ИЛИ план GP равен плановой выручке (то есть себестоимость не подтянулась).
+    // Само число валовки показываем, маржу — нет.
+    function isGpUnreliable(row) {
+      const fp = Number(row.factoryPrice || 0);
+      if (fp <= 0) return true;
+      const rev = Number(row.plannedRevenue || 0);
+      const gp  = Number(row.plannedGp || 0);
+      if (rev > 0 && gp >= rev) return true;
+      return false;
+    }
     function stockQty(row)     { return Math.max(0, row.stockStm || 0); }
     function stockPgpQty(row)  { return Math.max(0, row.stockPgp || 0); }
     // «К выпуску» = сколько ещё реально нужно произвести = план − отгружено − склад СТМ − склад ПГП.
@@ -646,7 +654,8 @@
     }
     // Цены БЕЗ НДС: clientPrice/factoryPrice в данных уже без НДС.
     // Если факта нет — показываем плановую выручку/валовку/маржу.
-    // Если plannedGp >= plannedRevenue (cost=0, не подтянулась себестоимость из 1С) — считаем валовку/маржу недостоверными.
+    // Если plannedGp >= plannedRevenue (cost=0, не подтянулась себестоимость из 1С) —
+    // ВАЛОВКУ всё равно показываем (=plannedGp), но маржу скрываем т.к. она будет 100%.
     function planGpReliable(row) {
       const fp = Number(row.factoryPrice || 0);
       if (fp <= 0) return false;
@@ -658,16 +667,14 @@
       return row.actualRevenue ? row.actualRevenue : (row.plannedRevenue || 0);
     }
     function rowGpNoVat(row) {
-      if (row.actualGp) return row.actualGp;
-      if (!planGpReliable(row)) return null;
-      return row.plannedGp || 0;
+      return row.actualGp ? row.actualGp : (row.plannedGp || 0);
     }
     function rowMarginNoVat(row) {
-      const rev = rowRevenueNoVat(row);
-      if (!rev) return null;
-      const gp = rowGpNoVat(row);
-      if (gp == null) return null;
-      return gp / rev;
+      // Маржа считается только когда GP надёжен (т.е. себестоимость > 0 и план GP < план выручка).
+      if (row.actualRevenue && row.actualGp) return row.actualGp / row.actualRevenue;
+      if (!planGpReliable(row)) return null;
+      const rev = row.plannedRevenue || 0;
+      return rev > 0 ? (row.plannedGp || 0) / rev : null;
     }
     const columns = [
       { key: 'sku', label: 'Артикул', defaultVisible: true, render: row => `<strong>${escapeHtml(row.sku)}</strong>` },
@@ -685,7 +692,8 @@
       { key: 'actualRevenue', label: 'Выручка<br><span class="th-vat">без НДС</span>', defaultVisible: true, className: 'num', render: row => rub(rowRevenueNoVat(row)) },
       { key: 'actualGp', label: 'Упр. валовка<br><span class="th-vat">без НДС</span>', defaultVisible: true, className: 'num', render: row => {
         const gp = rowGpNoVat(row);
-        return gp == null ? '<span class="muted" title="Себестоимость не подтянулась из 1С — валовка недостоверна">—</span>' : rub(gp);
+        const warn = !row.actualGp && !planGpReliable(row);
+        return rub(gp) + (warn ? ' <span class="warn-flag" title="factoryPrice=0 в 1С → валовка завышена (равна выручке), маржа скрыта">⚠</span>' : '');
       } },
       { key: 'margin', label: 'Маржа<br><span class="th-vat">без НДС</span>', defaultVisible: true, className: 'num', render: row => {
         const m = rowMarginNoVat(row);
@@ -997,7 +1005,9 @@
     function renderFooter(rows, activeColumns) {
       const totalPlanQty       = sum(rows, 'planQty');
       const totalRevenueNoVat  = rows.reduce((a, r) => a + rowRevenueNoVat(r), 0);
-      const totalGpNoVat       = rows.reduce((a, r) => { const g = rowGpNoVat(r); return a + (g == null ? 0 : g); }, 0);
+      const totalGpNoVat       = rows.reduce((a, r) => a + rowGpNoVat(r), 0);
+      const totalReliableRev   = rows.reduce((a, r) => a + (planGpReliable(r) || r.actualGp ? rowRevenueNoVat(r) : 0), 0);
+      const totalReliableGp    = rows.reduce((a, r) => a + (planGpReliable(r) || r.actualGp ? rowGpNoVat(r) : 0), 0);
       const totalStock         = rows.reduce((a, r) => a + stockQty(r), 0);
       const totalStockPgp      = rows.reduce((a, r) => a + stockPgpQty(r), 0);
       const totalToProduce     = rows.reduce((a, r) => a + toProduceQty(r), 0);
@@ -1007,7 +1017,7 @@
         mayCarry:       totalCarry ? `${totalCarry}` : '',
         actualRevenue:  rub(totalRevenueNoVat),
         actualGp:       rub(totalGpNoVat),
-        margin:         totalRevenueNoVat ? pct(totalGpNoVat / totalRevenueNoVat) : '',
+        margin:         totalReliableRev ? pct(totalReliableGp / totalReliableRev) : '',
         stockQty:       fmtQty.format(totalStock),
         stockPgp:       fmtQty.format(totalStockPgp),
         toProduceQty:   fmtQty.format(totalToProduce)
@@ -1032,10 +1042,9 @@
         // Склад = СТМ + ПГП (ПГП = полуфабрикат, уже почти готов)
         const stockQ = stockQty(r) + stockPgpQty(r);
         const futureQ = toProduceQty(r);
-        if (v == null && (stockQ > 0 || futureQ > 0)) unreliableCount++;
-        const vv = v == null ? 0 : v;
-        const stock = stockQ * vv;
-        const future = futureQ * vv;
+        if (isGpUnreliable(r) && (stockQ > 0 || futureQ > 0)) unreliableCount++;
+        const stock = stockQ * v;
+        const future = futureQ * v;
         if (isChecked(r)) {
           B += stock; C += future;
           qtyB += stockQ; qtyC += futureQ;
@@ -1123,64 +1132,53 @@
       // marginPct        — рассчитанная маржа в % (contribution / revenue), null если нет данных
       const out = [];
       rows.forEach(r => {
-        const v = valovkaPerUnit(r);  // null если данные ненадёжны (FP=0)
-        const vv = v == null ? 0 : v;
-        const unreliable = v == null;
+        const v = valovkaPerUnit(r);
+        const unreliable = isGpUnreliable(r);
         const checked = isChecked(r);
         const stockAll = stockQty(r) + stockPgpQty(r);
         const cp = Number(r.actualClientPrice || r.clientPrice || 0);
         const shippedRev = Number(r.actualRevenue || 0);
         const shippedQ   = Number(r.shippedQty || 0);
-        const makeItem = (qty, contribution, fullContribution, revenue, opts = {}) => {
-          // Если GP ненадёжно — не показываем маржу и обнуляем contribution для общего расчёта.
-          const reliable = !opts.unreliable;
-          const mp = reliable && revenue > 0 ? fullContribution / revenue : null;
-          return {
-            row: r, qty,
-            contribution:     reliable ? contribution     : 0,
-            fullContribution: reliable ? fullContribution : 0,
-            revenue, marginPct: mp, unreliable: !reliable,
-          };
-        };
+        // Маржа: если GP ненадёжно (FP=0 → margin 100%) — скрываем.
+        const safeMargin = (rev, contrib) => unreliable ? null : (rev > 0 ? contrib / rev : null);
+        const makeItem = (qty, contribution, fullContribution, revenue, isFact = false) => ({
+          row: r, qty, contribution, fullContribution, revenue,
+          marginPct: isFact ? (revenue > 0 ? fullContribution / revenue : null) : safeMargin(revenue, fullContribution),
+          unreliable: isFact ? false : unreliable,
+        });
         if (bucket === 'A') {
           if (shippedQ > 0 || Number(r.actualGp || 0) !== 0) {
             const a = Number(r.actualGp || 0);
-            // Bucket A — факт, маржа считается по реальным actual-данным, не трогаем unreliable.
-            out.push(makeItem(shippedQ, a, a, shippedRev));
+            // A — факт, маржа считается по реальным actual-данным.
+            out.push(makeItem(shippedQ, a, a, shippedRev, true));
           }
         } else if (bucket === 'B') {
           if (stockAll > 0) {
-            const full = stockAll * vv;
+            const full = stockAll * v;
             const rev  = stockAll * cp;
-            out.push(makeItem(stockAll, checked ? full : 0, full, rev, { unreliable }));
+            out.push(makeItem(stockAll, checked ? full : 0, full, rev));
           }
         } else if (bucket === 'C') {
           if (toProduceQty(r) > 0) {
             const q = toProduceQty(r);
-            const full = q * vv;
+            const full = q * v;
             const rev  = q * cp;
-            out.push(makeItem(q, checked ? full : 0, full, rev, { unreliable }));
+            out.push(makeItem(q, checked ? full : 0, full, rev));
           }
         } else if (bucket === 'opt') {
           const a = Number(r.actualGp || 0);
-          const stockPot = stockAll * vv;
-          const futPot   = toProduceQty(r) * vv;
+          const stockPot = stockAll * v;
+          const futPot   = toProduceQty(r) * v;
           if (a !== 0 || stockAll > 0 || toProduceQty(r) > 0) {
-            // unreliable касается только B+C; факт A всегда корректен.
-            const fullPlan = stockPot + futPot;
-            const fullPlanRel = unreliable ? 0 : fullPlan;
-            const full = a + fullPlanRel;
-            const contribution = a + (checked ? fullPlanRel : 0);
+            const full = a + stockPot + futPot;
+            const contribution = a + (checked ? stockPot + futPot : 0);
             const qty = shippedQ + stockAll + toProduceQty(r);
             const rev = shippedRev + (stockAll + toProduceQty(r)) * cp;
-            // Маржа для opt — если ненадёжно, считаем только по A (если он есть).
-            const safeMp = unreliable
+            // Если план unreliable, маржа считается только по факту (если он есть), иначе скрыта.
+            const mp = unreliable
               ? (shippedRev > 0 ? a / shippedRev : null)
               : (rev > 0 ? full / rev : null);
-            out.push({
-              row: r, qty, contribution, fullContribution: full,
-              revenue: rev, marginPct: safeMp, unreliable,
-            });
+            out.push({ row: r, qty, contribution, fullContribution: full, revenue: rev, marginPct: mp, unreliable });
           }
         }
       });
@@ -1243,7 +1241,7 @@
           <span>Осторожный (только склад): <strong style="color:var(--${safeColor})">${rub(f.safe)}</strong>${target.gp ? ` · ${pct(safePct)} от цели` : ''}</span>
           <span>Маржа на штуку: считается по факту (если SKU уже отгружался), иначе по плану</span>
         </div>
-        ${f.unreliableCount ? `<div class="fc-unreliable-notice">⚠ ${f.unreliableCount} SKU исключены из прогноза — себестоимость не подтянулась из 1С (factoryPrice=0). Найди их в drawer'ах B/C/opt по знаку ⚠ и проверь карточку в 1С.</div>` : ''}
+        ${f.unreliableCount ? `<div class="fc-unreliable-notice">⚠ ${f.unreliableCount} SKU с дырой в себестоимости — factoryPrice=0 в 1С, поэтому валовка для них завышена (равна выручке), а маржа скрыта. Найди их в drawer'ах B/C/opt по знаку ⚠ и проставь себестоимость в 1С.</div>` : ''}
         ${renderForecastDrawer(rows)}
         ${risksHtml}
       `;
@@ -1335,13 +1333,11 @@
                 const btnCls = c ? 'row-comment-btn has-comment' : 'row-comment-btn';
                 const btnTxt = c ? `✎ ${escapeHtml(c)}` : '+ комментарий';
                 const unreliable = i.unreliable;
-                const contribCell = unreliable
-                  ? `<span class="fc-info-only" title="Себестоимость не подтянулась из 1С (factoryPrice=0). Этот SKU не учитывается в прогнозе по валовке.">— ⚠</span>`
-                  : (checked
-                    ? rub(i.fullContribution)
-                    : `<span class="fc-info-only" title="Снято — в общую сумму не входит">${rub(i.fullContribution)}</span>`);
+                const contribCell = checked
+                  ? rub(i.fullContribution) + (unreliable ? ` <span class="warn-flag" title="Себестоимость в 1С = 0 → валовка завышена (равна выручке). Маржа скрыта.">⚠</span>` : '')
+                  : `<span class="fc-info-only" title="Снято — в общую сумму не входит">${rub(i.fullContribution)}</span>${unreliable ? ' <span class="warn-flag" title="Себестоимость в 1С = 0">⚠</span>' : ''}`;
                 const skuCell = unreliable
-                  ? `<strong>${escapeHtml(i.row.sku)}</strong> <span class="warn-flag" title="Себестоимость не подтянулась из 1С — маржа и вклад в прогноз скрыты">⚠</span>`
+                  ? `<strong>${escapeHtml(i.row.sku)}</strong> <span class="warn-flag" title="Себестоимость не подтянулась из 1С — маржа скрыта, валовка показана как plannedGp (=plannedRevenue)">⚠</span>`
                   : `<strong>${escapeHtml(i.row.sku)}</strong>`;
                 const shipDateVal = getShipDate(i.row);
                 const shipCell = (expandedBucket === 'B' || expandedBucket === 'C' || expandedBucket === 'opt')
@@ -1428,7 +1424,7 @@
           if (c.key === 'toProduceQty')  return toProduceQty(row);
           if (c.key === 'mayCarry')      return isCarryOver(row) ? 'да' : '';
           if (c.key === 'actualRevenue') return Math.round(rowRevenueNoVat(row));
-          if (c.key === 'actualGp')      { const g = rowGpNoVat(row); return g == null ? '' : Math.round(g); }
+          if (c.key === 'actualGp')      return Math.round(rowGpNoVat(row));
           if (c.key === 'margin')        { const m = rowMarginNoVat(row); return m == null ? '' : +m.toFixed(4); }
           if (c.key === 'comment')       return getComment(row) || '';
           const v = row[c.key];
