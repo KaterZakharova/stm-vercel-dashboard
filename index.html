@@ -36,6 +36,18 @@
     .month-toggle button { border: 0; background: transparent; color: #334155; padding: 9px 16px; border-radius: 6px; cursor: pointer; min-width: 82px; }
     .month-toggle button.active { background: var(--panel); color: var(--blue); box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12); font-weight: 700; }
     .report-toggle button { min-width: 112px; }
+    .refresh-controls { display:flex; align-items:center; gap:10px; margin-top:10px; flex-wrap:wrap; }
+    .refresh-btn { display:inline-flex; align-items:center; gap:8px; padding:8px 14px; border:1px solid #cbd5e1; background:#fff; color:#334155; border-radius:8px; cursor:pointer; font-size:13px; font-weight:600; transition:border-color .15s, background .15s, transform .1s; }
+    .refresh-btn:hover { border-color:var(--blue); color:var(--blue); background:#f8fafc; }
+    .refresh-btn:active { transform: scale(0.98); }
+    .refresh-btn[disabled] { cursor:not-allowed; opacity:.7; color:#94a3b8; border-color:#e2e8f0; background:#f8fafc; }
+    .refresh-btn .refresh-icon { display:inline-block; font-size:14px; line-height:1; }
+    .refresh-btn.is-running .refresh-icon { animation: refresh-spin 1s linear infinite; }
+    @keyframes refresh-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .refresh-meta { font-size:12px; color:#64748b; }
+    .refresh-meta.is-running { color:var(--blue); font-weight:600; }
+    .refresh-meta.is-error { color:var(--red); }
+    .refresh-meta.is-done { color:var(--green); font-weight:600; }
     .report-view { display: grid; gap: 18px; }
     .report-view[hidden] { display: none; }
     .filters { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px; display: grid; grid-template-columns: 1.4fr repeat(4, minmax(150px, 1fr)); gap: 12px; align-items: end; }
@@ -266,6 +278,13 @@
       <div class="title">
         <h1>СТМ: план, выпуск и продажи</h1>
         <p>Оперативная версия: план и выпуск из отчета производства, отгрузки и выручка из 1С, валовка управленческая.</p>
+        <div class="refresh-controls">
+          <button id="refreshBtn" type="button" class="refresh-btn" title="Подтянуть свежие данные из 1С прямо сейчас">
+            <span class="refresh-icon">🔄</span>
+            <span class="refresh-label">Обновить данные</span>
+          </button>
+          <span id="refreshMeta" class="refresh-meta">проверяю статус…</span>
+        </div>
       </div>
       <div class="top-controls">
         <div class="month-toggle report-toggle" aria-label="Выбор отчета">
@@ -2167,6 +2186,104 @@
     render();
     // Подтянуть общие комментарии и даты отгрузок из shared API.
     loadSharedMetaFromApi().then(ok => { if (ok) render(); });
+
+    // ─── Кнопка «Обновить данные» через локальный refresh-сервис ───
+    // Сервис крутится на компе пользователя по адресу 127.0.0.1:9999 (Task Scheduler at logon).
+    // POST /refresh — стартует daily_refresh.ps1 (синхронизирует данные из 1С + git push).
+    // GET /status — { running, lastRun, lastRunHuman }.
+    // После завершения refresh + успешного push'а Coolify пересоберёт hub-v2; кнопка пингует
+    // /status, дожидается завершения и перезагружает страницу для подтягивания свежего HTML.
+    const REFRESH_API = 'http://127.0.0.1:9999';
+    const refreshBtn  = document.getElementById('refreshBtn');
+    const refreshMeta = document.getElementById('refreshMeta');
+    const PAGE_LOADED_AT = Date.now();
+    let refreshPollTimer = null;
+    let refreshTriggeredAt = 0;
+
+    function setRefreshState(state, text) {
+      refreshMeta.classList.remove('is-running', 'is-error', 'is-done');
+      if (state) refreshMeta.classList.add(state);
+      refreshMeta.textContent = text;
+      refreshBtn.classList.toggle('is-running', state === 'is-running');
+      refreshBtn.disabled = state === 'is-running';
+    }
+
+    async function fetchRefreshStatus() {
+      const r = await fetch(REFRESH_API + '/status', { method: 'GET', cache: 'no-store' });
+      if (!r.ok) throw new Error('status ' + r.status);
+      return r.json();
+    }
+
+    async function pingRefreshService() {
+      try {
+        const s = await fetchRefreshStatus();
+        if (s.running) {
+          setRefreshState('is-running', 'Обновляется… (≈5–10 мин — идёт запрос в 1С)');
+        } else if (s.lastRunHuman) {
+          setRefreshState(null, `Последнее обновление: ${s.lastRunHuman}`);
+        } else {
+          setRefreshState(null, 'Данные ещё не обновлялись');
+        }
+        return s;
+      } catch (e) {
+        setRefreshState('is-error', 'Локальный сервис недоступен. Открой Task Scheduler → «STM Refresh Server» → Run');
+        return null;
+      }
+    }
+
+    async function triggerRefresh() {
+      setRefreshState('is-running', 'Запускаю обновление…');
+      try {
+        const r = await fetch(REFRESH_API + '/refresh', { method: 'POST', cache: 'no-store' });
+        if (!r.ok) throw new Error('refresh ' + r.status);
+        const j = await r.json();
+        refreshTriggeredAt = Date.now();
+        if (j.status === 'already_running') {
+          setRefreshState('is-running', 'Уже обновляется… подожди');
+        } else {
+          setRefreshState('is-running', 'Тянем данные из 1С… (≈5–10 мин)');
+        }
+        startRefreshPoll();
+      } catch (e) {
+        setRefreshState('is-error', 'Не удалось запустить. Проверь что «STM Refresh Server» работает');
+      }
+    }
+
+    function startRefreshPoll() {
+      if (refreshPollTimer) return;
+      refreshPollTimer = setInterval(async () => {
+        const s = await fetchRefreshStatus().catch(() => null);
+        if (!s) return;
+        if (s.running) {
+          const sec = Math.round((Date.now() - refreshTriggeredAt) / 1000);
+          setRefreshState('is-running', `Обновляется… прошло ${Math.floor(sec/60)}м ${sec%60}с`);
+          return;
+        }
+        // running=false. Если есть свежая отметка lastRun позже момента триггера —
+        // refresh завершился, ждём ~75 секунд чтобы Coolify пересобрал статику, и перезагружаемся.
+        const lastRunMs = s.lastRun ? Date.parse(s.lastRun + 'Z') - new Date().getTimezoneOffset() * 60000 : 0;
+        if (refreshTriggeredAt && lastRunMs > refreshTriggeredAt - 60000) {
+          clearInterval(refreshPollTimer);
+          refreshPollTimer = null;
+          setRefreshState('is-done', 'Готово! Перезагружаю через 75 сек (ждём Coolify)…');
+          let secLeft = 75;
+          const countdown = setInterval(() => {
+            secLeft--;
+            if (secLeft <= 0) {
+              clearInterval(countdown);
+              location.reload();
+            } else {
+              setRefreshState('is-done', `Готово! Перезагружаю через ${secLeft} сек…`);
+            }
+          }, 1000);
+        }
+      }, 5000);
+    }
+
+    refreshBtn.addEventListener('click', triggerRefresh);
+    pingRefreshService();
+    // Лёгкий polling каждые 30с пока страница открыта — обновляем «Последнее обновление» если файл изменился.
+    setInterval(() => { if (!refreshPollTimer) pingRefreshService(); }, 30000);
   </script>
 </body>
 </html>
