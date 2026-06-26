@@ -2725,7 +2725,6 @@
         return m;
       }
       async function v2PushMeta(row, patch) {
-        // PATCH в /api/stm-meta. Ширим тело request'а v2-полями.
         try {
           const k = `${row.month}::${row.sku}`;
           const m = sharedMeta[k] && typeof sharedMeta[k] === 'object' ? sharedMeta[k] : {};
@@ -2733,8 +2732,10 @@
           sharedMeta[k] = m;
           persistMetaLocal();
           const body = { month: row.month, sku: row.sku, ...patch };
-          await fetch('/api/stm-meta', { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
-        } catch (e) { console.warn('v2 meta save failed', e); }
+          const r = await fetch('/api/stm-meta', { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+          if (!r.ok) { console.warn('v2 meta PUT', r.status, await r.text()); return false; }
+          return true;
+        } catch (e) { console.warn('v2 meta save failed', e); return false; }
       }
 
       // ─── Model: один SKU = одна строка, стадии разложены ─────
@@ -3185,25 +3186,33 @@
           setComment(row, com.value);
         }
       });
-      // Кнопка «Применить» в detail-row (для moved / tail)
-      document.getElementById('v2TableBody').addEventListener('click', e => {
+      // Кнопка «Применить» в detail-row (для moved / tail). Обрабатываем сразу до bubble в другие listeners.
+      document.getElementById('v2TableBody').addEventListener('click', async e => {
         const btn = e.target.closest('[data-action]');
         if (!btn) return;
+        e.preventDefault();
         const form = btn.closest('[data-v2-detail-sku]');
+        if (!form) { console.warn('v2: form not found'); return; }
         const sku = form.dataset.v2DetailSku;
         const row = DATA.find(r => r.month === state.month && r.sku === sku);
-        if (!row) return;
+        if (!row) { console.warn('v2: row not found for', sku); return; }
         const get = (field) => form.querySelector(`[data-field="${field}"]`);
+        const origText = btn.textContent;
+        btn.disabled = true; btn.textContent = '…';
+        let ok = false;
         if (btn.dataset.action === 'save-moved') {
           const qty   = Number(get('moved_qty').value) || 0;
           const date  = get('moved_date').value || null;
           const rsn   = get('moved_reason').value || null;
-          v2PushMeta(row, { moved_qty: qty, moved_date: date, moved_reason: rsn }).then(() => v2Render());
+          ok = await v2PushMeta(row, { moved_qty: qty, moved_date: date, moved_reason: rsn });
         } else if (btn.dataset.action === 'save-tail') {
           const qty   = Number(get('tail_qty').value) || 0;
           const incl  = get('tail_included').checked;
-          v2PushMeta(row, { tail_qty: qty, tail_included: incl }).then(() => v2Render());
+          ok = await v2PushMeta(row, { tail_qty: qty, tail_included: incl });
         }
+        btn.textContent = ok ? '✓ сохранено' : '✗ ошибка';
+        btn.style.background = ok ? '#16a34a' : '#dc2626';
+        setTimeout(() => { btn.disabled = false; v2Render(); }, ok ? 600 : 1500);
       });
 
       // Columns panel
