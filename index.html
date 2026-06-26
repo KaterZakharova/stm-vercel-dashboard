@@ -270,6 +270,104 @@
       .month-toggle { width: 100%; }
       .month-toggle button { flex: 1; }
     }
+
+    /* ═══ v2 styles ═══ */
+    .v2-hero { display:flex; gap:24px; align-items:flex-start; margin: 16px 0 20px; padding: 16px 20px; background:#fff; border-radius:10px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+    .v2-hero-main { flex: 1; }
+    .v2-hero-amount { font-size: 32px; font-weight: 600; color:#0e7c66; letter-spacing:-0.5px; }
+    .v2-hero-sub { color: #64748b; font-size: 12px; margin-top: 2px; }
+    .v2-hero-breakdown { margin-top: 8px; color:#475569; font-size: 13px; }
+    .v2-hero-breakdown span { margin-right: 18px; }
+    .v2-hero-breakdown strong { color: #0f172a; font-weight: 600; }
+    .v2-hero-aux { font-size: 12px; color:#64748b; text-align:right; }
+
+    .v2-managers { margin: 12px 0 16px; }
+    .v2-managers-strip { display: flex; align-items: center; gap: 12px; padding: 8px 14px; background: #f8fafc; border-radius: 8px; cursor: pointer; user-select: none; font-size: 13px; }
+    .v2-managers-strip:hover { background: #f1f5f9; }
+    .v2-managers-toggle { font-weight: 600; color: #0f172a; }
+    .v2-managers-summary { color: #64748b; flex: 1; }
+    .v2-managers-detail { margin-top: 8px; padding: 12px 14px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; }
+    .v2-managers-detail .mgr-row { display: grid; grid-template-columns: 1fr 120px 120px 60px; gap: 10px; align-items: center; padding: 4px 0; font-size: 13px; border-bottom: 1px solid #f1f5f9; }
+    .v2-managers-detail .mgr-row:last-child { border-bottom: none; }
+    .v2-managers-detail .mgr-bar { height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden; }
+    .v2-managers-detail .mgr-bar span { display: block; height: 100%; background: #0e7c66; }
+    .v2-managers-detail .mgr-pct.green { color: #0e7c66; }
+    .v2-managers-detail .mgr-pct.amber { color: #d97706; }
+    .v2-managers-detail .mgr-pct.red   { color: #dc2626; }
+    .v2-managers-detail .mgr-pct.blue  { color: #2563eb; }
+
+    .v2-view-switcher { display: flex; gap: 6px; margin: 12px 0 8px; }
+    .v2-view-switcher button { padding: 8px 16px; border: 1px solid #cbd5e1; background: #fff; border-radius: 8px; cursor: pointer; font-size: 13px; color:#334155; }
+    .v2-view-switcher button:hover { background: #f1f5f9; }
+    .v2-view-switcher button.active { border-color: #0e7c66; color: #0e7c66; box-shadow: inset 0 0 0 1px #0e7c66; font-weight: 600; }
+
+    .v2-toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+    .v2-status-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+    .v2-status-chips button { padding: 5px 11px; border: 1px solid #cbd5e1; background:#fff; border-radius: 999px; cursor: pointer; font-size: 12px; color:#334155; }
+    .v2-status-chips button:hover { background: #f1f5f9; }
+    .v2-status-chips button.active { background:#0e7c66; color:#fff; border-color:#0e7c66; }
+
+    .v2-pane { background: #fff; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+    .v2-pane .scroll { overflow-x: auto; }
+    .v2-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .v2-table th, .v2-table td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; text-align: left; vertical-align: middle; }
+    .v2-table th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; background: #f8fafc; font-weight: 500; }
+    .v2-table th.num, .v2-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .v2-table tr:hover td { background: #fafbfc; }
+    .v2-table tr.row-suspicious td { background: #fef9c3 !important; }
+    .v2-table tr.row-costhole td { background: #fee2e2 !important; }
+    .v2-table .strike { text-decoration: line-through; color: #94a3b8; }
+    .v2-table .stage-shipped { color: #16a34a; font-weight: 500; }
+    .v2-table .stage-stock { color: #0284c7; }
+    .v2-table .stage-produce { color: #d97706; }
+    .v2-table .stage-moved { color: #64748b; }
+    .v2-table .stage-tail { color: #ca8a04; }
+    .v2-table .sku-cell { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; }
+    .v2-table .row-flag { display:inline-block; width:14px; height:14px; vertical-align:middle; margin-left:4px; }
+
+    .v2-status-badge { display: inline-flex; align-items:center; gap:4px; padding: 3px 9px; border-radius: 6px; font-size: 12px; font-weight: 500; border: 1px solid; cursor: pointer; background:#fff; }
+    .v2-status-badge.closed { color: #16a34a; border-color: #86efac; background: #f0fdf4; }
+    .v2-status-badge.ready  { color: #2563eb; border-color: #93c5fd; background: #eff6ff; }
+    .v2-status-badge.prod   { color: #d97706; border-color: #fcd34d; background: #fffbeb; }
+    .v2-status-badge.tail   { color: #ca8a04; border-color: #fde047; background: #fefce8; }
+    .v2-status-badge.moved  { color: #475569; border-color: #cbd5e1; background: #f8fafc; }
+    .v2-status-badge.risk   { color: #dc2626; border-color: #fca5a5; background: #fef2f2; }
+    .v2-status-extra { font-size: 10px; color:#64748b; margin-top:2px; display:block; }
+
+    .v2-comment-cell input { width: 100%; border: 1px solid transparent; padding: 4px 6px; font-size: 12px; border-radius: 4px; background: transparent; }
+    .v2-comment-cell input:focus { border-color: #0e7c66; background: #fff; outline: none; }
+
+    .v2-legend { margin-top: 10px; display: flex; gap: 20px; font-size: 11px; color: #64748b; }
+    .v2-legend .legend-swatch { display:inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
+    .v2-legend .legend-swatch.suspicious { background: #fef9c3; border:1px solid #facc15; }
+    .v2-legend .legend-swatch.costhole   { background: #fee2e2; border:1px solid #fca5a5; }
+
+    /* Kanban */
+    .v2-kanban { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+    .v2-kanban-lane { background: #f8fafc; border-radius: 8px; padding: 10px; min-height: 200px; }
+    .v2-kanban-lane h3 { margin: 0 0 10px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: #475569; display:flex; justify-content:space-between; align-items:center; }
+    .v2-kanban-lane .lane-sum { font-size: 11px; font-weight: 600; }
+    .v2-kanban-lane .v2-card { background: #fff; padding: 8px 10px; border-radius: 6px; margin-bottom: 6px; font-size: 12px; border: 1px solid #e2e8f0; }
+    .v2-kanban-lane .v2-card .sku { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #475569; }
+    .v2-kanban-lane .v2-card .qty { font-weight: 600; color:#0f172a; }
+    .v2-kanban-lane .v2-card .money { font-size: 11px; color: #64748b; }
+    .v2-kanban-lane .v2-card .part-note { font-size: 10px; color: #94a3b8; font-style: italic; }
+    .v2-kanban-lane .v2-card .reason { font-size: 10px; color: #64748b; margin-top: 3px; }
+    .v2-kanban-tails { margin-top: 14px; padding: 12px 14px; background: #fefce8; border: 1px solid #fde047; border-radius: 8px; font-size: 13px; }
+
+    /* Funnel */
+    .v2-funnel-controls { display: flex; gap: 24px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; font-size: 13px; }
+    .v2-slider-label { display: flex; gap: 8px; align-items: center; }
+    .v2-slider-label input[type=range] { width: 200px; }
+    .v2-funnel { display: flex; height: 60px; border-radius: 10px; overflow: hidden; border: 1px solid #e2e8f0; }
+    .v2-funnel .seg { display: flex; flex-direction: column; align-items:center; justify-content:center; color: #fff; font-size: 11px; font-weight: 500; text-shadow: 0 1px 1px rgba(0,0,0,0.2); padding: 4px; min-width: 0; }
+    .v2-funnel .seg-shipped { background: #16a34a; }
+    .v2-funnel .seg-stock   { background: #2563eb; }
+    .v2-funnel .seg-produce { background: #d97706; }
+    .v2-funnel .seg-tail    { background: #ca8a04; }
+    .v2-funnel-detail { margin-top: 12px; font-size: 13px; color: #475569; }
+    .v2-funnel-detail .detail-row { display:flex; justify-content:space-between; padding: 4px 0; border-bottom: 1px solid #f1f5f9; }
+    .v2-funnel-detail .detail-row:last-child { border-bottom: none; font-weight: 600; color:#0f172a; }
   </style>
 </head>
 <body>
@@ -290,6 +388,7 @@
         <div class="month-toggle report-toggle" aria-label="Выбор отчета">
           <button data-view="main" class="active">План-факт</button>
           <button data-view="potential">Потенциал</button>
+          <button data-view="v2" id="v2Tab" hidden>Новая версия <span class="badge blue" style="margin-left:4px;font-size:9px;padding:1px 4px">бета</span></button>
         </div>
         <div class="month-toggle" aria-label="Выбор месяца">
           <button data-month="Июнь" class="active">Июнь</button>
@@ -475,6 +574,94 @@
             <tbody id="potentialTbody"></tbody>
           </table>
         </div>
+      </section>
+    </section>
+
+    <!-- ═══════════════════ v2 (Новая версия) ═══════════════════ -->
+    <section id="v2Report" class="report-view" hidden>
+      <div class="v2-hero">
+        <div class="v2-hero-main">
+          <div class="v2-hero-amount" id="v2HeroAmount">— ₽</div>
+          <div class="v2-hero-sub" id="v2HeroSub">прогноз по выборке · все SKU</div>
+          <div class="v2-hero-breakdown" id="v2HeroBreakdown"></div>
+        </div>
+        <div class="v2-hero-aux" id="v2HeroAux"></div>
+      </div>
+
+      <!-- KPI карточки (3 шт): Валовка / Штуки / Выручка -->
+      <section class="kpis" id="v2Kpis"></section>
+
+      <!-- Менеджеры — компактная свёрнутая полоса + раскрытие -->
+      <section class="v2-managers">
+        <div class="v2-managers-strip" id="v2ManagersStrip">
+          <span class="v2-managers-toggle" id="v2ManagersToggle">▸ Менеджеры</span>
+          <span class="v2-managers-summary" id="v2ManagersSummary"></span>
+        </div>
+        <div class="v2-managers-detail" id="v2ManagersDetail" hidden></div>
+      </section>
+
+      <!-- View switcher: Таблица / Канбан / Воронка -->
+      <div class="v2-view-switcher" id="v2ViewSwitcher">
+        <button type="button" class="active" data-v2-view="table">📊 Таблица</button>
+        <button type="button" data-v2-view="kanban">🔲 Канбан</button>
+        <button type="button" data-v2-view="funnel">⏺ Воронка</button>
+      </div>
+
+      <!-- Status filter chips -->
+      <div class="v2-toolbar">
+        <div class="column-panel-wrap">
+          <button type="button" class="link-button" id="v2ColumnsButton">Колонки ▾</button>
+          <div class="column-panel" id="v2ColumnsPanel" hidden>
+            <div class="column-panel-head">
+              <span>Показать в таблице</span>
+              <button type="button" class="icon-button" id="v2ColumnsClose" aria-label="Закрыть">×</button>
+            </div>
+            <div class="column-actions">
+              <button type="button" id="v2ColumnsAll">Все</button>
+              <button type="button" id="v2ColumnsDefault">По умолчанию</button>
+            </div>
+            <div class="column-list" id="v2ColumnsList"></div>
+          </div>
+        </div>
+        <div class="v2-status-chips" id="v2StatusChips"></div>
+      </div>
+
+      <!-- Таблица -->
+      <section class="v2-pane" id="v2TablePane">
+        <div class="scroll">
+          <table class="v2-table">
+            <thead id="v2TableHead"></thead>
+            <tbody id="v2TableBody"></tbody>
+            <tfoot id="v2TableFoot"></tfoot>
+          </table>
+        </div>
+        <div class="v2-legend">
+          <span><span class="legend-swatch suspicious"></span> маржа &gt; 65% — проверь себестоимость</span>
+          <span><span class="legend-swatch costhole"></span> выручка = валовка — себестоимость не посчиталась</span>
+        </div>
+      </section>
+
+      <!-- Канбан -->
+      <section class="v2-pane" id="v2KanbanPane" hidden>
+        <div class="v2-kanban" id="v2Kanban"></div>
+        <div class="v2-kanban-tails" id="v2KanbanTails"></div>
+      </section>
+
+      <!-- Воронка -->
+      <section class="v2-pane" id="v2FunnelPane" hidden>
+        <div class="v2-funnel-controls">
+          <label class="v2-slider-label">
+            Реализуемость к выпуску:
+            <input type="range" id="v2FunnelSlider" min="0" max="100" step="5" value="60">
+            <span id="v2FunnelSliderValue">60%</span>
+          </label>
+          <label class="v2-tail-toggle">
+            <input type="checkbox" id="v2FunnelTailToggle">
+            Учитывать деньги хвостов
+          </label>
+        </div>
+        <div class="v2-funnel" id="v2Funnel"></div>
+        <div class="v2-funnel-detail" id="v2FunnelDetail"></div>
       </section>
     </section>
   </main>
@@ -2487,6 +2674,510 @@
     pingRefreshService();
     // Лёгкий polling каждые 30с пока страница открыта — обновляем «Последнее обновление» если файл изменился.
     setInterval(() => { if (!refreshPollTimer) pingRefreshService(); }, 30000);
+
+    /* ═══════════════════════════════════════════════════════════════════════════
+       v2 (Новая версия) — изолированный модуль.
+       Использует общие DATA, sharedMeta, dop-queue, но имеет собственный state
+       и render. Активируется через ?v2=1 в URL. localStorage ключи: stmV2*.
+       ══════════════════════════════════════════════════════════════════════════ */
+    (function v2Module() {
+      const v2Enabled = new URLSearchParams(location.search).has('v2') || localStorage.getItem('stmV2Enabled') === '1';
+      const v2Tab = document.getElementById('v2Tab');
+      if (!v2Enabled) return;
+      v2Tab.hidden = false;
+      // если в URL есть ?v2=1 — запомним, чтобы при следующих заходах было включено
+      if (new URLSearchParams(location.search).has('v2')) localStorage.setItem('stmV2Enabled', '1');
+
+      // ─── Config ─────────────────────────────────────────────
+      const TAIL_CONFIG = { minShippedRatio: 0.90, maxTailRatio: 0.07, maxTailAbs: 800 };
+      const SUSPICIOUS_MARGIN_THRESHOLD = 0.65;
+      const CLOSED_RATIO = 0.95;
+      const STATUS_LABELS = { closed:'Закрыт', ready:'Готов', prod:'В произв', tail:'Хвост', moved:'Перенос', risk:'Снято' };
+      const STATUS_ORDER = ['closed','ready','prod','tail','moved','risk'];
+
+      // ─── State (per v2) ─────────────────────────────────────
+      const v2State = {
+        view: 'table',                                                   // table | kanban | funnel
+        statusFilter: 'all',                                             // 'all' | one of STATUS_ORDER
+        funnelRealizable: Number(localStorage.getItem('stmV2FunnelSlider') ?? 60),
+        funnelTailIncluded: localStorage.getItem('stmV2FunnelTail') === '1',
+        managersOpen: false,
+      };
+
+      // shared meta v2 fields (Postgres). Используем тот же sharedMeta object — он уже extended на бэке.
+      function v2Meta(row) {
+        const k = `${row.month}::${row.sku}`;
+        const m = sharedMeta[k];
+        if (!m || typeof m === 'string') return {};
+        return m;
+      }
+      async function v2PushMeta(row, patch) {
+        // PATCH в /api/stm-meta. Ширим тело request'а v2-полями.
+        try {
+          const k = `${row.month}::${row.sku}`;
+          const m = sharedMeta[k] && typeof sharedMeta[k] === 'object' ? sharedMeta[k] : {};
+          Object.assign(m, patch);
+          sharedMeta[k] = m;
+          persistMetaLocal();
+          const body = { month: row.month, sku: row.sku, ...patch };
+          await fetch('/api/stm-meta', { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+        } catch (e) { console.warn('v2 meta save failed', e); }
+      }
+
+      // ─── Model: один SKU = одна строка, стадии разложены ─────
+      function v2BuildRows() {
+        const baseRows = DATA.filter(r => r.month === state.month);
+        return baseRows.map(r => buildV2Row(r));
+      }
+      function buildV2Row(r) {
+        const meta = v2Meta(r);
+        const plan        = Number(r.planQty || 0);
+        const shipped     = Number(r.shippedQty || 0);
+        const stockReady  = Math.max(0, Number(r.stockStm || 0)) + Math.max(0, Number(r.stockPgp || 0));
+        const free        = Math.max(0, plan - shipped - stockReady);
+
+        // ручные оверрайды из меты
+        const manualTail  = meta.tail_qty != null ? Number(meta.tail_qty) : null;
+        const manualMoved = meta.moved_qty != null ? Number(meta.moved_qty) : null;
+
+        // авто-tail
+        let autoTail = 0;
+        if (plan > 0 && shipped >= TAIL_CONFIG.minShippedRatio * plan) {
+          if (free < TAIL_CONFIG.maxTailRatio * plan || free < TAIL_CONFIG.maxTailAbs) autoTail = free;
+        }
+
+        const tailQty  = manualTail  != null ? Math.min(manualTail, free)  : autoTail;
+        const movedQty = manualMoved != null ? Math.min(manualMoved, free - tailQty) : 0;
+        const toProduce = Math.max(0, free - tailQty - movedQty);
+
+        // unit margin — факт если есть, иначе план, иначе cp-fp
+        const v = (() => {
+          if (shipped > 0 && r.actualGp) return r.actualGp / shipped;
+          if (plan > 0 && r.plannedGp) return r.plannedGp / plan;
+          const cp = Number(r.clientPrice || 0), fp = Number(r.factoryPrice || 0);
+          return cp > 0 ? Math.max(0, cp - fp) : 0;
+        })();
+
+        // деньги по стадиям
+        const moneyShipped = Number(r.actualGp || 0) || (shipped * v);
+        const moneyStock   = stockReady * v;
+        const moneyProduce = toProduce * v;
+        const moneyMoved   = movedQty * v;
+        const moneyTail    = tailQty * v;
+        const grossMargin  = Number(r.actualGp || 0) || (plan * v);
+        const revenue      = Number(r.actualRevenue || 0) || Number(r.plannedRevenue || 0) || 0;
+        const marginPct    = revenue > 0 ? grossMargin / revenue : null;
+
+        // quality flags
+        const flagCostHole = revenue > 0 && grossMargin > 0 && Math.abs(revenue - grossMargin) / revenue < 0.001;
+        const flagMarginSuspicious = !flagCostHole && marginPct != null && marginPct > SUSPICIOUS_MARGIN_THRESHOLD;
+
+        // status — приоритет: override > moved > closed > tail > ready > prod > risk
+        const statusOverride = !!meta.status_override;
+        let status;
+        if (statusOverride && meta.status) status = meta.status;
+        else if (movedQty > 0)              status = 'moved';
+        else if (plan > 0 && shipped >= CLOSED_RATIO * plan && tailQty === 0) status = 'closed';
+        else if (tailQty > 0)               status = 'tail';
+        else if (stockReady > 0 && shipped === 0) status = 'ready';
+        else if (toProduce > 0)             status = 'prod';
+        else                                status = 'closed';
+
+        return {
+          raw: r,
+          sku: r.sku, name: r.name, manager: r.manager || '', counterparty: r.counterparty || '',
+          order: r.order || '',
+          plan, shipped, stockReady, toProduce, movedQty, tailQty,
+          v, moneyShipped, moneyStock, moneyProduce, moneyMoved, moneyTail,
+          grossMargin, revenue, marginPct,
+          flagCostHole, flagMarginSuspicious,
+          status, statusOverride,
+          tailIncluded: !!meta.tail_included,
+          movedDate: meta.moved_date || '',
+          movedReason: meta.moved_reason || '',
+          comment: getComment(r),
+        };
+      }
+
+      // ─── Forecast aggregation ───────────────────────────────
+      function v2Forecast(rows) {
+        const realizableRate = v2State.funnelRealizable / 100;
+        const tailGlobal = v2State.funnelTailIncluded;
+        let factSum=0, stockSum=0, produceSumFull=0, tailSum=0, movedSum=0;
+        let factQty=0, stockQty=0, produceQty=0, tailQty=0, movedQty=0;
+        rows.forEach(r => {
+          factSum   += r.moneyShipped;  factQty   += r.shipped;
+          stockSum  += r.moneyStock;    stockQty  += r.stockReady;
+          produceSumFull += r.moneyProduce; produceQty += r.toProduce;
+          movedSum  += r.moneyMoved;    movedQty  += r.movedQty;
+          if (r.tailIncluded || tailGlobal) { tailSum += r.moneyTail; tailQty += r.tailQty; }
+        });
+        const produceSum = produceSumFull * realizableRate;
+        const total = factSum + stockSum + produceSum + tailSum;
+        return { factSum, stockSum, produceSum, produceSumFull, tailSum, movedSum, total,
+                 factQty, stockQty, produceQty, tailQty, movedQty,
+                 realizableRate, tailIncluded: tailGlobal };
+      }
+
+      // ─── Columns config ─────────────────────────────────────
+      const V2_COLUMNS = [
+        { key:'sku',         label:'Артикул',      defaultVisible:true, required:true },
+        { key:'name',        label:'Наименование', defaultVisible:true },
+        { key:'order',       label:'Заказ',        defaultVisible:false },
+        { key:'manager',     label:'Менеджер',     defaultVisible:false },
+        { key:'plan',        label:'План',         defaultVisible:true,  num:true },
+        { key:'shipped',     label:'Отгр.',        defaultVisible:true,  num:true },
+        { key:'stockReady',  label:'Склад',        defaultVisible:true,  num:true },
+        { key:'toProduce',   label:'К вып.',       defaultVisible:true,  num:true },
+        { key:'movedQty',    label:'Перенос',      defaultVisible:true,  num:true },
+        { key:'tailQty',     label:'Хвост',        defaultVisible:true,  num:true },
+        { key:'grossMargin', label:'Валовка ₽',    defaultVisible:true,  num:true },
+        { key:'revenue',     label:'Выручка ₽',    defaultVisible:false, num:true },
+        { key:'marginPct',   label:'Маржа %',      defaultVisible:false, num:true },
+        { key:'status',      label:'Статус',       defaultVisible:true },
+        { key:'comment',     label:'Комментарий',  defaultVisible:true },
+      ];
+      const V2_DEFAULT_VISIBLE = V2_COLUMNS.filter(c => c.defaultVisible).map(c => c.key);
+      const V2_VISIBLE_KEY = 'stmV2VisibleColumns';
+      const v2Visible = (() => {
+        try {
+          const raw = localStorage.getItem(V2_VISIBLE_KEY);
+          if (!raw) return new Set(V2_DEFAULT_VISIBLE);
+          const arr = JSON.parse(raw);
+          if (!Array.isArray(arr)) return new Set(V2_DEFAULT_VISIBLE);
+          const valid = new Set(V2_COLUMNS.map(c => c.key));
+          const s = new Set(arr.filter(k => valid.has(k)));
+          V2_COLUMNS.filter(c => c.required).forEach(c => s.add(c.key));
+          return s;
+        } catch { return new Set(V2_DEFAULT_VISIBLE); }
+      })();
+      function v2PersistVisible() { try { localStorage.setItem(V2_VISIBLE_KEY, JSON.stringify([...v2Visible])); } catch {} }
+
+      // ─── Renderers ──────────────────────────────────────────
+      function v2Render() {
+        if (state.view !== 'v2') return;
+        const rows = v2BuildRows();
+        const fc = v2Forecast(rows);
+        v2RenderHero(rows, fc);
+        v2RenderKpis(rows, fc);
+        v2RenderManagers(rows);
+        v2RenderViewSwitcher();
+        v2RenderStatusChips(rows);
+        if (v2State.view === 'table') v2RenderTable(rows, fc);
+        else if (v2State.view === 'kanban') v2RenderKanban(rows);
+        else if (v2State.view === 'funnel') v2RenderFunnel(rows, fc);
+        document.getElementById('v2TablePane').hidden  = v2State.view !== 'table';
+        document.getElementById('v2KanbanPane').hidden = v2State.view !== 'kanban';
+        document.getElementById('v2FunnelPane').hidden = v2State.view !== 'funnel';
+      }
+
+      function v2RenderHero(rows, fc) {
+        document.getElementById('v2HeroAmount').textContent = rub(fc.total);
+        document.getElementById('v2HeroSub').textContent = `прогноз по выборке · все SKU · ${state.month}`;
+        document.getElementById('v2HeroBreakdown').innerHTML =
+          `<span>Факт <strong>${rub(fc.factSum)}</strong></span>` +
+          `<span>Склад <strong>${rub(fc.stockSum)}</strong></span>` +
+          `<span>К выпуску <strong>${rub(fc.produceSum)}</strong>${fc.realizableRate < 1 ? ` <small>(${Math.round(fc.realizableRate*100)}%)</small>`:''}</span>` +
+          `<span>Хвосты <strong>${rub(fc.tailSum)}</strong>${fc.tailIncluded? '' : ' <small>(не учтены)</small>'}</span>` +
+          (fc.movedSum > 0 ? `<span style="color:#94a3b8">Перенос (не в прогнозе) ${rub(fc.movedSum)}</span>` : '');
+        const target = (TARGETS[state.month] || {}).gp || 0;
+        document.getElementById('v2HeroAux').innerHTML = target ? `Цель: ${rub(target)} · <strong>${pct(fc.total/target)}</strong>` : '';
+      }
+      function v2RenderKpis(rows, fc) {
+        const target = (TARGETS[state.month] || {}).gp || 0;
+        const targetPct = target ? fc.factSum / target : 0;
+        const planQtyTot = rows.reduce((a, r) => a + r.plan, 0);
+        const factQty = rows.reduce((a, r) => a + r.shipped, 0);
+        const planRev = rows.reduce((a, r) => a + (r.revenue || 0), 0);
+        const factRev = rows.reduce((a, r) => a + Number(r.raw.actualRevenue || 0), 0);
+        const fmt = (a, b) => a && b ? `${pct(a/b)}` : '';
+        document.getElementById('v2Kpis').innerHTML = `
+          <div class="kpi">
+            <div class="label">Валовка управленческая · ${escapeHtml(state.month)} · факт · отгружено</div>
+            <div class="value">${rub(fc.factSum)} <span style="font-size:14px;color:${targetPct>=0.7?'#16a34a':'#d97706'}">${target?pct(targetPct):''}</span></div>
+            <div class="sub">из ${rub(target)} цель${target?`. Маржа факт: ${factRev?pct(fc.factSum/factRev):'—'}`:''}</div>
+          </div>
+          <div class="kpi">
+            <div class="label">Штуки · ${escapeHtml(state.month)} · отгружено</div>
+            <div class="value">${fmtQty.format(factQty)} <span style="font-size:14px;color:#2563eb">${fmt(factQty, planQtyTot)}</span></div>
+            <div class="sub">из ${fmtQty.format(planQtyTot)} план · Выпущено ${fmtQty.format(rows.reduce((a,r)=>a+Number(r.raw.releaseQty||0),0))}</div>
+          </div>
+          <div class="kpi">
+            <div class="label">Выручка без НДС · ${escapeHtml(state.month)} · факт</div>
+            <div class="value">${rub(factRev)} <span style="font-size:14px;color:${factRev/planRev>=0.7?'#16a34a':'#d97706'}">${fmt(factRev, planRev)}</span></div>
+            <div class="sub">из ${rub(planRev)} план</div>
+          </div>`;
+      }
+      function v2RenderManagers(rows) {
+        const byMgr = new Map();
+        rows.forEach(r => {
+          const k = r.manager || 'Без менеджера';
+          const acc = byMgr.get(k) || { name: k, fact:0, plan:0, factQty:0, planQty:0 };
+          acc.fact += r.moneyShipped; acc.plan += r.grossMargin;
+          acc.factQty += r.shipped;   acc.planQty += r.plan;
+          byMgr.set(k, acc);
+        });
+        const arr = [...byMgr.values()].sort((a,b) => b.plan - a.plan);
+        const goalsMap = MANAGER_TARGETS[state.month] || {};
+        const summary = arr.slice(0, 3).map(m => {
+          const goal = Number(goalsMap[m.name] || 0);
+          const p = goal ? m.fact/goal : 0;
+          const color = !goal ? 'blue' : (p>=1?'green':p>=0.6?'amber':'red');
+          return `<span class="mgr-pct ${color}">${escapeHtml(m.name.split(' ')[0])} ${goal?pct(p):'—'}</span>`;
+        }).join(' · ');
+        document.getElementById('v2ManagersSummary').innerHTML = summary + ` · всего ${arr.length}`;
+        const detail = arr.map(m => {
+          const goal = Number(goalsMap[m.name] || 0);
+          const p = goal ? m.fact/goal : 0;
+          const color = !goal ? 'blue' : (p>=1?'green':p>=0.6?'amber':'red');
+          const w = Math.min(100, p*100);
+          return `<div class="mgr-row">
+            <div>${escapeHtml(m.name)}</div>
+            <div>${rub(m.fact)} <small style="color:#94a3b8">из ${rub(goal)}</small></div>
+            <div class="mgr-bar"><span style="width:${w}%; background: var(--${color}, #0e7c66)"></span></div>
+            <div class="mgr-pct ${color}" style="text-align:right">${goal?pct(p):'—'}</div>
+          </div>`;
+        }).join('');
+        document.getElementById('v2ManagersDetail').innerHTML = detail;
+        document.getElementById('v2ManagersDetail').hidden = !v2State.managersOpen;
+        document.getElementById('v2ManagersToggle').textContent = (v2State.managersOpen ? '▾' : '▸') + ' Менеджеры';
+      }
+      function v2RenderViewSwitcher() {
+        document.querySelectorAll('#v2ViewSwitcher button').forEach(b =>
+          b.classList.toggle('active', b.dataset.v2View === v2State.view));
+      }
+      function v2RenderStatusChips(rows) {
+        const counts = { all: rows.length };
+        STATUS_ORDER.forEach(s => counts[s] = rows.filter(r => r.status === s).length);
+        const chips = [`<button class="${v2State.statusFilter==='all'?'active':''}" data-v2-status="all">Все <small>${counts.all}</small></button>`]
+          .concat(STATUS_ORDER.map(s => `<button class="${v2State.statusFilter===s?'active':''}" data-v2-status="${s}">${STATUS_LABELS[s]} <small>${counts[s]}</small></button>`));
+        document.getElementById('v2StatusChips').innerHTML = chips.join('');
+      }
+
+      function v2RenderTable(rows, fc) {
+        const cols = V2_COLUMNS.filter(c => v2Visible.has(c.key));
+        const filtered = v2State.statusFilter === 'all' ? rows : rows.filter(r => r.status === v2State.statusFilter);
+        document.getElementById('v2TableHead').innerHTML = '<tr>' +
+          cols.map(c => `<th class="${c.num?'num':''}">${escapeHtml(c.label)}</th>`).join('') + '</tr>';
+        document.getElementById('v2TableBody').innerHTML = filtered.length
+          ? filtered.map(r => v2RowHtml(r, cols)).join('')
+          : `<tr><td colspan="${cols.length}" style="text-align:center;color:#94a3b8;padding:20px">Нет строк</td></tr>`;
+        // footer totals
+        const tot = filtered.reduce((a, r) => ({
+          plan: a.plan + r.plan, shipped: a.shipped + r.shipped, stockReady: a.stockReady + r.stockReady,
+          toProduce: a.toProduce + r.toProduce, movedQty: a.movedQty + r.movedQty, tailQty: a.tailQty + r.tailQty,
+          grossMargin: a.grossMargin + r.grossMargin, revenue: a.revenue + r.revenue,
+        }), { plan:0,shipped:0,stockReady:0,toProduce:0,movedQty:0,tailQty:0,grossMargin:0,revenue:0 });
+        document.getElementById('v2TableFoot').innerHTML = '<tr>' +
+          cols.map((c, i) => {
+            if (i === 0) return `<td><strong>ИТОГО · ${filtered.length}</strong></td>`;
+            if (c.key === 'plan')        return `<td class="num"><strong>${fmtQty.format(tot.plan)}</strong></td>`;
+            if (c.key === 'shipped')     return `<td class="num"><strong>${fmtQty.format(tot.shipped)}</strong></td>`;
+            if (c.key === 'stockReady')  return `<td class="num"><strong>${fmtQty.format(tot.stockReady)}</strong></td>`;
+            if (c.key === 'toProduce')   return `<td class="num"><strong>${fmtQty.format(tot.toProduce)}</strong></td>`;
+            if (c.key === 'movedQty')    return `<td class="num"><strong>${fmtQty.format(tot.movedQty)}</strong></td>`;
+            if (c.key === 'tailQty')     return `<td class="num"><strong>${fmtQty.format(tot.tailQty)}</strong></td>`;
+            if (c.key === 'grossMargin') return `<td class="num"><strong>${rub(tot.grossMargin)}</strong></td>`;
+            if (c.key === 'revenue')     return `<td class="num"><strong>${rub(tot.revenue)}</strong></td>`;
+            return '<td></td>';
+          }).join('') + '</tr>';
+        v2RenderColumnPanel();
+      }
+      function v2RowHtml(r, cols) {
+        const cls = r.flagCostHole ? 'row-costhole' : (r.flagMarginSuspicious ? 'row-suspicious' : '');
+        // зачёркивания
+        const strikeProduce = (r.status === 'moved' || r.status === 'tail' || r.status === 'risk') ? 'strike' : '';
+        const strikeMoney   = (r.status === 'moved' || r.status === 'risk') ? 'strike' : '';
+        const strikeMoved   = 'strike';  // moved всегда не в прогноз текущего месяца
+        const strikeTailMoney = !r.tailIncluded && !v2State.funnelTailIncluded ? 'strike' : '';
+        const cellFor = c => {
+          if (c.key === 'sku')         return `<td class="sku-cell"><strong>${escapeHtml(r.sku)}</strong>${r.flagCostHole?' <span title="выручка = валовка" style="color:#dc2626">⚠</span>':r.flagMarginSuspicious?' <span title="маржа >65%" style="color:#ca8a04">⚠</span>':''}</td>`;
+          if (c.key === 'name')        return `<td>${escapeHtml(r.name||'')}</td>`;
+          if (c.key === 'order')       return `<td><small style="color:#64748b">${escapeHtml(r.order||'')}</small></td>`;
+          if (c.key === 'manager')     return `<td><small>${escapeHtml(r.manager||'')}</small></td>`;
+          if (c.key === 'plan')        return `<td class="num">${fmtQty.format(r.plan)}</td>`;
+          if (c.key === 'shipped')     return `<td class="num stage-shipped">${r.shipped?fmtQty.format(r.shipped):'—'}</td>`;
+          if (c.key === 'stockReady')  return `<td class="num stage-stock">${r.stockReady?fmtQty.format(r.stockReady):'—'}</td>`;
+          if (c.key === 'toProduce')   return `<td class="num stage-produce ${strikeProduce}">${r.toProduce?fmtQty.format(r.toProduce):'—'}</td>`;
+          if (c.key === 'movedQty')    return `<td class="num stage-moved ${r.movedQty?strikeMoved:''}">${r.movedQty?fmtQty.format(r.movedQty):'—'}</td>`;
+          if (c.key === 'tailQty')     return `<td class="num stage-tail ${strikeTailMoney}">${r.tailQty?fmtQty.format(r.tailQty):'—'}</td>`;
+          if (c.key === 'grossMargin') return `<td class="num ${strikeMoney}">${rub(r.grossMargin)}</td>`;
+          if (c.key === 'revenue')     return `<td class="num">${rub(r.revenue)}</td>`;
+          if (c.key === 'marginPct')   return `<td class="num">${r.marginPct!=null?pct(r.marginPct):'—'}</td>`;
+          if (c.key === 'status') {
+            const opts = STATUS_ORDER.map(s => `<option value="${s}"${s===r.status?' selected':''}>${STATUS_LABELS[s]}</option>`).join('');
+            const extra = r.movedQty>0 && r.shipped>0 ? `<span class="v2-status-extra">+ перенос ${fmtQty.format(r.movedQty)}</span>` :
+                          r.tailQty>0 && r.status!=='tail' ? `<span class="v2-status-extra">+ хвост ${fmtQty.format(r.tailQty)}</span>` : '';
+            return `<td><select class="v2-status-badge ${r.status}" data-v2-status-sku="${escapeHtml(r.sku)}">${opts}</select>${extra}</td>`;
+          }
+          if (c.key === 'comment')     return `<td class="v2-comment-cell"><input type="text" data-v2-comment-sku="${escapeHtml(r.sku)}" value="${escapeHtml(r.comment||'')}" placeholder="комментарий..."></td>`;
+          return '<td></td>';
+        };
+        return `<tr class="${cls}">${cols.map(cellFor).join('')}</tr>`;
+      }
+
+      function v2RenderColumnPanel() {
+        document.getElementById('v2ColumnsList').innerHTML = V2_COLUMNS.map(c =>
+          `<label><input type="checkbox" value="${c.key}" ${v2Visible.has(c.key)?'checked':''} ${c.required?'disabled':''}><span>${escapeHtml(c.label)}</span></label>`
+        ).join('');
+      }
+
+      function v2RenderKanban(rows) {
+        const lanes = ['closed','ready','prod','moved','risk'];
+        const grouped = {};
+        lanes.forEach(s => grouped[s] = []);
+        // карточки SKU — основная по primary-статусу
+        rows.forEach(r => {
+          if (!grouped[r.status]) grouped[r.status] = [];
+          grouped[r.status].push({ ...r, partOf: null });
+        });
+        // дробление — moved и tail-часть добавляем как доп карточки в свои дорожки
+        rows.forEach(r => {
+          if (r.status !== 'moved' && r.movedQty > 0) grouped['moved'].push({ ...r, partOf: 'moved' });
+        });
+        document.getElementById('v2Kanban').innerHTML = lanes.map(s => {
+          const arr = grouped[s];
+          const totalQty = arr.reduce((a,c) => a + (c.partOf === 'moved' ? c.movedQty : c.shipped + c.stockReady + c.toProduce + c.tailQty), 0);
+          const totalMoney = arr.reduce((a,c) => a + (c.partOf === 'moved' ? c.moneyMoved : c.grossMargin), 0);
+          return `<div class="v2-kanban-lane">
+            <h3>${STATUS_LABELS[s]} <span class="lane-sum">${arr.length} · ${rub(totalMoney)}</span></h3>
+            ${arr.length ? arr.slice(0, 50).map(c => {
+              const qty = c.partOf === 'moved' ? c.movedQty : (s === 'closed' ? c.shipped : s === 'ready' ? c.stockReady : s === 'prod' ? c.toProduce : c.plan);
+              const money = c.partOf === 'moved' ? c.moneyMoved : c.grossMargin;
+              return `<div class="v2-card">
+                <div class="sku">${escapeHtml(c.sku)}</div>
+                <div>${escapeHtml((c.name||'').slice(0,40))}</div>
+                <div class="qty">${fmtQty.format(qty)} шт</div>
+                <div class="money">${rub(money)}</div>
+                ${c.partOf?'<div class="part-note">часть · '+fmtQty.format(c.movedQty)+' шт</div>':''}
+                ${c.movedReason?'<div class="reason">'+escapeHtml(c.movedReason.slice(0,80))+'</div>':''}
+              </div>`;
+            }).join('') + (arr.length > 50 ? `<div style="font-size:11px;color:#94a3b8;text-align:center;padding:4px">+ ещё ${arr.length-50}</div>` : '') : '<div style="font-size:11px;color:#94a3b8;text-align:center;padding:20px">Пусто</div>'}
+          </div>`;
+        }).join('');
+        // tails полоса
+        const tailRows = rows.filter(r => r.tailQty > 0);
+        const tailSum = tailRows.reduce((a,r) => a + r.moneyTail, 0);
+        const accountedSum = tailRows.reduce((a,r) => a + (r.tailIncluded || v2State.funnelTailIncluded ? r.moneyTail : 0), 0);
+        document.getElementById('v2KanbanTails').innerHTML = tailRows.length
+          ? `🏷 <strong>Хвосты: ${tailRows.length} SKU · ${rub(tailSum)}</strong> · в прогнозе учтено: ${rub(accountedSum)}`
+          : '🏷 Хвосты: нет';
+      }
+
+      function v2RenderFunnel(rows, fc) {
+        document.getElementById('v2FunnelSliderValue').textContent = v2State.funnelRealizable + '%';
+        document.getElementById('v2FunnelSlider').value = v2State.funnelRealizable;
+        document.getElementById('v2FunnelTailToggle').checked = v2State.funnelTailIncluded;
+        const segs = [
+          { key: 'shipped', label: 'Факт', value: fc.factSum, qty: fc.factQty },
+          { key: 'stock',   label: 'Склад', value: fc.stockSum, qty: fc.stockQty },
+          { key: 'produce', label: `К выпуску × ${Math.round(fc.realizableRate*100)}%`, value: fc.produceSum, qty: fc.produceQty },
+          { key: 'tail',    label: 'Хвосты', value: fc.tailSum, qty: fc.tailQty },
+        ].filter(s => s.value > 0 || s.qty > 0);
+        const total = segs.reduce((a,s) => a + s.value, 0) || 1;
+        document.getElementById('v2Funnel').innerHTML = segs.map(s => {
+          const w = (s.value / total * 100).toFixed(2);
+          return `<div class="seg seg-${s.key}" style="width:${w}%; flex:${s.value}" title="${s.label}: ${rub(s.value)} · ${fmtQty.format(s.qty)} шт">
+            <div>${s.label}</div>
+            <div>${rub(s.value)}</div>
+          </div>`;
+        }).join('');
+        document.getElementById('v2FunnelDetail').innerHTML = `
+          <div class="detail-row"><span>Факт отгружено</span><span><strong>${rub(fc.factSum)}</strong> · ${fmtQty.format(fc.factQty)} шт</span></div>
+          <div class="detail-row"><span>Склад (готово)</span><span><strong>${rub(fc.stockSum)}</strong> · ${fmtQty.format(fc.stockQty)} шт</span></div>
+          <div class="detail-row"><span>К выпуску (${Math.round(fc.realizableRate*100)}% от ${rub(fc.produceSumFull)})</span><span><strong>${rub(fc.produceSum)}</strong> · ${fmtQty.format(fc.produceQty)} шт</span></div>
+          <div class="detail-row"><span>Хвосты ${fc.tailIncluded?'(включены)':'(не в прогнозе по умолчанию)'}</span><span><strong>${rub(fc.tailSum)}</strong> · ${fmtQty.format(fc.tailQty)} шт</span></div>
+          <div class="detail-row"><span>Перенос (НЕ в прогнозе текущего месяца)</span><span style="color:#94a3b8">${rub(fc.movedSum)} · ${fmtQty.format(fc.movedQty)} шт</span></div>
+          <div class="detail-row"><span>ИТОГО прогноз ${state.month}</span><span>${rub(fc.total)}</span></div>`;
+      }
+
+      // ─── Event handlers ─────────────────────────────────────
+      document.getElementById('v2ViewSwitcher').addEventListener('click', e => {
+        const b = e.target.closest('[data-v2-view]'); if (!b) return;
+        v2State.view = b.dataset.v2View; v2Render();
+      });
+      document.getElementById('v2StatusChips').addEventListener('click', e => {
+        const b = e.target.closest('[data-v2-status]'); if (!b) return;
+        v2State.statusFilter = b.dataset.v2Status; v2Render();
+      });
+      document.getElementById('v2ManagersToggle').addEventListener('click', () => {
+        v2State.managersOpen = !v2State.managersOpen; v2Render();
+      });
+      document.getElementById('v2ManagersStrip').addEventListener('click', e => {
+        if (e.target.id !== 'v2ManagersToggle') return;
+      });
+      document.getElementById('v2FunnelSlider').addEventListener('input', e => {
+        v2State.funnelRealizable = Number(e.target.value);
+        localStorage.setItem('stmV2FunnelSlider', String(v2State.funnelRealizable));
+        v2Render();
+      });
+      document.getElementById('v2FunnelTailToggle').addEventListener('change', e => {
+        v2State.funnelTailIncluded = e.target.checked;
+        localStorage.setItem('stmV2FunnelTail', e.target.checked ? '1' : '0');
+        v2Render();
+      });
+
+      // Status change → PUT meta
+      document.getElementById('v2TableBody').addEventListener('change', e => {
+        const sel = e.target.closest('[data-v2-status-sku]');
+        if (sel) {
+          const sku = sel.dataset.v2StatusSku;
+          const row = DATA.find(r => r.month === state.month && r.sku === sku);
+          if (!row) return;
+          v2PushMeta(row, { status: sel.value, status_override: true }).then(() => v2Render());
+          return;
+        }
+        const com = e.target.closest('[data-v2-comment-sku]');
+        if (com) {
+          const sku = com.dataset.v2CommentSku;
+          const row = DATA.find(r => r.month === state.month && r.sku === sku);
+          if (!row) return;
+          setComment(row, com.value);
+        }
+      });
+
+      // Columns panel
+      document.getElementById('v2ColumnsButton').addEventListener('click', e => {
+        e.stopPropagation();
+        const p = document.getElementById('v2ColumnsPanel');
+        p.hidden = !p.hidden;
+      });
+      document.getElementById('v2ColumnsClose').addEventListener('click', () => {
+        document.getElementById('v2ColumnsPanel').hidden = true;
+      });
+      document.getElementById('v2ColumnsPanel').addEventListener('click', e => e.stopPropagation());
+      document.getElementById('v2ColumnsList').addEventListener('change', e => {
+        if (e.target.type !== 'checkbox') return;
+        const k = e.target.value;
+        const col = V2_COLUMNS.find(c => c.key === k);
+        if (col?.required) { e.target.checked = true; return; }
+        if (e.target.checked) v2Visible.add(k); else v2Visible.delete(k);
+        v2PersistVisible();
+        v2Render();
+      });
+      document.getElementById('v2ColumnsAll').addEventListener('click', () => {
+        V2_COLUMNS.forEach(c => v2Visible.add(c.key));
+        v2PersistVisible(); v2RenderColumnPanel(); v2Render();
+      });
+      document.getElementById('v2ColumnsDefault').addEventListener('click', () => {
+        v2Visible.clear(); V2_DEFAULT_VISIBLE.forEach(k => v2Visible.add(k));
+        v2PersistVisible(); v2RenderColumnPanel(); v2Render();
+      });
+
+      // Регистрируемся в общем render-цикле: после каждого render() основной системы
+      // прогоняем v2Render если активна v2-вкладка.
+      const origRender = window.render || render;
+      window.render = function() {
+        document.getElementById('v2Report').hidden = state.view !== 'v2';
+        document.getElementById('mainReport').hidden  = state.view !== 'main';
+        document.getElementById('potentialReport').hidden = state.view !== 'potential';
+        if (state.view === 'v2') { v2Render(); return; }
+        return origRender.apply(this, arguments);
+      };
+
+      // Первичный рендер при старте если уже на v2-вкладке (после reload)
+      if (state.view === 'v2') v2Render();
+    })();
   </script>
 </body>
 </html>
