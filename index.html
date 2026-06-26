@@ -3175,8 +3175,20 @@
         return origRender.apply(this, arguments);
       };
 
-      // Первичный рендер при старте если уже на v2-вкладке (после reload)
-      if (state.view === 'v2') v2Render();
+      // URL-навигация: ?v2=1&view=v2&v2view=table|kanban|funnel — открывает сразу v2 на нужном виде
+      const urlParams = new URLSearchParams(location.search);
+      if (urlParams.get('view') === 'v2') state.view = 'v2';
+      const v2v = urlParams.get('v2view');
+      if (v2v && ['table','kanban','funnel'].includes(v2v)) v2State.view = v2v;
+
+      // Первичный рендер при старте если уже на v2-вкладке
+      if (state.view === 'v2') {
+        document.getElementById('v2Report').hidden = false;
+        document.getElementById('mainReport').hidden = true;
+        document.getElementById('potentialReport').hidden = true;
+        document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === 'v2'));
+        v2Render();
+      }
     })();
   </script>
 </body>
