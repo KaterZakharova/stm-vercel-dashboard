@@ -2918,7 +2918,7 @@
           byMgr.set(k, acc);
         });
         const arr = [...byMgr.values()].sort((a,b) => b.plan - a.plan);
-        const goalsMap = MANAGER_TARGETS[state.month] || {};
+        const goalsMap = MANAGER_GOALS[state.month] || {};
         const summary = arr.slice(0, 3).map(m => {
           const goal = Number(goalsMap[m.name] || 0);
           const p = goal ? m.fact/goal : 0;
