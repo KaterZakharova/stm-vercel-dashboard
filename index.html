@@ -337,6 +337,19 @@
     .v2-comment-cell input { width: 100%; border: 1px solid transparent; padding: 4px 6px; font-size: 12px; border-radius: 4px; background: transparent; }
     .v2-comment-cell input:focus { border-color: #0e7c66; background: #fff; outline: none; }
 
+    .v2-detail-row > td { background: #f8fafc !important; padding: 8px 12px !important; border-top: none !important; }
+    .v2-detail-form { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; font-size: 12px; color: #475569; }
+    .v2-detail-form .v2-detail-label { font-weight: 600; color: #0f172a; }
+    .v2-detail-form label { display: inline-flex; align-items: center; gap: 6px; }
+    .v2-detail-form input[type=number], .v2-detail-form input[type=date], .v2-detail-form input[type=text] { padding: 3px 6px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 12px; }
+    .v2-detail-form input[type=text] { min-width: 250px; }
+    .v2-detail-form .v2-detail-grow { flex: 1; }
+    .v2-detail-form .v2-detail-grow input[type=text] { width: 100%; }
+    .v2-detail-form .v2-detail-hint { color: #94a3b8; font-size: 11px; margin-left: 4px; }
+    .v2-detail-form .v2-detail-summary { color: #16a34a; font-size: 11px; font-style: italic; }
+    .v2-detail-form .v2-detail-save { padding: 4px 12px; background: #0e7c66; color: #fff; border: none; border-radius: 5px; cursor: pointer; font-size: 12px; }
+    .v2-detail-form .v2-detail-save:hover { background: #0a6353; }
+
     .v2-legend { margin-top: 10px; display: flex; gap: 20px; font-size: 11px; color: #64748b; }
     .v2-legend .legend-swatch { display:inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
     .v2-legend .legend-swatch.suspicious { background: #fef9c3; border:1px solid #facc15; }
@@ -2747,7 +2760,12 @@
         }
 
         const tailQty  = manualTail  != null ? Math.min(manualTail, free)  : autoTail;
-        const movedQty = manualMoved != null ? Math.min(manualMoved, free - tailQty) : 0;
+        // Auto-fill: если юзер выставил status=moved (override), но не указал movedQty —
+        // подставляем весь свободный остаток (= перенос всего недовыпуска).
+        const wantsMoved = !!meta.status_override && meta.status === 'moved';
+        const movedQty = manualMoved != null
+          ? Math.min(manualMoved, Math.max(0, free - tailQty))
+          : (wantsMoved ? Math.max(0, free - tailQty) : 0);
         const toProduce = Math.max(0, free - tailQty - movedQty);
 
         // unit margin — факт если есть, иначе план, иначе cp-fp
@@ -3013,7 +3031,34 @@
           if (c.key === 'comment')     return `<td class="v2-comment-cell"><input type="text" data-v2-comment-sku="${escapeHtml(r.sku)}" value="${escapeHtml(r.comment||'')}" placeholder="комментарий..."></td>`;
           return '<td></td>';
         };
-        return `<tr class="${cls}">${cols.map(cellFor).join('')}</tr>`;
+        const mainRow = `<tr class="${cls}">${cols.map(cellFor).join('')}</tr>`;
+        // Inline detail row для статусов 'moved' и 'tail' — управление qty/датой/причиной/учётом денег
+        let detailRow = '';
+        const free = Math.max(0, r.plan - r.shipped - r.stockReady);
+        if (r.status === 'moved') {
+          const mdate = r.movedDate || ''; const mqty = r.movedQty || 0; const mreason = r.movedReason || '';
+          detailRow = `<tr class="v2-detail-row"><td colspan="${cols.length}">
+            <div class="v2-detail-form" data-v2-detail-sku="${escapeHtml(r.sku)}">
+              <span class="v2-detail-label">📦 Перенос:</span>
+              <label>Количество <input type="number" min="0" max="${free}" step="1" data-field="moved_qty" value="${mqty}" style="width:90px"> шт <span class="v2-detail-hint">из ${fmtQty.format(free)} свободных</span></label>
+              <label>Дата <input type="date" data-field="moved_date" value="${escapeHtml(mdate)}"></label>
+              <label class="v2-detail-grow">Причина <input type="text" data-field="moved_reason" value="${escapeHtml(mreason)}" placeholder="например: упаковка приедет 30 июня"></label>
+              <button type="button" class="v2-detail-save" data-action="save-moved">Применить</button>
+              ${r.shipped > 0 ? `<span class="v2-detail-summary">Отгружено ${fmtQty.format(r.shipped)} остаётся в прогнозе текущего месяца.</span>` : ''}
+            </div>
+          </td></tr>`;
+        } else if (r.status === 'tail') {
+          const tqty = r.tailQty || 0; const tincl = !!r.tailIncluded;
+          detailRow = `<tr class="v2-detail-row"><td colspan="${cols.length}">
+            <div class="v2-detail-form" data-v2-detail-sku="${escapeHtml(r.sku)}">
+              <span class="v2-detail-label">🏷 Хвост:</span>
+              <label>Количество <input type="number" min="0" max="${free}" step="1" data-field="tail_qty" value="${tqty}" style="width:90px"> шт <span class="v2-detail-hint">авто-правило: остаток &lt; ${TAIL_CONFIG.maxTailRatio*100}% плана или &lt; ${TAIL_CONFIG.maxTailAbs} шт</span></label>
+              <label class="v2-detail-grow"><input type="checkbox" data-field="tail_included" ${tincl?'checked':''}> учитывать ${rub(r.moneyTail)} в прогнозе</label>
+              <button type="button" class="v2-detail-save" data-action="save-tail">Применить</button>
+            </div>
+          </td></tr>`;
+        }
+        return mainRow + detailRow;
       }
 
       function v2RenderColumnPanel() {
@@ -3124,7 +3169,12 @@
           const sku = sel.dataset.v2StatusSku;
           const row = DATA.find(r => r.month === state.month && r.sku === sku);
           if (!row) return;
-          v2PushMeta(row, { status: sel.value, status_override: true }).then(() => v2Render());
+          // При смене на moved/tail дополнительные поля останутся null — auto-fill сработает в buildV2Row.
+          // При смене на другой статус (closed/risk/etc) — сбрасываем moved_qty/reason/date и tail_qty/included.
+          const patch = { status: sel.value, status_override: true };
+          if (sel.value !== 'moved') Object.assign(patch, { moved_qty: null, moved_date: null, moved_reason: null });
+          if (sel.value !== 'tail')  Object.assign(patch, { tail_qty: null, tail_included: false });
+          v2PushMeta(row, patch).then(() => v2Render());
           return;
         }
         const com = e.target.closest('[data-v2-comment-sku]');
@@ -3133,6 +3183,26 @@
           const row = DATA.find(r => r.month === state.month && r.sku === sku);
           if (!row) return;
           setComment(row, com.value);
+        }
+      });
+      // Кнопка «Применить» в detail-row (для moved / tail)
+      document.getElementById('v2TableBody').addEventListener('click', e => {
+        const btn = e.target.closest('[data-action]');
+        if (!btn) return;
+        const form = btn.closest('[data-v2-detail-sku]');
+        const sku = form.dataset.v2DetailSku;
+        const row = DATA.find(r => r.month === state.month && r.sku === sku);
+        if (!row) return;
+        const get = (field) => form.querySelector(`[data-field="${field}"]`);
+        if (btn.dataset.action === 'save-moved') {
+          const qty   = Number(get('moved_qty').value) || 0;
+          const date  = get('moved_date').value || null;
+          const rsn   = get('moved_reason').value || null;
+          v2PushMeta(row, { moved_qty: qty, moved_date: date, moved_reason: rsn }).then(() => v2Render());
+        } else if (btn.dataset.action === 'save-tail') {
+          const qty   = Number(get('tail_qty').value) || 0;
+          const incl  = get('tail_included').checked;
+          v2PushMeta(row, { tail_qty: qty, tail_included: incl }).then(() => v2Render());
         }
       });
 
