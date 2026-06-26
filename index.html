@@ -272,7 +272,11 @@
     }
 
     /* ═══ v2 styles ═══ */
-    .v2-hero { display:flex; gap:24px; align-items:flex-start; margin: 16px 0 20px; padding: 16px 20px; background:#fff; border-radius:10px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+    .v2-hero { display:flex; gap:24px; align-items:flex-start; margin: 16px 0 20px; padding: 16px 20px; background:#fff; border-radius:10px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); position: relative; }
+    .v2-hero-unit-switch { display: inline-flex; gap: 2px; padding: 3px; background: #f1f5f9; border-radius: 7px; margin-top: 8px; }
+    .v2-hero-unit-switch button { padding: 5px 12px; border: none; background: transparent; border-radius: 5px; cursor: pointer; font-size: 12px; font-weight: 500; color: #475569; }
+    .v2-hero-unit-switch button:hover { color: #0f172a; background: rgba(255,255,255,0.5); }
+    .v2-hero-unit-switch button.active { background: #fff; color: #0e7c66; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
     .v2-hero-main { flex: 1; }
     .v2-hero-amount { font-size: 32px; font-weight: 600; color:#0e7c66; letter-spacing:-0.5px; }
     .v2-hero-sub { color: #64748b; font-size: 12px; margin-top: 2px; }
@@ -296,10 +300,10 @@
     .v2-managers-detail .mgr-pct.red   { color: #dc2626; }
     .v2-managers-detail .mgr-pct.blue  { color: #2563eb; }
 
-    .v2-view-switcher { display: flex; gap: 6px; margin: 12px 0 8px; }
-    .v2-view-switcher button { padding: 8px 16px; border: 1px solid #cbd5e1; background: #fff; border-radius: 8px; cursor: pointer; font-size: 13px; color:#334155; }
-    .v2-view-switcher button:hover { background: #f1f5f9; }
-    .v2-view-switcher button.active { border-color: #0e7c66; color: #0e7c66; box-shadow: inset 0 0 0 1px #0e7c66; font-weight: 600; }
+    .v2-view-switcher { display: inline-flex; gap: 4px; margin: 14px 0 10px; padding: 4px; background: #e2e8f0; border-radius: 11px; }
+    .v2-view-switcher button { padding: 10px 22px; border: none; background: transparent; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; color: #475569; transition: all 0.12s; letter-spacing: 0.2px; }
+    .v2-view-switcher button:hover { color: #0f172a; background: rgba(255,255,255,0.6); }
+    .v2-view-switcher button.active { background: #0e7c66; color: #fff; box-shadow: 0 2px 8px rgba(14,124,102,0.35); }
 
     .v2-toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
     .v2-status-chips { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -308,9 +312,19 @@
     .v2-status-chips button.active { background:#0e7c66; color:#fff; border-color:#0e7c66; }
 
     .v2-pane { background: #fff; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
-    .v2-pane .scroll { overflow-x: auto; }
-    .v2-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    .v2-table th, .v2-table td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; text-align: left; vertical-align: middle; }
+    .v2-pane .scroll { overflow: auto; resize: vertical; min-height: 320px; max-height: 90vh; }
+    .v2-table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+    .v2-table th, .v2-table td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; text-align: left; vertical-align: middle; word-break: break-word; white-space: normal; }
+    .v2-table thead th { position: sticky; top: 0; z-index: 2; }
+    .v2-table th .col-resize-handle { position: absolute; right: 0; top: 0; bottom: 0; width: 6px; cursor: col-resize; user-select: none; z-index: 3; }
+    .v2-table th .col-resize-handle:hover { background: #0e7c66; opacity: 0.6; }
+    .v2-table th { position: relative; }
+    .v2-filter-row th { background: #fff; padding: 4px 6px; border-bottom: 1px solid #e2e8f0; top: 32px; }
+    .v2-filter-row input { width: 100%; padding: 4px 6px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 11px; box-sizing: border-box; }
+    .v2-filter-row input:focus { border-color: #0e7c66; outline: none; }
+    .v2-filter-row .clear-filter-cell { text-align: center; padding: 4px; }
+    .v2-filter-row .clear-filter-cell button { font-size: 10px; padding: 2px 6px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 4px; cursor: pointer; color: #64748b; }
+    .v2-table td.sku-cell { white-space: nowrap; }
     .v2-table th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; background: #f8fafc; font-weight: 500; }
     .v2-table th.num, .v2-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
     .v2-table tr:hover td { background: #fafbfc; }
@@ -634,6 +648,7 @@
       <!-- Status filter chips -->
       <div class="v2-toolbar">
         <button type="button" class="link-button" id="v2ImportV1Btn" title="Перетянуть снятые галки из v1 в статусы v2">⇧ Импорт из v1</button>
+        <button type="button" class="link-button" id="v2ExcelBtn" title="Скачать CSV с текущими фильтрами и видимыми колонками">⬇ Excel</button>
         <div class="column-panel-wrap">
           <button type="button" class="link-button" id="v2ColumnsButton">Колонки ▾</button>
           <div class="column-panel" id="v2ColumnsPanel" hidden>
@@ -2730,6 +2745,8 @@
         funnelRealizable: Number(localStorage.getItem('stmV2FunnelSlider') ?? 60),
         funnelTailIncluded: localStorage.getItem('stmV2FunnelTail') === '1',
         managersOpen: false,
+        heroUnit: localStorage.getItem('stmV2HeroUnit') || 'margin',     // margin | revenue | qty
+        filters: {},                                                     // per-column substring/numeric
       };
 
       // shared meta v2 fields (Postgres). Используем тот же sharedMeta object — он уже extended на бэке.
@@ -2792,14 +2809,21 @@
           return cp > 0 ? Math.max(0, cp - fp) : 0;
         })();
 
-        // деньги по стадиям
+        // деньги по стадиям (валовка)
         const moneyShipped = Number(r.actualGp || 0) || (shipped * v);
         const moneyStock   = stockReady * v;
         const moneyProduce = toProduce * v;
         const moneyMoved   = movedQty * v;
         const moneyTail    = tailQty * v;
+        // выручка по стадиям (для переключения hero на «выручка»)
+        const cp = Number(r.actualClientPrice || r.clientPrice || 0);
+        const revShipped = Number(r.actualRevenue || 0) || (shipped * cp);
+        const revStock   = stockReady * cp;
+        const revProduce = toProduce * cp;
+        const revMoved   = movedQty * cp;
+        const revTail    = tailQty * cp;
         const grossMargin  = Number(r.actualGp || 0) || (plan * v);
-        const revenue      = Number(r.actualRevenue || 0) || Number(r.plannedRevenue || 0) || 0;
+        const revenue      = Number(r.actualRevenue || 0) || Number(r.plannedRevenue || 0) || (plan * cp);
         const marginPct    = revenue > 0 ? grossMargin / revenue : null;
 
         // quality flags
@@ -2823,6 +2847,7 @@
           order: r.order || '',
           plan, shipped, stockReady, toProduce, movedQty, tailQty,
           v, moneyShipped, moneyStock, moneyProduce, moneyMoved, moneyTail,
+          revShipped, revStock, revProduce, revMoved, revTail,
           grossMargin, revenue, marginPct,
           flagCostHole, flagMarginSuspicious,
           status, statusOverride,
@@ -2841,31 +2866,45 @@
       function v2Forecast(rows) {
         const realizableRate = v2State.funnelRealizable / 100;
         const tailGlobal = v2State.funnelTailIncluded;
-        let factSum=0, stockSum=0, produceSumFull=0, tailSum=0, movedSum=0, riskLostSum=0;
-        let factQty=0, stockQty=0, produceQty=0, tailQty=0, movedQty=0;
+        const A = { fact:0, stock:0, produceFull:0, tail:0, moved:0, lost:0 }; // валовка
+        const R = { fact:0, stock:0, produceFull:0, tail:0, moved:0, lost:0 }; // выручка
+        const Q = { fact:0, stock:0, produceFull:0, tail:0, moved:0, lost:0 }; // штуки
         rows.forEach(r => {
-          factSum += r.moneyShipped; factQty += r.shipped;
+          A.fact += r.moneyShipped;  R.fact += r.revShipped;  Q.fact += r.shipped;
           if (r.status === 'risk') {
-            riskLostSum += r.moneyStock + r.moneyProduce + r.moneyTail;
+            A.lost += r.moneyStock + r.moneyProduce + r.moneyTail;
+            R.lost += r.revStock   + r.revProduce   + r.revTail;
+            Q.lost += r.stockReady + r.toProduce    + r.tailQty;
             return;
           }
           if (r.status === 'moved') {
-            // весь неотгруженный объём этой строки уезжает в moved
-            const lostMoney = r.moneyStock + r.moneyProduce + r.moneyTail;
-            movedSum  += r.moneyMoved + lostMoney;
-            movedQty  += r.movedQty + r.stockReady + r.toProduce + r.tailQty;
+            A.moved += r.moneyMoved + r.moneyStock + r.moneyProduce + r.moneyTail;
+            R.moved += r.revMoved   + r.revStock   + r.revProduce   + r.revTail;
+            Q.moved += r.movedQty   + r.stockReady + r.toProduce    + r.tailQty;
             return;
           }
-          stockSum += r.moneyStock; stockQty += r.stockReady;
-          produceSumFull += r.moneyProduce; produceQty += r.toProduce;
-          movedSum += r.moneyMoved; movedQty += r.movedQty;
-          if (r.tailIncluded || tailGlobal) { tailSum += r.moneyTail; tailQty += r.tailQty; }
+          A.stock += r.moneyStock; R.stock += r.revStock; Q.stock += r.stockReady;
+          A.produceFull += r.moneyProduce; R.produceFull += r.revProduce; Q.produceFull += r.toProduce;
+          A.moved += r.moneyMoved; R.moved += r.revMoved; Q.moved += r.movedQty;
+          if (r.tailIncluded || tailGlobal) {
+            A.tail += r.moneyTail; R.tail += r.revTail; Q.tail += r.tailQty;
+          }
         });
-        const produceSum = produceSumFull * realizableRate;
-        const total = factSum + stockSum + produceSum + tailSum;
-        return { factSum, stockSum, produceSum, produceSumFull, tailSum, movedSum, riskLostSum, total,
-                 factQty, stockQty, produceQty, tailQty, movedQty,
-                 realizableRate, tailIncluded: tailGlobal };
+        A.produce = A.produceFull * realizableRate;
+        R.produce = R.produceFull * realizableRate;
+        Q.produce = Q.produceFull * realizableRate;
+        A.total = A.fact + A.stock + A.produce + A.tail;
+        R.total = R.fact + R.stock + R.produce + R.tail;
+        Q.total = Q.fact + Q.stock + Q.produce + Q.tail;
+        return {
+          // legacy: для совместимости с уже использующим кодом hero / kpi / funnel
+          factSum: A.fact, stockSum: A.stock, produceSum: A.produce, produceSumFull: A.produceFull,
+          tailSum: A.tail, movedSum: A.moved, riskLostSum: A.lost, total: A.total,
+          factQty: Q.fact, stockQty: Q.stock, produceQty: Q.produce, tailQty: Q.tail, movedQty: Q.moved,
+          realizableRate, tailIncluded: tailGlobal,
+          // новые: разбивка по единицам
+          A, R, Q,
+        };
       }
 
       // ─── Columns config ─────────────────────────────────────
@@ -2887,6 +2926,17 @@
         { key:'comment',     label:'Комментарий',  defaultVisible:true },
       ];
       const V2_DEFAULT_VISIBLE = V2_COLUMNS.filter(c => c.defaultVisible).map(c => c.key);
+      const V2_DEFAULT_WIDTHS = {
+        sku: 95, name: 260, order: 140, manager: 140,
+        plan: 80, shipped: 80, stockReady: 80, toProduce: 80, movedQty: 90, tailQty: 80,
+        grossMargin: 115, revenue: 115, marginPct: 75,
+        status: 130, comment: 260,
+      };
+      const V2_COL_WIDTHS_KEY = 'stmV2ColWidths';
+      const v2ColWidths = (() => {
+        try { return JSON.parse(localStorage.getItem(V2_COL_WIDTHS_KEY) || '{}') || {}; } catch { return {}; }
+      })();
+      function v2PersistColWidths() { try { localStorage.setItem(V2_COL_WIDTHS_KEY, JSON.stringify(v2ColWidths)); } catch {} }
       const V2_VISIBLE_KEY = 'stmV2VisibleColumns';
       const v2Visible = (() => {
         try {
@@ -2921,17 +2971,29 @@
       }
 
       function v2RenderHero(rows, fc) {
-        document.getElementById('v2HeroAmount').textContent = rub(fc.total);
-        document.getElementById('v2HeroSub').textContent = `прогноз по выборке · все SKU · ${state.month}`;
+        const unit = v2State.heroUnit;
+        const set = unit === 'revenue' ? fc.R : unit === 'qty' ? fc.Q : fc.A;
+        const fmt = unit === 'qty' ? (v => fmtQty.format(v||0) + ' шт') : (v => rub(v));
+        const subTitle = { margin:'валовка ₽ без НДС', revenue:'выручка ₽ без НДС', qty:'штуки' }[unit];
+        document.getElementById('v2HeroAmount').textContent = fmt(set.total);
+        document.getElementById('v2HeroSub').innerHTML =
+          `${subTitle} · прогноз по выборке · все SKU · ${state.month}` +
+          ` <span class="v2-hero-unit-switch">
+              <button data-hero-unit="margin"  ${unit==='margin'?'class="active"':''}>₽ валовка</button>
+              <button data-hero-unit="revenue" ${unit==='revenue'?'class="active"':''}>₽ выручка</button>
+              <button data-hero-unit="qty"     ${unit==='qty'?'class="active"':''}>шт</button>
+           </span>`;
         document.getElementById('v2HeroBreakdown').innerHTML =
-          `<span>Факт <strong>${rub(fc.factSum)}</strong></span>` +
-          `<span>Склад <strong>${rub(fc.stockSum)}</strong></span>` +
-          `<span>К выпуску <strong>${rub(fc.produceSum)}</strong>${fc.realizableRate < 1 ? ` <small>(${Math.round(fc.realizableRate*100)}%)</small>`:''}</span>` +
-          `<span>Хвосты <strong>${rub(fc.tailSum)}</strong>${fc.tailIncluded? '' : ' <small>(не учтены)</small>'}</span>` +
-          (fc.movedSum > 0 ? `<span style="color:#94a3b8">Перенос (не в прогнозе) ${rub(fc.movedSum)}</span>` : '') +
-          (fc.riskLostSum > 0 ? `<span style="color:#dc2626">Снято под риском −${rub(fc.riskLostSum)}</span>` : '');
-        const target = (TARGETS[state.month] || {}).gp || 0;
-        document.getElementById('v2HeroAux').innerHTML = target ? `Цель: ${rub(target)} · <strong>${pct(fc.total/target)}</strong>` : '';
+          `<span>Факт <strong>${fmt(set.fact)}</strong></span>` +
+          `<span>Склад <strong>${fmt(set.stock)}</strong></span>` +
+          `<span>К выпуску <strong>${fmt(set.produce)}</strong>${fc.realizableRate < 1 ? ` <small>(${Math.round(fc.realizableRate*100)}%)</small>`:''}</span>` +
+          `<span>Хвосты <strong>${fmt(set.tail)}</strong>${fc.tailIncluded? '' : ' <small>(не учтены)</small>'}</span>` +
+          (set.moved > 0 ? `<span style="color:#94a3b8">Перенос (не в прогнозе) ${fmt(set.moved)}</span>` : '') +
+          (set.lost > 0 ? `<span style="color:#dc2626">Снято под риском −${fmt(set.lost)}</span>` : '');
+        const target = unit === 'qty'
+          ? ((TARGETS[state.month] || {}).qty || 0)
+          : ((TARGETS[state.month] || {}).gp || 0);
+        document.getElementById('v2HeroAux').innerHTML = target ? `Цель: ${fmt(target)} · <strong>${pct(set.total/target)}</strong>` : '';
       }
       function v2RenderKpis(rows, fc) {
         const target = (TARGETS[state.month] || {}).gp || 0;
@@ -3004,11 +3066,45 @@
         document.getElementById('v2StatusChips').innerHTML = chips.join('');
       }
 
+      // ─── per-column filters ─────────────────────────────────
+      function v2MatchFilter(rowItem, key, value) {
+        if (!value) return true;
+        let v = rowItem[key];
+        if (key === 'status') v = STATUS_LABELS[rowItem.status] || '';
+        const val = String(value).trim();
+        if (typeof v === 'number') {
+          const cmp = /^([<>]=?)\s*(-?\d+(?:[.,]\d+)?)$/.exec(val);
+          if (cmp) {
+            const op = cmp[1], t = Number(cmp[2].replace(',','.'));
+            if (op === '<')  return v <  t;
+            if (op === '<=') return v <= t;
+            if (op === '>')  return v >  t;
+            if (op === '>=') return v >= t;
+          }
+          const range = /^(-?\d+(?:[.,]\d+)?)\s*-\s*(-?\d+(?:[.,]\d+)?)$/.exec(val);
+          if (range) {
+            const a = Number(range[1].replace(',','.')), b = Number(range[2].replace(',','.'));
+            return v >= Math.min(a,b) && v <= Math.max(a,b);
+          }
+        }
+        return String(v ?? '').toLowerCase().includes(val.toLowerCase());
+      }
       function v2RenderTable(rows, fc) {
         const cols = V2_COLUMNS.filter(c => v2Visible.has(c.key));
-        const filtered = v2State.statusFilter === 'all' ? rows : rows.filter(r => r.status === v2State.statusFilter);
-        document.getElementById('v2TableHead').innerHTML = '<tr>' +
-          cols.map(c => `<th class="${c.num?'num':''}">${escapeHtml(c.label)}</th>`).join('') + '</tr>';
+        let filtered = v2State.statusFilter === 'all' ? rows : rows.filter(r => r.status === v2State.statusFilter);
+        // per-column filters
+        const activeFilters = Object.entries(v2State.filters).filter(([k,v]) => v && cols.some(c => c.key === k));
+        if (activeFilters.length) {
+          filtered = filtered.filter(r => activeFilters.every(([k, v]) => v2MatchFilter(r, k, v)));
+        }
+        // colgroup with persisted widths
+        const cgHtml = '<colgroup>' + cols.map(c => `<col data-col="${c.key}" style="${v2ColWidths[c.key] ? `width:${v2ColWidths[c.key]}px` : `width:${V2_DEFAULT_WIDTHS[c.key] || 100}px`}">`).join('') + '</colgroup>';
+        const filterRow = `<tr class="v2-filter-row">${cols.map(c =>
+          `<th><input type="text" data-v2-col-filter="${c.key}" value="${escapeHtml(v2State.filters[c.key]||'')}" placeholder="${c.num?'>500':'фильтр'}"></th>`
+        ).join('')}</tr>`;
+        document.getElementById('v2TableHead').innerHTML = cgHtml +
+          '<tr>' + cols.map(c => `<th class="${c.num?'num':''}" data-col="${c.key}">${escapeHtml(c.label)}<span class="col-resize-handle" data-col="${c.key}"></span></th>`).join('') + '</tr>' +
+          filterRow;
         document.getElementById('v2TableBody').innerHTML = filtered.length
           ? filtered.map(r => v2RowHtml(r, cols)).join('')
           : `<tr><td colspan="${cols.length}" style="text-align:center;color:#94a3b8;padding:20px">Нет строк</td></tr>`;
@@ -3246,6 +3342,94 @@
         setTimeout(() => { btn.disabled = false; v2Render(); }, ok ? 600 : 1500);
       });
 
+      // Hero unit switch (валовка/выручка/штуки)
+      document.getElementById('v2Report').addEventListener('click', e => {
+        const b = e.target.closest('[data-hero-unit]');
+        if (!b) return;
+        v2State.heroUnit = b.dataset.heroUnit;
+        localStorage.setItem('stmV2HeroUnit', v2State.heroUnit);
+        v2Render();
+      });
+      // Per-column filters
+      document.getElementById('v2TableHead').addEventListener('input', e => {
+        const inp = e.target.closest('[data-v2-col-filter]');
+        if (!inp) return;
+        const k = inp.dataset.v2ColFilter;
+        if (inp.value) v2State.filters[k] = inp.value; else delete v2State.filters[k];
+        // re-render только tbody чтобы не сбрасывать фокус
+        v2RenderTablePartial();
+      });
+      function v2RenderTablePartial() {
+        // лёгкая частичная перерисовка — пересчитывает rows и обновляет tbody/tfoot
+        const rows = v2BuildRows();
+        const fc = v2Forecast(rows);
+        v2RenderHero(rows, fc);
+        v2RenderStatusChips(rows);
+        // вместо полного v2RenderTable — обновим только body/foot
+        const cols = V2_COLUMNS.filter(c => v2Visible.has(c.key));
+        let filtered = v2State.statusFilter === 'all' ? rows : rows.filter(r => r.status === v2State.statusFilter);
+        const activeFilters = Object.entries(v2State.filters).filter(([k,v]) => v && cols.some(c => c.key === k));
+        if (activeFilters.length) filtered = filtered.filter(r => activeFilters.every(([k, v]) => v2MatchFilter(r, k, v)));
+        document.getElementById('v2TableBody').innerHTML = filtered.length
+          ? filtered.map(r => v2RowHtml(r, cols)).join('')
+          : `<tr><td colspan="${cols.length}" style="text-align:center;color:#94a3b8;padding:20px">Нет строк под фильтр</td></tr>`;
+        const tot = filtered.reduce((a, r) => ({
+          plan: a.plan + r.plan, shipped: a.shipped + r.shipped, stockReady: a.stockReady + r.stockReady,
+          toProduce: a.toProduce + r.toProduce, movedQty: a.movedQty + r.movedQty, tailQty: a.tailQty + r.tailQty,
+          grossMargin: a.grossMargin + r.grossMargin, revenue: a.revenue + r.revenue,
+        }), { plan:0,shipped:0,stockReady:0,toProduce:0,movedQty:0,tailQty:0,grossMargin:0,revenue:0 });
+        document.getElementById('v2TableFoot').innerHTML = '<tr>' +
+          cols.map((c, i) => {
+            if (i === 0) return `<td><strong>ИТОГО · ${filtered.length}</strong></td>`;
+            if (['plan','shipped','stockReady','toProduce','movedQty','tailQty'].includes(c.key)) return `<td class="num"><strong>${fmtQty.format(tot[c.key])}</strong></td>`;
+            if (c.key === 'grossMargin' || c.key === 'revenue') return `<td class="num"><strong>${rub(tot[c.key])}</strong></td>`;
+            return '<td></td>';
+          }).join('') + '</tr>';
+      }
+      // Column resize
+      (function v2ColResize() {
+        let drag = null;
+        document.getElementById('v2TableHead').addEventListener('mousedown', e => {
+          const h = e.target.closest('.col-resize-handle');
+          if (!h) return;
+          const key = h.dataset.col;
+          const col = document.querySelector(`#v2TableHead col[data-col="${key}"]`);
+          const startW = col ? col.getBoundingClientRect().width : 100;
+          drag = { key, startX: e.clientX, startW, col };
+          document.body.style.cursor = 'col-resize';
+          e.preventDefault();
+        });
+        document.addEventListener('mousemove', e => {
+          if (!drag) return;
+          const newW = Math.max(50, Math.round(drag.startW + (e.clientX - drag.startX)));
+          if (drag.col) drag.col.style.width = newW + 'px';
+          v2ColWidths[drag.key] = newW;
+        });
+        document.addEventListener('mouseup', () => {
+          if (!drag) return;
+          v2PersistColWidths();
+          document.body.style.cursor = '';
+          drag = null;
+        });
+      })();
+      // Excel export для v2
+      function v2ExportExcel() {
+        const cols = V2_COLUMNS.filter(c => v2Visible.has(c.key));
+        const rows = v2BuildRows();
+        let filtered = v2State.statusFilter === 'all' ? rows : rows.filter(r => r.status === v2State.statusFilter);
+        const activeFilters = Object.entries(v2State.filters).filter(([k,v]) => v && cols.some(c => c.key === k));
+        if (activeFilters.length) filtered = filtered.filter(r => activeFilters.every(([k, v]) => v2MatchFilter(r, k, v)));
+        const headers = cols.map(c => c.label);
+        const data = filtered.map(r => cols.map(c => {
+          if (c.key === 'status') return STATUS_LABELS[r.status] || '';
+          if (['plan','shipped','stockReady','toProduce','movedQty','tailQty'].includes(c.key)) return r[c.key] || 0;
+          if (c.key === 'grossMargin' || c.key === 'revenue') return Math.round(r[c.key] || 0);
+          if (c.key === 'marginPct') return r.marginPct != null ? (r.marginPct * 100).toFixed(1) : '';
+          return r[c.key] || '';
+        }));
+        downloadCSV(`STM_v2_${state.month}_${new Date().toISOString().slice(0,10)}.csv`, headers, data);
+      }
+
       // Columns panel
       document.getElementById('v2ColumnsButton').addEventListener('click', e => {
         e.stopPropagation();
@@ -3349,6 +3533,7 @@
         el.hidden = false;
         document.getElementById('v2ImportClose').addEventListener('click', () => { el.hidden = true; });
       }
+      document.getElementById('v2ExcelBtn').addEventListener('click', v2ExportExcel);
       document.getElementById('v2ImportV1Btn').addEventListener('click', async (e) => {
         const btn = e.target;
         if (!confirm('Перетянуть снятые галки из v1 в статусы v2? Уже размеченные строки v2 не трогаются.')) return;
