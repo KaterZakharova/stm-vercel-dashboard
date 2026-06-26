@@ -350,6 +350,17 @@
     .v2-detail-form .v2-detail-save { padding: 4px 12px; background: #0e7c66; color: #fff; border: none; border-radius: 5px; cursor: pointer; font-size: 12px; }
     .v2-detail-form .v2-detail-save:hover { background: #0a6353; }
 
+    .v2-import-report { margin: 12px 0; padding: 14px 16px; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; font-size: 13px; }
+    .v2-import-report h4 { margin: 0 0 8px; font-size: 14px; color: #0f172a; }
+    .v2-import-report .section { margin-top: 10px; }
+    .v2-import-report .section-head { font-weight: 600; margin-bottom: 4px; }
+    .v2-import-report .ok    { color: #16a34a; }
+    .v2-import-report .warn  { color: #d97706; }
+    .v2-import-report .info  { color: #64748b; }
+    .v2-import-report ul { margin: 4px 0 0 18px; padding: 0; }
+    .v2-import-report li { font-size: 12px; line-height: 1.5; }
+    .v2-import-report .close-btn { float: right; cursor: pointer; color: #94a3b8; font-size: 18px; line-height: 1; }
+
     .v2-legend { margin-top: 10px; display: flex; gap: 20px; font-size: 11px; color: #64748b; }
     .v2-legend .legend-swatch { display:inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
     .v2-legend .legend-swatch.suspicious { background: #fef9c3; border:1px solid #facc15; }
@@ -622,6 +633,7 @@
 
       <!-- Status filter chips -->
       <div class="v2-toolbar">
+        <button type="button" class="link-button" id="v2ImportV1Btn" title="Перетянуть снятые галки из v1 в статусы v2">⇧ Импорт из v1</button>
         <div class="column-panel-wrap">
           <button type="button" class="link-button" id="v2ColumnsButton">Колонки ▾</button>
           <div class="column-panel" id="v2ColumnsPanel" hidden>
@@ -638,6 +650,9 @@
         </div>
         <div class="v2-status-chips" id="v2StatusChips"></div>
       </div>
+
+      <!-- Отчёт импорта из v1 -->
+      <div id="v2ImportReport" class="v2-import-report" hidden></div>
 
       <!-- Таблица -->
       <section class="v2-pane" id="v2TablePane">
@@ -3253,6 +3268,83 @@
         if (state.view === 'v2') { v2Render(); return; }
         return origRender.apply(this, arguments);
       };
+
+      // ─── Импорт из v1 ──────────────────────────────────────
+      // Читаем uncheckedKeys (localStorage этого браузера) и проставляем v2-статусы:
+      // • полностью снято (B+C off) + ничего не отгружено → status='risk'
+      // • частичная отгрузка + остаток снят → status='moved', movedQty=остаток (без даты/причины — руками)
+      // • уже размечено в v2 (status_override=true) — пропускаем
+      async function v2ImportFromV1() {
+        const result = { setRisk: [], setMoved: [], needsManual: [], skipped: [], errors: [] };
+        for (const month of ['Май','Июнь','Июль','Август']) {
+          const set = uncheckedKeys[month] || new Set();
+          const skus = new Map();
+          for (const k of set) {
+            const [sku, bucket] = String(k).split('::');
+            if (!sku || !bucket) continue;
+            const e = skus.get(sku) || { b:false, c:false };
+            if (bucket === 'B') e.b = true;
+            if (bucket === 'C') e.c = true;
+            skus.set(sku, e);
+          }
+          for (const [sku, b] of skus) {
+            const row = DATA.find(r => r.month === month && r.sku === sku);
+            if (!row) continue;
+            const k = `${month}::${sku}`;
+            const existing = sharedMeta[k];
+            if (existing && typeof existing === 'object' && existing.status_override) {
+              result.skipped.push(`${month}/${sku}`);
+              continue;
+            }
+            const plan = Number(row.planQty || 0);
+            const shipped = Number(row.shippedQty || 0);
+            const stockReady = Math.max(0, Number(row.stockStm || 0)) + Math.max(0, Number(row.stockPgp || 0));
+            const free = Math.max(0, plan - shipped - stockReady);
+            let patch;
+            if (shipped > 0 && free > 0) {
+              patch = { status:'moved', status_override:true, moved_qty: free };
+              result.setMoved.push(`${month}/${sku} (отгружено ${shipped} из ${plan}, перенос ${free} шт)`);
+              result.needsManual.push(`${month}/${sku}`);
+            } else {
+              patch = { status:'risk', status_override:true };
+              result.setRisk.push(`${month}/${sku}`);
+            }
+            const ok = await v2PushMeta(row, patch);
+            if (!ok) result.errors.push(`${month}/${sku}`);
+          }
+        }
+        return result;
+      }
+
+      function renderImportReport(r) {
+        const total = r.setRisk.length + r.setMoved.length;
+        const html = `
+          <span class="close-btn" id="v2ImportClose">×</span>
+          <h4>Импорт из v1 — обработано ${total} строк</h4>
+          ${r.setRisk.length ? `<div class="section"><div class="section-head ok">✓ Авто-проставлено «Снято» (${r.setRisk.length})</div><ul>${r.setRisk.map(x => `<li>${escapeHtml(x)}</li>`).join('')}</ul></div>` : ''}
+          ${r.setMoved.length ? `<div class="section"><div class="section-head warn">⚠ Авто-проставлено «Перенос» (${r.setMoved.length}) — требует ручной правки</div><ul>${r.setMoved.map(x => `<li>${escapeHtml(x)}</li>`).join('')}</ul></div>` : ''}
+          ${r.needsManual.length ? `<div class="section"><div class="section-head warn">📝 Нужно вручную добавить дату + причину переноса для:</div><ul>${r.needsManual.map(x => `<li><strong>${escapeHtml(x)}</strong></li>`).join('')}</ul></div>` : ''}
+          ${r.skipped.length ? `<div class="section info"><div class="section-head">↷ Пропущено (уже размечено в v2): ${r.skipped.length}</div></div>` : ''}
+          ${r.errors.length ? `<div class="section"><div class="section-head" style="color:#dc2626">✗ Ошибки: ${r.errors.join(', ')}</div></div>` : ''}
+          ${total === 0 && r.skipped.length === 0 ? `<div class="info">Нечего импортировать — в v1-localStorage нет снятых галок для текущего пользователя/браузера.</div>` : ''}
+        `;
+        const el = document.getElementById('v2ImportReport');
+        el.innerHTML = html;
+        el.hidden = false;
+        document.getElementById('v2ImportClose').addEventListener('click', () => { el.hidden = true; });
+      }
+      document.getElementById('v2ImportV1Btn').addEventListener('click', async (e) => {
+        const btn = e.target;
+        if (!confirm('Перетянуть снятые галки из v1 в статусы v2? Уже размеченные строки v2 не трогаются.')) return;
+        btn.disabled = true; const o = btn.textContent; btn.textContent = '⇧ импортирую…';
+        try {
+          const r = await v2ImportFromV1();
+          renderImportReport(r);
+          v2Render();
+        } finally {
+          btn.disabled = false; btn.textContent = o;
+        }
+      });
 
       // URL-навигация: ?v2=1&view=v2&v2view=table|kanban|funnel — открывает сразу v2 на нужном виде
       const urlParams = new URLSearchParams(location.search);
