@@ -364,6 +364,34 @@
     .v2-detail-form .v2-detail-save { padding: 4px 12px; background: #0e7c66; color: #fff; border: none; border-radius: 5px; cursor: pointer; font-size: 12px; }
     .v2-detail-form .v2-detail-save:hover { background: #0a6353; }
 
+    .v2-loss-summary { margin: 12px 0; padding: 14px 18px; background: linear-gradient(to right, #fef2f2, #fff); border: 1px solid #fecaca; border-left: 4px solid #dc2626; border-radius: 10px; font-size: 13px; }
+    .v2-loss-summary .ls-head { display: flex; gap: 14px; align-items: baseline; margin-bottom: 8px; }
+    .v2-loss-summary .ls-icon { font-size: 18px; }
+    .v2-loss-summary .ls-title { font-size: 15px; font-weight: 600; color: #0f172a; }
+    .v2-loss-summary .ls-totals strong { color: #dc2626; }
+    .v2-loss-summary .ls-reasons { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px 18px; margin-top: 8px; padding-left: 28px; }
+    .v2-loss-summary .ls-reason { font-size: 12px; padding: 4px 8px; background: rgba(255,255,255,0.8); border-radius: 6px; cursor: pointer; border: 1px solid #fee2e2; }
+    .v2-loss-summary .ls-reason:hover { background: #fee2e2; }
+    .v2-loss-summary .ls-reason.ls-active { background: #dc2626; color: #fff; border-color: #dc2626; }
+    .v2-loss-summary .ls-reason.ls-active b, .v2-loss-summary .ls-reason.ls-active .ls-money, .v2-loss-summary .ls-reason.ls-active .ls-count { color: #fff; }
+    .v2-loss-summary .ls-reason b { color: #0f172a; }
+    .v2-loss-summary .ls-reason .ls-money { color: #dc2626; font-weight: 600; }
+    .v2-loss-summary .ls-reason .ls-count { color: #64748b; font-size: 11px; }
+    .v2-loss-summary .ls-unfilled { color: #d97706; font-weight: 500; }
+
+    .v2-docs-panel { position: fixed; top: 100px; right: 30px; width: 480px; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); z-index: 100; }
+    .v2-docs-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid #e2e8f0; }
+    .v2-docs-body { padding: 16px 18px; }
+    .v2-docs-section { margin-bottom: 16px; }
+    .v2-docs-section label { display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 6px; }
+    .v2-docs-section textarea { width: 100%; padding: 8px; font-size: 12px; border: 1px solid #cbd5e1; border-radius: 6px; resize: vertical; font-family: inherit; box-sizing: border-box; }
+    .v2-docs-footer { display: flex; gap: 12px; align-items: center; padding-top: 6px; }
+    .v2-docs-footer small { flex: 1; color: #94a3b8; font-size: 11px; }
+    .v2-docs-footer button { padding: 6px 14px; background: #0e7c66; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; }
+    .v2-docs-footer button:hover { background: #0a6353; }
+    .v2-docs-footer .link-button { background: transparent; color: #64748b; padding: 6px 8px; }
+    .v2-docs-footer .link-button:hover { background: transparent; color: #0f172a; text-decoration: underline; }
+
     .v2-import-report { margin: 12px 0; padding: 14px 16px; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; font-size: 13px; }
     .v2-import-report h4 { margin: 0 0 8px; font-size: 14px; color: #0f172a; }
     .v2-import-report .section { margin-top: 10px; }
@@ -647,6 +675,7 @@
 
       <!-- Status filter chips -->
       <div class="v2-toolbar">
+        <button type="button" class="link-button" id="v2DocsBtn" title="Справочники: причины переноса/снятия">📋 Документация</button>
         <button type="button" class="link-button" id="v2ImportV1Btn" title="Перетянуть снятые галки из v1 в статусы v2">⇧ Импорт из v1</button>
         <button type="button" class="link-button" id="v2ExcelBtn" title="Скачать CSV с текущими фильтрами и видимыми колонками">⬇ Excel</button>
         <div class="column-panel-wrap">
@@ -664,6 +693,32 @@
           </div>
         </div>
         <div class="v2-status-chips" id="v2StatusChips"></div>
+      </div>
+
+      <!-- Сводка по снятому/переносу (для руководства) -->
+      <div id="v2LossSummary" class="v2-loss-summary" hidden></div>
+
+      <!-- Панель «Документация» (редактируемые справочники) -->
+      <div id="v2DocsPanel" class="v2-docs-panel" hidden>
+        <div class="v2-docs-head">
+          <strong>📋 Документация — справочники</strong>
+          <button type="button" id="v2DocsClose" class="icon-button">×</button>
+        </div>
+        <div class="v2-docs-body">
+          <div class="v2-docs-section">
+            <label>Причины переноса (статус «Перенос»):</label>
+            <textarea id="v2DocsReasonsMoved" rows="8" spellcheck="false"></textarea>
+          </div>
+          <div class="v2-docs-section">
+            <label>Причины снятия (статус «Снято»):</label>
+            <textarea id="v2DocsReasonsRisk" rows="8" spellcheck="false"></textarea>
+          </div>
+          <div class="v2-docs-footer">
+            <small>Каждая строка = отдельный пункт. Сохраняется в твоём браузере.</small>
+            <button type="button" id="v2DocsSave">Сохранить</button>
+            <button type="button" id="v2DocsReset" class="link-button">Сбросить к умолчанию</button>
+          </div>
+        </div>
       </div>
 
       <!-- Отчёт импорта из v1 -->
@@ -2731,6 +2786,43 @@
       // если в URL есть ?v2=1 — запомним, чтобы при следующих заходах было включено
       if (new URLSearchParams(location.search).has('v2')) localStorage.setItem('stmV2Enabled', '1');
 
+      // ─── Документация (справочники, редактируемые юзером) ──
+      const V2_DICT_KEY = 'stmV2Dict';
+      const V2_DICT_DEFAULTS = {
+        reasonsMoved: [
+          'Нет сырья',
+          'Упаковка задержалась',
+          'Отказ клиента / снижение заказа',
+          'Производственный сбой',
+          'Логистика',
+          'Документация / стикер / маркировка',
+          'Передоговорка дат',
+          'Другое',
+        ],
+        reasonsRisk: [
+          'Нет сырья',
+          'Упаковка',
+          'Отказ клиента',
+          'Запрет производства',
+          'Проблема с качеством',
+          'Снятие с ассортимента',
+          'Другое',
+        ],
+      };
+      const v2Dict = (() => {
+        try {
+          const raw = localStorage.getItem(V2_DICT_KEY);
+          if (!raw) return JSON.parse(JSON.stringify(V2_DICT_DEFAULTS));
+          const d = JSON.parse(raw);
+          // мерджим с дефолтами на случай новых ключей
+          return Object.assign(JSON.parse(JSON.stringify(V2_DICT_DEFAULTS)), d);
+        } catch { return JSON.parse(JSON.stringify(V2_DICT_DEFAULTS)); }
+      })();
+      function v2DictPersist() { try { localStorage.setItem(V2_DICT_KEY, JSON.stringify(v2Dict)); } catch {} }
+      function v2DictReasons(status) {
+        return status === 'risk' ? v2Dict.reasonsRisk : v2Dict.reasonsMoved;
+      }
+
       // ─── Config ─────────────────────────────────────────────
       const TAIL_CONFIG = { minShippedRatio: 0.90, maxTailRatio: 0.07, maxTailAbs: 800 };
       const SUSPICIOUS_MARGIN_THRESHOLD = 0.65;
@@ -2747,6 +2839,7 @@
         managersOpen: false,
         heroUnit: localStorage.getItem('stmV2HeroUnit') || 'margin',     // margin | revenue | qty
         filters: {},                                                     // per-column substring/numeric
+        lossCatFilter: null,                                             // null | string — клик по причине в сводке
       };
 
       // shared meta v2 fields (Postgres). Используем тот же sharedMeta object — он уже extended на бэке.
@@ -2801,12 +2894,19 @@
           : (wantsMoved ? Math.max(0, free - tailQty) : 0);
         const toProduce = Math.max(0, free - tailQty - movedQty);
 
-        // unit margin — факт если есть, иначе план, иначе cp-fp
+        // unit margin — факт если есть, иначе план, иначе cp-fp.
+        // Когда factoryPrice=0 в 1С — это «дыра в себестоимости», и формула cp-fp=cp
+        // даст 100% маржу. Вместо этого фолбэк: 20% от выручки (договорённое допущение)
+        // + флаг costAssumed20 → ⚠ рядом, чтобы было видно «нужна проверка».
+        const fpRaw = Number(r.factoryPrice || 0);
+        const cpRaw = Number(r.actualClientPrice || r.clientPrice || 0);
+        const costAssumed20 = fpRaw <= 0 && cpRaw > 0;
         const v = (() => {
+          if (costAssumed20) return cpRaw * 0.20;            // допущение: 20% маржа
           if (shipped > 0 && r.actualGp) return r.actualGp / shipped;
           if (plan > 0 && r.plannedGp) return r.plannedGp / plan;
-          const cp = Number(r.clientPrice || 0), fp = Number(r.factoryPrice || 0);
-          return cp > 0 ? Math.max(0, cp - fp) : 0;
+          if (cpRaw > 0) return Math.max(0, cpRaw - fpRaw);
+          return 0;
         })();
 
         // деньги по стадиям (валовка)
@@ -2816,18 +2916,19 @@
         const moneyMoved   = movedQty * v;
         const moneyTail    = tailQty * v;
         // выручка по стадиям (для переключения hero на «выручка»)
-        const cp = Number(r.actualClientPrice || r.clientPrice || 0);
+        const cp = cpRaw;
         const revShipped = Number(r.actualRevenue || 0) || (shipped * cp);
         const revStock   = stockReady * cp;
         const revProduce = toProduce * cp;
         const revMoved   = movedQty * cp;
         const revTail    = tailQty * cp;
-        const grossMargin  = Number(r.actualGp || 0) || (plan * v);
+        // при costAssumed20 пересчитываем grossMargin как plan*v (= revenue * 0.2)
+        const grossMargin  = costAssumed20 ? (plan * v) : (Number(r.actualGp || 0) || (plan * v));
         const revenue      = Number(r.actualRevenue || 0) || Number(r.plannedRevenue || 0) || (plan * cp);
         const marginPct    = revenue > 0 ? grossMargin / revenue : null;
 
         // quality flags
-        const flagCostHole = revenue > 0 && grossMargin > 0 && Math.abs(revenue - grossMargin) / revenue < 0.001;
+        const flagCostHole = costAssumed20;  // нет себестоимости в 1С → допущение 20%
         const flagMarginSuspicious = !flagCostHole && marginPct != null && marginPct > SUSPICIOUS_MARGIN_THRESHOLD;
 
         // status — приоритет: override > moved > closed > tail > ready > prod > risk
@@ -2849,11 +2950,12 @@
           v, moneyShipped, moneyStock, moneyProduce, moneyMoved, moneyTail,
           revShipped, revStock, revProduce, revMoved, revTail,
           grossMargin, revenue, marginPct,
-          flagCostHole, flagMarginSuspicious,
+          flagCostHole, flagMarginSuspicious, costAssumed20,
           status, statusOverride,
           tailIncluded: !!meta.tail_included,
           movedDate: meta.moved_date || '',
           movedReason: meta.moved_reason || '',
+          reasonCategory: meta.reason_category || '',
           comment: getComment(r),
         };
       }
@@ -2927,10 +3029,10 @@
       ];
       const V2_DEFAULT_VISIBLE = V2_COLUMNS.filter(c => c.defaultVisible).map(c => c.key);
       const V2_DEFAULT_WIDTHS = {
-        sku: 95, name: 260, order: 140, manager: 140,
-        plan: 80, shipped: 80, stockReady: 80, toProduce: 80, movedQty: 90, tailQty: 80,
-        grossMargin: 115, revenue: 115, marginPct: 75,
-        status: 130, comment: 260,
+        sku: 78, name: 280, order: 95, manager: 105,
+        plan: 62, shipped: 62, stockReady: 62, toProduce: 62, movedQty: 68, tailQty: 62,
+        grossMargin: 92, revenue: 92, marginPct: 58,
+        status: 105, comment: 280,
       };
       const V2_COL_WIDTHS_KEY = 'stmV2ColWidths';
       const v2ColWidths = (() => {
@@ -2960,6 +3062,7 @@
         v2RenderHero(rows, fc);
         v2RenderKpis(rows, fc);
         v2RenderManagers(rows);
+        v2RenderLossSummary(rows);
         v2RenderViewSwitcher();
         v2RenderStatusChips(rows);
         if (v2State.view === 'table') v2RenderTable(rows, fc);
@@ -3054,6 +3157,46 @@
         document.getElementById('v2ManagersDetail').hidden = !v2State.managersOpen;
         document.getElementById('v2ManagersToggle').textContent = (v2State.managersOpen ? '▾' : '▸') + ' Менеджеры';
       }
+      function v2RenderLossSummary(rows) {
+        const lost = rows.filter(r => r.status === 'risk' || r.status === 'moved');
+        const el = document.getElementById('v2LossSummary');
+        if (!lost.length) { el.hidden = true; return; }
+        // Группа по reasonCategory
+        const byCat = new Map();
+        let totalMoney = 0, totalQty = 0;
+        let unfilledCount = 0;
+        lost.forEach(r => {
+          const lostMoney = r.moneyStock + r.moneyProduce + r.moneyTail + (r.status === 'moved' ? r.moneyMoved : 0);
+          const lostQty   = r.stockReady + r.toProduce + r.tailQty + (r.status === 'moved' ? r.movedQty : 0);
+          totalMoney += lostMoney; totalQty += lostQty;
+          const cat = (r.reasonCategory || '').trim() || '— без категории —';
+          if (cat === '— без категории —') unfilledCount++;
+          const a = byCat.get(cat) || { money: 0, qty: 0, count: 0, status: r.status };
+          a.money += lostMoney; a.qty += lostQty; a.count++;
+          byCat.set(cat, a);
+        });
+        const cats = [...byCat.entries()].sort((a,b) => b[1].money - a[1].money);
+        const sumQty = rows.reduce((s, r) => s + r.plan, 0);
+        const lostPct = sumQty > 0 ? totalQty / sumQty : 0;
+        const reasonsHtml = cats.map(([name, s]) => {
+          const isUnfilled = name === '— без категории —';
+          const active = v2State.lossCatFilter === name;
+          return `<div class="ls-reason${isUnfilled?' ls-unfilled':''}${active?' ls-active':''}" data-loss-cat="${escapeHtml(name)}" title="${isUnfilled?'Нет категории — нужно проставить вручную в строке':active?'Клик уберёт фильтр':'Клик отфильтрует таблицу'}">
+            <div><b>${escapeHtml(name)}</b>${active?' ×':''}</div>
+            <div><span class="ls-money">${rub(s.money)}</span> · <span class="ls-count">${s.count} SKU · ${fmtQty.format(s.qty)} шт</span></div>
+          </div>`;
+        }).join('');
+        el.innerHTML = `
+          <div class="ls-head">
+            <span class="ls-icon">🚨</span>
+            <span class="ls-title">Снято и Перенос с ${escapeHtml(state.month)}:</span>
+            <span class="ls-totals">потеря <strong>${rub(totalMoney)}</strong> · <strong>${fmtQty.format(totalQty)} шт</strong> · ${lost.length} SKU${lostPct ? ` · <strong>${pct(lostPct)}</strong> от плана` : ''}</span>
+          </div>
+          <div class="ls-reasons">${reasonsHtml}</div>
+          ${unfilledCount > 0 ? `<div style="margin-top:8px;padding-left:28px;font-size:12px;color:#d97706"><b>⚠ ${unfilledCount}</b> SKU без категории — проставь её в строке таблицы (выпадашка «Категория»).</div>` : ''}
+        `;
+        el.hidden = false;
+      }
       function v2RenderViewSwitcher() {
         document.querySelectorAll('#v2ViewSwitcher button').forEach(b =>
           b.classList.toggle('active', b.dataset.v2View === v2State.view));
@@ -3092,6 +3235,11 @@
       function v2RenderTable(rows, fc) {
         const cols = V2_COLUMNS.filter(c => v2Visible.has(c.key));
         let filtered = v2State.statusFilter === 'all' ? rows : rows.filter(r => r.status === v2State.statusFilter);
+        if (v2State.lossCatFilter) {
+          const wantUnfilled = v2State.lossCatFilter === '— без категории —';
+          filtered = filtered.filter(r => (r.status === 'risk' || r.status === 'moved')
+            && (wantUnfilled ? !(r.reasonCategory||'').trim() : (r.reasonCategory||'').trim() === v2State.lossCatFilter));
+        }
         // per-column filters
         const activeFilters = Object.entries(v2State.filters).filter(([k,v]) => v && cols.some(c => c.key === k));
         if (activeFilters.length) {
@@ -3137,7 +3285,7 @@
         const strikeMoved   = 'strike';  // moved всегда не в прогноз текущего месяца
         const strikeTailMoney = !r.tailIncluded && !v2State.funnelTailIncluded ? 'strike' : '';
         const cellFor = c => {
-          if (c.key === 'sku')         return `<td class="sku-cell"><strong>${escapeHtml(r.sku)}</strong>${r.flagCostHole?' <span title="выручка = валовка" style="color:#dc2626">⚠</span>':r.flagMarginSuspicious?' <span title="маржа >65%" style="color:#ca8a04">⚠</span>':''}</td>`;
+          if (c.key === 'sku')         return `<td class="sku-cell"><strong>${escapeHtml(r.sku)}</strong>${r.flagCostHole?' <span title="нет цены фабрики в 1С — маржа считается как 20% от выручки, проверь" style="color:#dc2626">⚠</span>':r.flagMarginSuspicious?' <span title="маржа >65%" style="color:#ca8a04">⚠</span>':''}</td>`;
           if (c.key === 'name')        return `<td>${escapeHtml(r.name||'')}</td>`;
           if (c.key === 'order')       return `<td><small style="color:#64748b">${escapeHtml(r.order||'')}</small></td>`;
           if (c.key === 'manager')     return `<td><small>${escapeHtml(r.manager||'')}</small></td>`;
@@ -3163,16 +3311,25 @@
         // Inline detail row для статусов 'moved' и 'tail' — управление qty/датой/причиной/учётом денег
         let detailRow = '';
         const free = Math.max(0, r.plan - r.shipped - r.stockReady);
-        if (r.status === 'moved') {
+        if (r.status === 'moved' || r.status === 'risk') {
           const mdate = r.movedDate || ''; const mqty = r.movedQty || 0; const mreason = r.movedReason || '';
+          const cat = r.reasonCategory || '';
+          const reasons = v2DictReasons(r.status);
+          const catOptions = ['<option value="">— категория —</option>']
+            .concat(reasons.map(rn => `<option value="${escapeHtml(rn)}"${rn===cat?' selected':''}>${escapeHtml(rn)}</option>`))
+            .join('');
+          const isMoved = r.status === 'moved';
+          const icon = isMoved ? '📦' : '🚨';
+          const label = isMoved ? 'Перенос' : 'Снято';
           detailRow = `<tr class="v2-detail-row"><td colspan="${cols.length}">
             <div class="v2-detail-form" data-v2-detail-sku="${escapeHtml(r.sku)}">
-              <span class="v2-detail-label">📦 Перенос:</span>
-              <label>Количество <input type="number" min="0" max="${free}" step="1" data-field="moved_qty" value="${mqty}" style="width:90px"> шт <span class="v2-detail-hint">из ${fmtQty.format(free)} свободных</span></label>
-              <label>Дата <input type="date" data-field="moved_date" value="${escapeHtml(mdate)}"></label>
-              <label class="v2-detail-grow">Причина <input type="text" data-field="moved_reason" value="${escapeHtml(mreason)}" placeholder="например: упаковка приедет 30 июня"></label>
+              <span class="v2-detail-label">${icon} ${label}:</span>
+              <label>Категория <select data-field="reason_category" style="min-width:160px">${catOptions}</select></label>
+              ${isMoved ? `<label>Кол-во <input type="number" min="0" max="${free}" step="1" data-field="moved_qty" value="${mqty}" style="width:80px"> шт</label>
+              <label>Дата <input type="date" data-field="moved_date" value="${escapeHtml(mdate)}"></label>` : ''}
+              <label class="v2-detail-grow">${isMoved ? 'Причина' : 'Подробнее'} <input type="text" data-field="moved_reason" value="${escapeHtml(mreason)}" placeholder="${isMoved ? 'например: упаковка приедет 30 июня' : 'детали блокера'}"></label>
               <button type="button" class="v2-detail-save" data-action="save-moved">Применить</button>
-              ${r.shipped > 0 ? `<span class="v2-detail-summary">Отгружено ${fmtQty.format(r.shipped)} остаётся в прогнозе текущего месяца.</span>` : ''}
+              ${isMoved && r.shipped > 0 ? `<span class="v2-detail-summary">Отгружено ${fmtQty.format(r.shipped)} остаётся в прогнозе.</span>` : ''}
             </div>
           </td></tr>`;
         } else if (r.status === 'tail') {
@@ -3328,10 +3485,15 @@
         btn.disabled = true; btn.textContent = '…';
         let ok = false;
         if (btn.dataset.action === 'save-moved') {
-          const qty   = Number(get('moved_qty').value) || 0;
-          const date  = get('moved_date').value || null;
-          const rsn   = get('moved_reason').value || null;
-          ok = await v2PushMeta(row, { moved_qty: qty, moved_date: date, moved_reason: rsn });
+          const qtyInp = get('moved_qty');
+          const dateInp = get('moved_date');
+          const cat = get('reason_category') ? (get('reason_category').value || null) : undefined;
+          const rsn = get('moved_reason').value || null;
+          const patch = { moved_reason: rsn };
+          if (cat !== undefined) patch.reason_category = cat;
+          if (qtyInp)  patch.moved_qty  = Number(qtyInp.value) || 0;
+          if (dateInp) patch.moved_date = dateInp.value || null;
+          ok = await v2PushMeta(row, patch);
         } else if (btn.dataset.action === 'save-tail') {
           const qty   = Number(get('tail_qty').value) || 0;
           const incl  = get('tail_included').checked;
@@ -3368,6 +3530,11 @@
         // вместо полного v2RenderTable — обновим только body/foot
         const cols = V2_COLUMNS.filter(c => v2Visible.has(c.key));
         let filtered = v2State.statusFilter === 'all' ? rows : rows.filter(r => r.status === v2State.statusFilter);
+        if (v2State.lossCatFilter) {
+          const wantUnfilled = v2State.lossCatFilter === '— без категории —';
+          filtered = filtered.filter(r => (r.status === 'risk' || r.status === 'moved')
+            && (wantUnfilled ? !(r.reasonCategory||'').trim() : (r.reasonCategory||'').trim() === v2State.lossCatFilter));
+        }
         const activeFilters = Object.entries(v2State.filters).filter(([k,v]) => v && cols.some(c => c.key === k));
         if (activeFilters.length) filtered = filtered.filter(r => activeFilters.every(([k, v]) => v2MatchFilter(r, k, v)));
         document.getElementById('v2TableBody').innerHTML = filtered.length
@@ -3534,6 +3701,41 @@
         document.getElementById('v2ImportClose').addEventListener('click', () => { el.hidden = true; });
       }
       document.getElementById('v2ExcelBtn').addEventListener('click', v2ExportExcel);
+
+      // Документация — панель со справочниками
+      function v2DocsOpen() {
+        document.getElementById('v2DocsReasonsMoved').value = (v2Dict.reasonsMoved || []).join('\n');
+        document.getElementById('v2DocsReasonsRisk').value = (v2Dict.reasonsRisk || []).join('\n');
+        document.getElementById('v2DocsPanel').hidden = false;
+      }
+      document.getElementById('v2DocsBtn').addEventListener('click', v2DocsOpen);
+      document.getElementById('v2DocsClose').addEventListener('click', () => {
+        document.getElementById('v2DocsPanel').hidden = true;
+      });
+      document.getElementById('v2DocsSave').addEventListener('click', () => {
+        v2Dict.reasonsMoved = document.getElementById('v2DocsReasonsMoved').value.split('\n').map(s => s.trim()).filter(Boolean);
+        v2Dict.reasonsRisk  = document.getElementById('v2DocsReasonsRisk').value.split('\n').map(s => s.trim()).filter(Boolean);
+        v2DictPersist();
+        document.getElementById('v2DocsPanel').hidden = true;
+        v2Render();
+      });
+      document.getElementById('v2DocsReset').addEventListener('click', () => {
+        if (!confirm('Сбросить справочники к умолчаниям?')) return;
+        Object.assign(v2Dict, JSON.parse(JSON.stringify(V2_DICT_DEFAULTS)));
+        v2DictPersist();
+        v2DocsOpen();
+        v2Render();
+      });
+
+      // Клик по причине в сводке → фильтр по этой причине (reasonCategory)
+      document.getElementById('v2LossSummary').addEventListener('click', e => {
+        const r = e.target.closest('[data-loss-cat]');
+        if (!r) return;
+        const cat = r.dataset.lossCat;
+        v2State.lossCatFilter = v2State.lossCatFilter === cat ? null : cat;
+        v2State.statusFilter = 'all';
+        v2Render();
+      });
       document.getElementById('v2ImportV1Btn').addEventListener('click', async (e) => {
         const btn = e.target;
         if (!confirm('Перетянуть снятые галки из v1 в статусы v2? Уже размеченные строки v2 не трогаются.')) return;
