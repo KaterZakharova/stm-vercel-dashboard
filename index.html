@@ -2834,21 +2834,36 @@
       }
 
       // ─── Forecast aggregation ───────────────────────────────
+      // Учёт статусов:
+      //  risk  — всё, кроме факта, вылетает из прогноза (считаем как «потеряно»)
+      //  moved — несданный объём (склад + к выпуску + хвост) уходит в moved (не в прогнозе тек.месяца)
+      //  closed/ready/prod/tail — стандартный расчёт
       function v2Forecast(rows) {
         const realizableRate = v2State.funnelRealizable / 100;
         const tailGlobal = v2State.funnelTailIncluded;
-        let factSum=0, stockSum=0, produceSumFull=0, tailSum=0, movedSum=0;
+        let factSum=0, stockSum=0, produceSumFull=0, tailSum=0, movedSum=0, riskLostSum=0;
         let factQty=0, stockQty=0, produceQty=0, tailQty=0, movedQty=0;
         rows.forEach(r => {
-          factSum   += r.moneyShipped;  factQty   += r.shipped;
-          stockSum  += r.moneyStock;    stockQty  += r.stockReady;
+          factSum += r.moneyShipped; factQty += r.shipped;
+          if (r.status === 'risk') {
+            riskLostSum += r.moneyStock + r.moneyProduce + r.moneyTail;
+            return;
+          }
+          if (r.status === 'moved') {
+            // весь неотгруженный объём этой строки уезжает в moved
+            const lostMoney = r.moneyStock + r.moneyProduce + r.moneyTail;
+            movedSum  += r.moneyMoved + lostMoney;
+            movedQty  += r.movedQty + r.stockReady + r.toProduce + r.tailQty;
+            return;
+          }
+          stockSum += r.moneyStock; stockQty += r.stockReady;
           produceSumFull += r.moneyProduce; produceQty += r.toProduce;
-          movedSum  += r.moneyMoved;    movedQty  += r.movedQty;
+          movedSum += r.moneyMoved; movedQty += r.movedQty;
           if (r.tailIncluded || tailGlobal) { tailSum += r.moneyTail; tailQty += r.tailQty; }
         });
         const produceSum = produceSumFull * realizableRate;
         const total = factSum + stockSum + produceSum + tailSum;
-        return { factSum, stockSum, produceSum, produceSumFull, tailSum, movedSum, total,
+        return { factSum, stockSum, produceSum, produceSumFull, tailSum, movedSum, riskLostSum, total,
                  factQty, stockQty, produceQty, tailQty, movedQty,
                  realizableRate, tailIncluded: tailGlobal };
       }
@@ -2913,7 +2928,8 @@
           `<span>Склад <strong>${rub(fc.stockSum)}</strong></span>` +
           `<span>К выпуску <strong>${rub(fc.produceSum)}</strong>${fc.realizableRate < 1 ? ` <small>(${Math.round(fc.realizableRate*100)}%)</small>`:''}</span>` +
           `<span>Хвосты <strong>${rub(fc.tailSum)}</strong>${fc.tailIncluded? '' : ' <small>(не учтены)</small>'}</span>` +
-          (fc.movedSum > 0 ? `<span style="color:#94a3b8">Перенос (не в прогнозе) ${rub(fc.movedSum)}</span>` : '');
+          (fc.movedSum > 0 ? `<span style="color:#94a3b8">Перенос (не в прогнозе) ${rub(fc.movedSum)}</span>` : '') +
+          (fc.riskLostSum > 0 ? `<span style="color:#dc2626">Снято под риском −${rub(fc.riskLostSum)}</span>` : '');
         const target = (TARGETS[state.month] || {}).gp || 0;
         document.getElementById('v2HeroAux').innerHTML = target ? `Цель: ${rub(target)} · <strong>${pct(fc.total/target)}</strong>` : '';
       }
