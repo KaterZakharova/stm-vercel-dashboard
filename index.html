@@ -741,6 +741,7 @@
       { key: 'name', label: 'Наименование', defaultVisible: true, className: 'name', render: row => escapeHtml(row.name) },
       { key: 'order', label: 'Заказ', defaultVisible: true, render: row => escapeHtml(row.order) },
       { key: 'planQty', label: 'План', defaultVisible: true, className: 'num', render: row => fmtQty.format(row.planQty) },
+      { key: 'shippedQty', label: 'Отгружено', defaultVisible: true, className: 'num', render: row => fmtQty.format(row.shippedQty || 0) },
       { key: 'factoryPrice', label: 'ЦФ без НДС', defaultVisible: false, className: 'num', render: row => row.factoryPrice ? fmtPrice.format(row.factoryPrice) : '' },
       { key: 'clientPrice', label: 'ЦК без НДС', defaultVisible: false, className: 'num', render: row => row.clientPrice ? fmtPrice.format(row.clientPrice) : '' },
       { key: 'actualRevenue', label: 'Выручка<br><span class="th-vat">без НДС</span>', defaultVisible: true, className: 'num', render: row => rub(rowRevenueNoVat(row)) },
@@ -766,7 +767,23 @@
       { key: 'priceSource', label: 'Источник', defaultVisible: true, render: row => sourceBadge(row.priceSource) }
     ];
     const defaultColumnKeys = columns.filter(column => column.defaultVisible).map(column => column.key);
-    const visibleColumns = new Set(defaultColumnKeys);
+    const VISIBLE_COLS_KEY = 'stmVisibleColumns_v1';
+    const visibleColumns = (() => {
+      try {
+        const raw = localStorage.getItem(VISIBLE_COLS_KEY);
+        if (!raw) return new Set(defaultColumnKeys);
+        const arr = JSON.parse(raw);
+        if (!Array.isArray(arr)) return new Set(defaultColumnKeys);
+        const validKeys = new Set(columns.map(c => c.key));
+        // sku — обязательная (без неё таблица бессмысленна); всегда добавляем.
+        const set = new Set(arr.filter(k => validKeys.has(k)));
+        set.add('sku');
+        return set;
+      } catch { return new Set(defaultColumnKeys); }
+    })();
+    function persistVisibleColumns() {
+      try { localStorage.setItem(VISIBLE_COLS_KEY, JSON.stringify([...visibleColumns])); } catch {}
+    }
     const filterKeys = columns.map(column => column.key);
     const tableFilters = Object.fromEntries(filterKeys.map(key => [key, null]));
     let activeMenuKey = null;
@@ -1064,6 +1081,7 @@
 
     function renderFooter(rows, activeColumns) {
       const totalPlanQty       = sum(rows, 'planQty');
+      const totalShippedQty    = sum(rows, 'shippedQty');
       const totalRevenueNoVat  = rows.reduce((a, r) => a + rowRevenueNoVat(r), 0);
       const totalGpNoVat       = rows.reduce((a, r) => a + rowGpNoVat(r), 0);
       const totalReliableRev   = rows.reduce((a, r) => a + (planGpReliable(r) || r.actualGp ? rowRevenueNoVat(r) : 0), 0);
@@ -1074,6 +1092,7 @@
       const totalCarry         = rows.filter(isCarryOver).length;
       const totals = {
         planQty:        fmtQty.format(totalPlanQty),
+        shippedQty:     fmtQty.format(totalShippedQty),
         mayCarry:       totalCarry ? `${totalCarry}` : '',
         actualRevenue:  rub(totalRevenueNoVat),
         actualGp:       rub(totalGpNoVat),
@@ -1710,6 +1729,7 @@
     function setDefaultColumns() {
       visibleColumns.clear();
       defaultColumnKeys.forEach(key => visibleColumns.add(key));
+      persistVisibleColumns();
       renderColumnPanel();
       render();
     }
@@ -2052,16 +2072,22 @@
     document.getElementById('columnsPanel').addEventListener('click', event => event.stopPropagation());
     document.getElementById('columnsList').addEventListener('change', event => {
       if (event.target.type !== 'checkbox') return;
+      // sku — обязательная: не даём её снять.
+      if (event.target.value === 'sku' && !event.target.checked) {
+        event.target.checked = true;
+        return;
+      }
       if (event.target.checked) visibleColumns.add(event.target.value);
       else visibleColumns.delete(event.target.value);
+      persistVisibleColumns();
       render();
-      document.getElementById('columnsPanel').hidden = true;
+      // панель НЕ закрываем — юзер часто прячет несколько колонок подряд.
     });
     document.getElementById('columnsAll').addEventListener('click', () => {
       columns.forEach(column => visibleColumns.add(column.key));
+      persistVisibleColumns();
       renderColumnPanel();
       render();
-      document.getElementById('columnsPanel').hidden = true;
     });
     document.getElementById('columnsDefault').addEventListener('click', setDefaultColumns);
     document.getElementById('columnsClose').addEventListener('click', () => {
