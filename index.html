@@ -519,18 +519,52 @@
     const loadedUnchecked = (() => {
       try { return JSON.parse(localStorage.getItem(UNCHECKED_STORAGE_KEY) || '{}') || {}; } catch { return {}; }
     })();
+    // v1 формат хранил голый sku → одна галка на оба бакета (B+C).
+    // v2 — ключ `${sku}::${bucket}` где bucket ∈ {B, C}. A — факт, чекбокса не имеет.
+    // Миграция: старый sku раздваиваем на ::B и ::C (сохраняем намерение «снято»).
+    function migrateUncheckedList(list) {
+      const out = new Set();
+      (list || []).forEach(k => {
+        if (typeof k !== 'string') return;
+        if (k.includes('::')) { out.add(k); return; }
+        out.add(`${k}::B`);
+        out.add(`${k}::C`);
+      });
+      return out;
+    }
     const uncheckedKeys = {
-      'Май':    new Set(loadedUnchecked['Май']    || []),
-      'Июнь':   new Set(loadedUnchecked['Июнь']   || []),
-      'Июль':   new Set(loadedUnchecked['Июль']   || []),
-      'Август': new Set(loadedUnchecked['Август'] || [])
+      'Май':    migrateUncheckedList(loadedUnchecked['Май']),
+      'Июнь':   migrateUncheckedList(loadedUnchecked['Июнь']),
+      'Июль':   migrateUncheckedList(loadedUnchecked['Июль']),
+      'Август': migrateUncheckedList(loadedUnchecked['Август'])
     };
     function persistUnchecked() {
       const out = {};
       Object.entries(uncheckedKeys).forEach(([m, s]) => { out[m] = [...s]; });
       try { localStorage.setItem(UNCHECKED_STORAGE_KEY, JSON.stringify(out)); } catch {}
     }
-    function isChecked(row) { return !uncheckedKeys[state.month].has(row.sku); }
+    // Per-bucket семантика: isChecked(row, 'B') / isChecked(row, 'C') — каждое ведро своя галка.
+    // Без bucket — агрегат (true если ОБА бакета checked) для main-таблицы и opt-drawer'а.
+    // A — факт, галки нет, всегда true.
+    function isChecked(row, bucket) {
+      const set = uncheckedKeys[state.month];
+      if (bucket === 'A') return true;
+      if (bucket === 'B' || bucket === 'C') return !set.has(`${row.sku}::${bucket}`);
+      return !set.has(`${row.sku}::B`) && !set.has(`${row.sku}::C`);
+    }
+    function isAnyChecked(row) {
+      const set = uncheckedKeys[state.month];
+      return !set.has(`${row.sku}::B`) || !set.has(`${row.sku}::C`);
+    }
+    function setRowChecked(sku, bucket, checked) {
+      const set = uncheckedKeys[state.month];
+      const k = `${sku}::${bucket}`;
+      if (checked) set.delete(k); else set.add(k);
+    }
+    function setRowCheckedBoth(sku, checked) {
+      setRowChecked(sku, 'B', checked);
+      setRowChecked(sku, 'C', checked);
+    }
 
     // Shared meta: комментарии и плановые даты отгрузки, общие для всех пользователей.
     // Хранятся в gss postgres через /api/stm-meta. localStorage используется как offline-кэш и фолбэк.
@@ -649,8 +683,9 @@
     }
     function rowForecastGp(row) {
       const v = valovkaPerUnitOrZero(row);
-      const extra = isChecked(row) ? (stockQty(row) + stockPgpQty(row) + toProduceQty(row)) * v : 0;
-      return (row.actualGp || 0) + extra;
+      const stockExtra = isChecked(row, 'B') ? (stockQty(row) + stockPgpQty(row)) * v : 0;
+      const futExtra   = isChecked(row, 'C') ? toProduceQty(row) * v : 0;
+      return (row.actualGp || 0) + stockExtra + futExtra;
     }
     // Carry-over: SKU перешёл из предыдущего месяца, если у него либо есть data-флаг mayCarry,
     // либо такой же артикул присутствует в DATA в любом предыдущем месяце с planQty > 0.
@@ -979,7 +1014,7 @@
       document.getElementById('rowCount').textContent = `${rows.length} строк`;
       // обновляем счётчики фильтра по чекбоксам (считаем по rows ДО фильтрации, чтобы видеть полную картину)
       const allForCount = filteredRowsBeforeCheckFilter();
-      const inCnt  = allForCount.filter(isChecked).length;
+      const inCnt  = allForCount.filter(r => isChecked(r)).length;
       const outCnt = allForCount.length - inCnt;
       document.getElementById('tcfCntAll').textContent = allForCount.length;
       document.getElementById('tcfCntIn').textContent  = inCnt;
@@ -988,7 +1023,7 @@
         btn.classList.toggle('fc-filter-chip-active', btn.dataset.tableFilter === tableCheckFilter);
       });
       const activeColumns = columns.filter(column => visibleColumns.has(column.key));
-      const checkedCount = rows.filter(isChecked).length;
+      const checkedCount = rows.filter(r => isChecked(r)).length;
       const allCb = checkedCount === rows.length ? 'checked' : '';
       const indeterminate = checkedCount > 0 && checkedCount < rows.length ? 'data-indeterminate="1"' : '';
       document.getElementById('thead').innerHTML = `
@@ -1011,12 +1046,18 @@
         updateFilterButtons();
         return;
       }
-      tbody.innerHTML = rows.map(row => `
+      tbody.innerHTML = rows.map(row => {
+        const full = isChecked(row);
+        const any  = isAnyChecked(row);
+        const ind  = any && !full;
+        return `
         <tr>
-          <td class="cb"><input type="checkbox" data-row-sku="${escapeHtml(row.sku)}" ${isChecked(row) ? 'checked' : ''}></td>
+          <td class="cb"><input type="checkbox" data-row-sku="${escapeHtml(row.sku)}" ${full ? 'checked' : ''}${ind ? ' data-indeterminate="1"' : ''} title="${full ? 'И склад, и к выпуску в расчёте — клик снимет оба' : ind ? 'Часть бакетов снята — открой drawer для деталей' : 'Оба бакета сняты — клик включит оба'}"></td>
           ${activeColumns.map(column => `<td class="${column.className || ''}" data-col-key="${column.key}">${column.render(row)}</td>`).join('')}
-        </tr>
-      `).join('');
+        </tr>`;
+      }).join('');
+      // hydrate indeterminate state on row checkboxes
+      tbody.querySelectorAll('input[type="checkbox"][data-indeterminate]').forEach(cb => { cb.indeterminate = true; });
       if (tfoot) tfoot.innerHTML = renderFooter(rows, activeColumns);
       updateFilterButtons();
     }
@@ -1064,14 +1105,15 @@
         if (isGpUnreliable(r) && (stockQ > 0 || futureQ > 0)) unreliableCount++;
         const stock = stockQ * v;
         const future = futureQ * v;
-        if (isChecked(r)) {
-          B += stock; C += future;
-          qtyB += stockQ; qtyC += futureQ;
-        } else {
-          lostB += stock; lostC += future;
-          lostQtyB += stockQ; lostQtyC += futureQ;
-          if (stock + future > 0 || getComment(r)) risks.push(r);
-        }
+        const okB = isChecked(r, 'B');
+        const okC = isChecked(r, 'C');
+        if (okB) { B += stock; qtyB += stockQ; }
+        else     { lostB += stock; lostQtyB += stockQ; }
+        if (okC) { C += future; qtyC += futureQ; }
+        else     { lostC += future; lostQtyC += futureQ; }
+        const lostInRow = (okB ? 0 : stock) + (okC ? 0 : future);
+        const lostQtyInRow = (okB ? 0 : stockQ) + (okC ? 0 : futureQ);
+        if (lostInRow > 0 || lostQtyInRow > 0 || ((!okB || !okC) && getComment(r))) risks.push(r);
       });
       return {
         A, B, C, safe: A + B, opt: A + B + C,
@@ -1105,7 +1147,11 @@
         return (n.toString()).includes(qq);
       };
       return items.filter(i => {
-        const checked = isChecked(i.row);
+        // В B-drawer'е смотрим B-галку, в C-drawer'е — C-галку, в opt — агрегат (оба on = in),
+        // A — всегда in (факт, галки нет).
+        const checked = expandedBucket === 'A' ? true
+          : expandedBucket === 'opt' ? (isChecked(i.row, 'B') && isChecked(i.row, 'C'))
+          : isChecked(i.row, expandedBucket);
         const shipped = Number(i.row.shippedQty || 0) > 0;
         if (f.checked === 'in'  && !checked) return false;
         if (f.checked === 'out' &&  checked) return false;
@@ -1136,6 +1182,7 @@
         const fresh = wrap.firstElementChild;
         if (fresh) {
           root.replaceWith(fresh);
+          fresh.querySelectorAll('input[type="checkbox"][data-indeterminate]').forEach(cb => { cb.indeterminate = true; });
           if (fcFocusedFilter) {
             const inp = document.querySelector(`[data-fc-filter="${fcFocusedFilter}"]`);
             if (inp) { inp.focus(); if (inp.setSelectionRange) inp.setSelectionRange(inp.value.length, inp.value.length); }
@@ -1153,7 +1200,6 @@
       rows.forEach(r => {
         const v = valovkaPerUnit(r);
         const unreliable = isGpUnreliable(r);
-        const checked = isChecked(r);
         const stockAll = stockQty(r) + stockPgpQty(r);
         const cp = Number(r.actualClientPrice || r.clientPrice || 0);
         const shippedRev = Number(r.actualRevenue || 0);
@@ -1175,6 +1221,7 @@
           if (stockAll > 0) {
             const full = stockAll * v;
             const rev  = stockAll * cp;
+            const checked = isChecked(r, 'B');
             out.push(makeItem(stockAll, checked ? full : 0, full, rev));
           }
         } else if (bucket === 'C') {
@@ -1182,6 +1229,7 @@
             const q = toProduceQty(r);
             const full = q * v;
             const rev  = q * cp;
+            const checked = isChecked(r, 'C');
             out.push(makeItem(q, checked ? full : 0, full, rev));
           }
         } else if (bucket === 'opt') {
@@ -1190,10 +1238,11 @@
           const futPot   = toProduceQty(r) * v;
           if (a !== 0 || stockAll > 0 || toProduceQty(r) > 0) {
             const full = a + stockPot + futPot;
-            const contribution = a + (checked ? stockPot + futPot : 0);
+            const okB = isChecked(r, 'B');
+            const okC = isChecked(r, 'C');
+            const contribution = a + (okB ? stockPot : 0) + (okC ? futPot : 0);
             const qty = shippedQ + stockAll + toProduceQty(r);
             const rev = shippedRev + (stockAll + toProduceQty(r)) * cp;
-            // Если план unreliable, маржа считается только по факту (если он есть), иначе скрыта.
             const mp = unreliable
               ? (shippedRev > 0 ? a / shippedRev : null)
               : (rev > 0 ? full / rev : null);
@@ -1224,9 +1273,9 @@
       const cellCls = b => `fc-cell fc-clickable${expandedBucket === b ? ' fc-active' : ''}`;
       const caret = b => `<span class="fc-caret">${expandedBucket === b ? '▾' : '▸'}</span>`;
       const tipA = 'Факт уже отгружено — валовка по уже отгруженным SKU за месяц (из регистра 1С). Снятие галки на SKU отгрузку не отменяет.';
-      const tipB = 'Склад (готово) — выпущено производством и лежит на складах СТМ + ПГП (полуфабрикат), но ещё не отгружено клиенту. В прогноз идут только SKU с галкой; снятые попадают в «Под риском». Формула: (склад СТМ + склад ПГП) × валовка/шт.';
-      const tipC = 'К выпуску — то, что ещё нужно физически произвести, чтобы закрыть план. Формула: план − уже отгружено − склад СТМ − склад ПГП. То, что уже лежит готовое, сюда не дублируется (оно в блоке «Склад»). В прогноз идут только SKU с галкой.';
-      const tipOpt = 'Прогноз (оптимистичный) = A + B + C: если ВСЁ выпустим и отгрузим до конца месяца. Снятие галки на SKU убирает её из B и C, в этом блоке тоже минусуется (и по деньгам, и по штукам).';
+      const tipB = 'Склад (готово) — выпущено производством и лежит на складах СТМ + ПГП (полуфабрикат), но ещё не отгружено клиенту. Галка здесь — независимая (не связана с «К выпуску»): можно оставить склад в прогнозе, даже если хвост к выпуску снят. Формула: (склад СТМ + склад ПГП) × валовка/шт.';
+      const tipC = 'К выпуску — то, что ещё нужно физически произвести, чтобы закрыть план. Формула: план − уже отгружено − склад СТМ − склад ПГП. Галка здесь — независимая: снятие убирает только этот «хвост», склад того же артикула остаётся в прогнозе.';
+      const tipOpt = 'Прогноз (оптимистичный) = A + B + C: если ВСЁ выпустим и отгрузим до конца месяца. У склада (B) и «к выпуску» (C) — независимые галки: можно снять только хвост, не задевая то, что уже лежит готовое.';
       document.getElementById('forecastSection').innerHTML = `
         <h2>Прогноз конца месяца · ${escapeHtml(state.month)}</h2>
         <div class="fc-grid">
@@ -1264,6 +1313,8 @@
         ${renderForecastDrawer(rows)}
         ${risksHtml}
       `;
+      // hydrate indeterminate state на чекбоксах opt-drawer'а (смешанное B/C)
+      document.querySelectorAll('#forecastSection input[type="checkbox"][data-indeterminate]').forEach(cb => { cb.indeterminate = true; });
     }
 
     function renderForecastDrawer(rows) {
@@ -1275,10 +1326,14 @@
       if (!allItems.length) {
         return `<div class="fc-drawer"><div class="fc-drawer-head"><strong>${titles[expandedBucket]}</strong></div><div class="empty">Нет SKU в этой категории</div></div>`;
       }
-      const inCount  = allItems.filter(i => isChecked(i.row)).length;
+      // В B-drawer'е смотрим B-галку, в C-drawer'е — C-галку, в opt — агрегат, A всегда in.
+      const rowChecked = (r) => expandedBucket === 'A' ? true
+        : expandedBucket === 'opt' ? (isChecked(r, 'B') && isChecked(r, 'C'))
+        : isChecked(r, expandedBucket);
+      const inCount  = allItems.filter(i => rowChecked(i.row)).length;
       const outCount = allItems.length - inCount;
-      let items = bucketFilter === 'in'  ? allItems.filter(i => isChecked(i.row))
-                : bucketFilter === 'out' ? allItems.filter(i => !isChecked(i.row))
+      let items = bucketFilter === 'in'  ? allItems.filter(i => rowChecked(i.row))
+                : bucketFilter === 'out' ? allItems.filter(i => !rowChecked(i.row))
                 : allItems;
       // фильтры по колонкам
       items = applyDrillFilters(items);
@@ -1347,7 +1402,8 @@
                 </tr>
               </thead>
               <tbody>${items.length ? items.map(i => {
-                const checked = isChecked(i.row);
+                const checked = rowChecked(i.row);
+                const optMixed = expandedBucket === 'opt' && !checked && isAnyChecked(i.row);
                 const c = getComment(i.row);
                 const btnCls = c ? 'row-comment-btn has-comment' : 'row-comment-btn';
                 const btnTxt = c ? `✎ ${escapeHtml(c)}` : '+ комментарий';
@@ -1375,7 +1431,7 @@
                   <td class="num">${contribCell}</td>
                   <td class="pct"><span class="${pctClass(i.marginPct)}">${fmtPct(i.marginPct)}</span></td>
                   <td class="cb-col">${shippedCell}</td>
-                  <td class="cb-col"><input type="checkbox" data-row-sku="${escapeHtml(i.row.sku)}" ${checked ? 'checked' : ''}></td>
+                  <td class="cb-col">${expandedBucket === 'A' ? '<span class="auto-check" title="Факт уже отгружен — снять нельзя">✓</span>' : `<input type="checkbox" data-row-sku="${escapeHtml(i.row.sku)}" data-bucket="${expandedBucket}" ${checked ? 'checked' : ''}${optMixed ? ' data-indeterminate="1"' : ''}>`}</td>
                   <td><button type="button" class="${btnCls}" data-comment-sku="${escapeHtml(i.row.sku)}" title="${escapeHtml(c || 'Добавить комментарий о риске/переносе')}">${btnTxt}</button></td>
                   <td class="ship-cell">${shipCell}</td>
                 </tr>`;
@@ -1400,8 +1456,11 @@
       if (!expandedBucket) return;
       const rows = filteredRows();
       const all = bucketRows(rows, expandedBucket);
-      let items = bucketFilter === 'in'  ? all.filter(i => isChecked(i.row))
-                : bucketFilter === 'out' ? all.filter(i => !isChecked(i.row))
+      const rowChecked = (r) => expandedBucket === 'A' ? true
+        : expandedBucket === 'opt' ? (isChecked(r, 'B') && isChecked(r, 'C'))
+        : isChecked(r, expandedBucket);
+      let items = bucketFilter === 'in'  ? all.filter(i => rowChecked(i.row))
+                : bucketFilter === 'out' ? all.filter(i => !rowChecked(i.row))
                 : all;
       items = applyDrillFilters(items);
       const titles = { A: 'Факт_отгружено', B: 'Склад_готово', C: 'К_выпуску', opt: 'Прогноз_все' };
@@ -1417,7 +1476,7 @@
         Math.round(i.contribution),
         i.marginPct == null ? '' : (i.marginPct * 100).toFixed(1),
         Number(i.row.shippedQty || 0) > 0 ? 'Да' : '',
-        isChecked(i.row) ? 'Да' : 'Нет',
+        rowChecked(i.row) ? 'Да' : 'Нет',
         getComment(i.row) || ''
       ]);
       const month = (state.month === '2026-05') ? 'Май' : (state.month === '2026-06') ? 'Июнь' : state.month;
@@ -2022,20 +2081,20 @@
     document.getElementById('clearManagerFilter').addEventListener('click', clearManagerShipmentFilter);
     // Контроль данных удалён, заменён на «Цель по марже». Хендлеры больше не нужны.
 
-    // checkbox column — event delegation on table-wrap
+    // checkbox column — event delegation on table-wrap. В main-таблице галка управляет
+    // ОБОИМИ бакетами (B и C) одновременно — это «общий» переключатель. Раздельные галки —
+    // в drawer'ах «Склад готово» / «К выпуску».
     document.querySelector('.table-wrap').addEventListener('change', event => {
       const rowCb = event.target.closest('[data-row-sku]');
       if (rowCb) {
-        if (rowCb.checked) uncheckedKeys[state.month].delete(rowCb.dataset.rowSku);
-        else uncheckedKeys[state.month].add(rowCb.dataset.rowSku);
+        setRowCheckedBoth(rowCb.dataset.rowSku, rowCb.checked);
         persistUnchecked();
         render();
         return;
       }
       if (event.target.id === 'selectAllCb') {
         const vis = filteredRows();
-        if (event.target.checked) vis.forEach(row => uncheckedKeys[state.month].delete(row.sku));
-        else vis.forEach(row => uncheckedKeys[state.month].add(row.sku));
+        vis.forEach(row => setRowCheckedBoth(row.sku, event.target.checked));
         persistUnchecked();
         render();
       }
@@ -2099,8 +2158,10 @@
         const savedDrawerScroll = scrollEl ? scrollEl.scrollTop : 0;
         const savedWindowScroll = window.scrollY;
         const sku = rowCb.dataset.rowSku;
-        if (rowCb.checked) uncheckedKeys[state.month].delete(sku);
-        else uncheckedKeys[state.month].add(sku);
+        const bucket = rowCb.dataset.bucket;
+        // B/C drawer — только своя галка. opt drawer — общий тоггл (оба бакета).
+        if (bucket === 'B' || bucket === 'C') setRowChecked(sku, bucket, rowCb.checked);
+        else setRowCheckedBoth(sku, rowCb.checked);
         persistUnchecked();
         render();
         // восстанавливаем скролл после полного re-render'а
@@ -2177,7 +2238,7 @@
       render();
     });
     document.getElementById('uncheckAll').addEventListener('click', () => {
-      monthRows().forEach(row => uncheckedKeys[state.month].add(row.sku));
+      monthRows().forEach(row => setRowCheckedBoth(row.sku, false));
       persistUnchecked();
       render();
     });
