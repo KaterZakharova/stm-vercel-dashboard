@@ -637,6 +637,103 @@
       }
     }
 
+    // ─── Доп очередь (потенциал из инструмента /s3-plan/dop-queue) ──────────
+    // Тянем строки заказов 1С со статусом «КОбеспечению», у которых in_plan=false
+    // (нет зелёной пометки в инструменте). Это и есть «месячный потенциал».
+    // Если строка попала в основной план (in_plan=true) — она к нам придёт через
+    // build_stm_data.ps1 как обычный план месяца, в потенциале её не показываем.
+    const DOP_QUEUE_API = '/api/s3-plan/dop-queue?days=90';
+    const MONTH_FROM_YM = { '01':'Январь','02':'Февраль','03':'Март','04':'Апрель','05':'Май','06':'Июнь','07':'Июль','08':'Август','09':'Сентябрь','10':'Октябрь','11':'Ноябрь','12':'Декабрь' };
+    let dopQueueRows = [];      // сырые строки из API
+    let dopQueueLoaded = false; // флаг что хотя бы раз успешно подгрузили
+    async function loadDopQueueFromApi() {
+      try {
+        const r = await fetch(DOP_QUEUE_API, { cache: 'no-store', credentials: 'same-origin' });
+        if (!r.ok) return false;
+        // если middleware редиректнул на SSO — content-type будет text/html, JSON упадёт.
+        const ctype = r.headers.get('content-type') || '';
+        if (!ctype.includes('application/json')) return false;
+        const data = await r.json();
+        const rows = Array.isArray(data.rows) ? data.rows : [];
+        dopQueueRows = rows;
+        dopQueueLoaded = true;
+        return true;
+      } catch (e) {
+        console.warn('dop-queue load failed (нужен SSO?)', e);
+        return false;
+      }
+    }
+    // Конвертация сырых строк dop-queue в формат потенциала. Группировка по (month, sku),
+    // склейка orderRefs. Цены/менеджер подтягиваются из DATA по любому месяцу того же SKU.
+    function dopQueuePotentialRowsForMonth(monthName) {
+      if (!dopQueueLoaded || !dopQueueRows.length) return [];
+      const stmSkus = new Set(DATA.map(r => r.sku));
+      // индекс DATA по sku — берём максимально свежую запись (последний месяц), чтобы подтянуть цены/менеджера.
+      const dataBySku = new Map();
+      const monthIdx = m => MONTH_ORDER.indexOf(m);
+      DATA.forEach(r => {
+        const cur = dataBySku.get(r.sku);
+        if (!cur || monthIdx(r.month) > monthIdx(cur.month)) dataBySku.set(r.sku, r);
+      });
+      // Берём только строки без зелёной пометки (in_plan=false) и для STM SKU.
+      const candidates = dopQueueRows.filter(r => {
+        if (r.in_plan) return false;
+        if (!stmSkus.has(r.sku)) return false;
+        // месяц определяем по ship_month (когда клиент хочет получить).
+        const ym = r.ship_month;
+        if (!ym) return false;
+        const mm = ym.slice(5, 7);
+        return MONTH_FROM_YM[mm] === monthName;
+      });
+      // Группа по sku — внутри месяца суммируем qty, склеиваем номера заказов и контрагентов.
+      const grouped = new Map();
+      candidates.forEach(r => {
+        const acc = grouped.get(r.sku) || {
+          sku: r.sku, name: r.nomenclature, qty: 0,
+          orderRefs: new Set(), clients: new Set(), comments: new Set(),
+          hasDopMark: false,
+        };
+        acc.qty += Number(r.qty || 0);
+        if (r.toll_order_number) acc.orderRefs.add(r.toll_order_number);
+        if (r.contractor_name) acc.clients.add(r.contractor_name);
+        if (r.comment) acc.comments.add(r.comment);
+        if (r.in_dop || r.auto_in_dop) acc.hasDopMark = true;
+        grouped.set(r.sku, acc);
+      });
+      const out = [];
+      grouped.forEach(g => {
+        const d = dataBySku.get(g.sku);
+        const fp = d ? Number(d.factoryPrice || 0) : 0;
+        const cp = d ? Number(d.clientPrice || 0) : 0;
+        const revenue = g.qty * cp;
+        const gp = g.qty * Math.max(0, cp - fp);
+        const margin = revenue ? gp / revenue : 0;
+        const orderRefs = [...g.orderRefs].join('; ');
+        const clientLabel = g.clients.size ? [...g.clients].join('; ') : (orderRefs ? `Заказ ${orderRefs}` : '');
+        out.push({
+          month: monthName,
+          sku: g.sku,
+          name: g.name || (d ? d.name : ''),
+          client: clientLabel,
+          manager: d ? d.manager || '' : '',
+          qty: g.qty,
+          factoryPrice: fp,
+          clientPrice: cp,
+          revenue,
+          gp,
+          margin,
+          status: g.hasDopMark ? 'В очереди ДОП' : 'Заказ без плана',
+          comment: [...g.comments].join('; '),
+          source: 'Доп очередь',
+          uncertain: !g.hasDopMark,  // без явной пометки в ДОП — менее уверенный потенциал
+          planQty: 0,
+          orderQty: g.qty,
+          orderRefs,
+        });
+      });
+      return out;
+    }
+
     // forecast overrides — пользователь вручную помечает строки прогноза как уже покрытые планом
     const forecastCovered = (() => {
       try { return new Set(JSON.parse(localStorage.getItem(FORECAST_COVERED_KEY) || '[]') || []); } catch { return new Set(); }
@@ -1572,13 +1669,20 @@
           orderRefs: row.orderRefs || ''
         }))
         .filter(row => !isForecastCovered(row));  // пользователь снял из прогноза → не учитываем
-      return [...plannedRows, ...manualRows];
+      // Доп очередь — live из /api/s3-plan/dop-queue, fallback пустой если SSO не пройден.
+      // Фильтруем sku, которые УЖЕ есть в плане месяца (plannedRows) — план первичен,
+      // dop-queue показывает то, что НЕ попало в план.
+      const planSkus = new Set(plannedRows.map(r => r.sku));
+      const dopRows = dopQueuePotentialRowsForMonth(state.month)
+        .filter(row => !planSkus.has(row.sku))
+        .filter(row => !isForecastCovered(row));
+      return [...plannedRows, ...manualRows, ...dopRows];
     }
 
     function renderPotential() {
       const rows = potentialRows();
       const planRows = rows.filter(row => row.source === 'План месяца');
-      const manualRows = rows.filter(row => row.source === 'Прогноз' || row.source === 'Ручной потенциал');
+      const manualRows = rows.filter(row => row.source === 'Прогноз' || row.source === 'Ручной потенциал' || row.source === 'Доп очередь');
       const qty = rows.reduce((acc, row) => acc + Number(row.qty || 0), 0);
       const revenue = rows.reduce((acc, row) => acc + Number(row.revenue || 0), 0);
       const gp = rows.reduce((acc, row) => acc + Number(row.gp || 0), 0);
@@ -1605,10 +1709,17 @@
       `).join('');
       const planMargin = planRevenue ? planGp / planRevenue : 0;
       const manualMargin = manualRevenue ? manualGp / manualRevenue : 0;
+      // Разбивка прогноза: отдельно подсветим долю из «Доп очереди» (live из /s3-plan/dop-queue).
+      const dopQueueRowsMonth = rows.filter(row => row.source === 'Доп очередь');
+      const dopQueueRev = dopQueueRowsMonth.reduce((s, r) => s + Number(r.revenue || 0), 0);
+      const dopQueueCnt = dopQueueRowsMonth.length;
+      const dopQueueNote = dopQueueLoaded
+        ? (dopQueueCnt ? ` · из них Доп очередь: <strong>${rub(dopQueueRev)}</strong> (${dopQueueCnt})` : ' · Доп очередь: 0')
+        : ' · Доп очередь: не подгружена (нужен SSO)';
       document.getElementById('potentialStrip').className = 'margin-strip potential-breakdown';
       document.getElementById('potentialStrip').innerHTML = `
         <span>План 1С: <strong>${rub(planRevenue)}</strong> выручка · <strong>${rub(planGp)}</strong> валовка · <strong>${planRevenue ? pct(planMargin) : 'нет данных'}</strong></span>
-        <span class="manual">Прогноз: <strong>${rub(manualRevenue)}</strong> выручка · <strong>${rub(manualGp)}</strong> валовка · <strong>${manualRevenue ? pct(manualMargin) : 'нет данных'}</strong> · ${manualCount} строк</span>
+        <span class="manual">Прогноз: <strong>${rub(manualRevenue)}</strong> выручка · <strong>${rub(manualGp)}</strong> валовка · <strong>${manualRevenue ? pct(manualMargin) : 'нет данных'}</strong> · ${manualCount} строк${dopQueueNote}</span>
         <span class="total">Итого: <strong>${rub(revenue)}</strong> выручка · <strong>${rub(gp)}</strong> валовка · <strong>${revenue ? pct(margin) : 'нет данных'}</strong></span>
       `;
       const byManager = new Map();
@@ -1618,7 +1729,7 @@
           byManager.set(manager, { manager, planRevenue: 0, planGp: 0, manualRevenue: 0, manualGp: 0 });
         }
         const item = byManager.get(manager);
-        if (row.source === 'Прогноз' || row.source === 'Ручной потенциал') {
+        if (row.source === 'Прогноз' || row.source === 'Ручной потенциал' || row.source === 'Доп очередь') {
           item.manualRevenue += Number(row.revenue || 0);
           item.manualGp += Number(row.gp || 0);
         } else {
@@ -1653,7 +1764,8 @@
         return;
       }
       tbody.innerHTML = rows.map(row => {
-        const isForecast = row.source === 'Прогноз';
+        // редактируемые источники — прогнозы, ручной потенциал и подгруженная Доп очередь.
+        const isForecast = row.source === 'Прогноз' || row.source === 'Ручной потенциал' || row.source === 'Доп очередь';
         const bang = (isForecast && row.uncertain)
           ? `<span class="badge red" style="margin-right:6px" title="План отличается от заказа давальца: план ${fmtQty.format(row.planQty || 0)} / заказ ${fmtQty.format(row.orderQty || 0)}. Проверь, не покрыто ли это в плане другим способом.">!</span>` : '';
         const statusBadge = isForecast && row.status
@@ -1712,6 +1824,7 @@
       const color = source === 'Цена не найдена' ? 'red'
                   : source === 'Прогноз' ? 'amber'
                   : source === 'Факт продаж' ? 'amber'
+                  : source === 'Доп очередь' ? 'blue'
                   : 'green';
       return `<span class="badge ${color}">${escapeHtml(source || '')}</span>`;
     }
@@ -2273,6 +2386,9 @@
     render();
     // Подтянуть общие комментарии и даты отгрузок из shared API.
     loadSharedMetaFromApi().then(ok => { if (ok) render(); });
+    // Подтянуть «Доп очередь» (потенциал из /s3-plan/dop-queue): строки заказов без зелёной
+    // пометки in_plan. Если SSO не пройден — тихо пропускаем, потенциал останется на MANUAL_POTENTIAL.
+    loadDopQueueFromApi().then(ok => { if (ok) render(); });
 
     // ─── Кнопка «Обновить данные» через локальный refresh-сервис ───
     // Сервис крутится на компе пользователя по адресу 127.0.0.1:9999 (Task Scheduler at logon).
