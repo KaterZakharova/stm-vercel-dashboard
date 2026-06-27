@@ -311,8 +311,8 @@
     .v2-status-chips button:hover { background: #f1f5f9; }
     .v2-status-chips button.active { background:#0e7c66; color:#fff; border-color:#0e7c66; }
 
-    .v2-pane { background: #fff; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
-    .v2-pane .scroll { overflow: auto; resize: vertical; min-height: 320px; max-height: 90vh; }
+    .v2-pane { background: #fff; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); width: 100%; max-width: 100%; box-sizing: border-box; overflow: hidden; }
+    .v2-pane .scroll { overflow: auto; resize: vertical; min-height: 320px; max-height: 90vh; max-width: 100%; }
     .v2-table { width: max-content; min-width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
     .v2-table th, .v2-table td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; text-align: left; vertical-align: middle; overflow-wrap: break-word; white-space: normal; }
     .v2-table thead th { position: sticky; top: 0; z-index: 2; }
@@ -3049,9 +3049,9 @@
         // Широкие одинаковые — 320px для Наименования и Комментария
         name: 320, comment: 320,
       };
-      const V2_COL_WIDTHS_KEY = 'stmV2ColWidths_v2';
-      // удалить старый ключ v1 — там были другие дефолты
-      try { localStorage.removeItem('stmV2ColWidths'); } catch {}
+      const V2_COL_WIDTHS_KEY = 'stmV2ColWidths_v3';
+      // удалить старые версии — там были другие дефолты от drag'ов
+      try { localStorage.removeItem('stmV2ColWidths'); localStorage.removeItem('stmV2ColWidths_v2'); } catch {}
       const v2ColWidths = (() => {
         try { return JSON.parse(localStorage.getItem(V2_COL_WIDTHS_KEY) || '{}') || {}; } catch { return {}; }
       })();
