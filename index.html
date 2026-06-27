@@ -912,7 +912,19 @@
         items.forEach(it => {
           if (!it.month || !it.sku) return;
           const k = `${it.month}::${it.sku}`;
-          sharedMeta[k] = { comment: it.comment || '', shipDate: it.ship_date || '' };
+          sharedMeta[k] = {
+            comment: it.comment || '',
+            shipDate: it.ship_date || '',
+            // v2 поля — иначе loss summary не видит размеченные статусы
+            status: it.status || '',
+            status_override: !!it.status_override,
+            moved_qty: it.moved_qty == null ? null : Number(it.moved_qty),
+            moved_date: it.moved_date || '',
+            moved_reason: it.moved_reason || '',
+            tail_qty: it.tail_qty == null ? null : Number(it.tail_qty),
+            tail_included: !!it.tail_included,
+            reason_category: it.reason_category || '',
+          };
         });
         persistMetaLocal();
         return true;
