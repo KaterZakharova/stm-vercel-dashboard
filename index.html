@@ -313,7 +313,7 @@
 
     .v2-pane { background: #fff; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); width: 100%; max-width: 100%; box-sizing: border-box; overflow: hidden; }
     .v2-pane .scroll { overflow: auto; resize: vertical; min-height: 320px; max-height: 90vh; max-width: 100%; }
-    .v2-table { width: max-content; min-width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+    .v2-table { width: max-content; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
     .v2-table th, .v2-table td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; text-align: left; vertical-align: middle; overflow-wrap: break-word; white-space: normal; }
     .v2-table thead th { position: sticky; top: 0; z-index: 2; }
     .v2-table th .col-resize-handle { position: absolute; right: 0; top: 0; bottom: 0; width: 6px; cursor: col-resize; user-select: none; z-index: 3; }
@@ -3041,17 +3041,17 @@
       ];
       const V2_DEFAULT_VISIBLE = V2_COLUMNS.filter(c => c.defaultVisible).map(c => c.key);
       const V2_DEFAULT_WIDTHS = {
-        // Узкие одинаковые — 75px для всех numeric/служебных
-        sku: 75, order: 75, manager: 75,
-        plan: 75, shipped: 75, stockReady: 75, toProduce: 75, movedQty: 75, tailQty: 75,
-        grossMargin: 75, revenue: 75, marginPct: 75,
-        status: 105,  // дропдаун-выбор всё-таки нуждается в ~100
-        // Широкие одинаковые — 320px для Наименования и Комментария
-        name: 320, comment: 320,
+        // Узкие одинаковые — 60px для numeric/служебных, чтобы всё влезало
+        sku: 70, order: 70, manager: 95,
+        plan: 60, shipped: 60, stockReady: 60, toProduce: 60, movedQty: 60, tailQty: 60,
+        grossMargin: 60, revenue: 60, marginPct: 60,
+        status: 95,
+        // Широкие одинаковые — 240px для Наименования и Комментария
+        name: 240, comment: 240,
       };
-      const V2_COL_WIDTHS_KEY = 'stmV2ColWidths_v3';
-      // удалить старые версии — там были другие дефолты от drag'ов
-      try { localStorage.removeItem('stmV2ColWidths'); localStorage.removeItem('stmV2ColWidths_v2'); } catch {}
+      const V2_COL_WIDTHS_KEY = 'stmV2ColWidths_v4';
+      // удалить все старые версии — там пересохранённые ширины от drag'ов
+      try { ['stmV2ColWidths','stmV2ColWidths_v2','stmV2ColWidths_v3'].forEach(k => localStorage.removeItem(k)); } catch {}
       const v2ColWidths = (() => {
         try { return JSON.parse(localStorage.getItem(V2_COL_WIDTHS_KEY) || '{}') || {}; } catch { return {}; }
       })();
