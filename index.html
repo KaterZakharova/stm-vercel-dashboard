@@ -314,7 +314,7 @@
     .v2-pane { background: #fff; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
     .v2-pane .scroll { overflow: auto; resize: vertical; min-height: 320px; max-height: 90vh; }
     .v2-table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
-    .v2-table th, .v2-table td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; text-align: left; vertical-align: middle; word-break: break-word; white-space: normal; }
+    .v2-table th, .v2-table td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; text-align: left; vertical-align: middle; overflow-wrap: break-word; white-space: normal; }
     .v2-table thead th { position: sticky; top: 0; z-index: 2; }
     .v2-table th .col-resize-handle { position: absolute; right: 0; top: 0; bottom: 0; width: 6px; cursor: col-resize; user-select: none; z-index: 3; }
     .v2-table th .col-resize-handle:hover { background: #0e7c66; opacity: 0.6; }
@@ -3041,12 +3041,17 @@
       ];
       const V2_DEFAULT_VISIBLE = V2_COLUMNS.filter(c => c.defaultVisible).map(c => c.key);
       const V2_DEFAULT_WIDTHS = {
-        sku: 78, name: 280, order: 95, manager: 105,
-        plan: 62, shipped: 62, stockReady: 62, toProduce: 62, movedQty: 68, tailQty: 62,
-        grossMargin: 92, revenue: 92, marginPct: 58,
-        status: 105, comment: 280,
+        // Узкие одинаковые — 75px для всех numeric/служебных
+        sku: 75, order: 75, manager: 75,
+        plan: 75, shipped: 75, stockReady: 75, toProduce: 75, movedQty: 75, tailQty: 75,
+        grossMargin: 75, revenue: 75, marginPct: 75,
+        status: 105,  // дропдаун-выбор всё-таки нуждается в ~100
+        // Широкие одинаковые — 320px для Наименования и Комментария
+        name: 320, comment: 320,
       };
-      const V2_COL_WIDTHS_KEY = 'stmV2ColWidths';
+      const V2_COL_WIDTHS_KEY = 'stmV2ColWidths_v2';
+      // удалить старый ключ v1 — там были другие дефолты
+      try { localStorage.removeItem('stmV2ColWidths'); } catch {}
       const v2ColWidths = (() => {
         try { return JSON.parse(localStorage.getItem(V2_COL_WIDTHS_KEY) || '{}') || {}; } catch { return {}; }
       })();
