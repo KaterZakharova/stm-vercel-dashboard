@@ -291,16 +291,16 @@
     .v2-hero-slim .v2-hero-bar-legend .lg-dot { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
     .v2-hero-slim .v2-hero-bar-legend strong { color: #0f172a; font-weight: 600; margin-left: 2px; }
 
-    /* двухколоночная сетка для KPI + Loss — обе карточки одной высоты (stretch) */
-    .v2-top-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 14px 0; align-items: stretch; }
+    /* двухколоночная сетка для KPI + Loss — каждая карточка своей высоты под контент */
+    .v2-top-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 14px 0; align-items: start; }
     @media (max-width: 1100px) { .v2-top-grid { grid-template-columns: 1fr; } }
-    .v2-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); display: flex; flex-direction: column; height: 100%; }
-    .v2-card-head { padding: 10px 16px; border-bottom: 1px solid #f1f5f9; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #475569; font-weight: 600; flex-shrink: 0; }
-    .v2-card-body { padding: 14px 20px; flex: 1; display: flex; flex-direction: column; }
+    .v2-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); display: flex; flex-direction: column; }
+    .v2-card-head { padding: 10px 16px; border-bottom: 1px solid #f1f5f9; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #475569; font-weight: 600; }
+    .v2-card-body { padding: 14px 20px; }
     .v2-card-loss .v2-card-head { color: #dc2626; }
 
-    /* KPI: фиксированные компактные расстояния, сверху карточки */
-    #v2Kpis { display: flex; flex-direction: column; gap: 16px; padding: 0; background: none; flex: 1; }
+    /* KPI: фиксированные компактные расстояния, под контент */
+    #v2Kpis { display: flex; flex-direction: column; gap: 14px; padding: 0; background: none; }
     #v2Kpis .kpi { display: flex; flex-direction: column; gap: 3px; padding: 0; background: none; box-shadow: none; border-radius: 0; border: none; }
     #v2Kpis .kpi .kpi-top { display: flex; gap: 10px; align-items: baseline; font-size: 11px; color: #64748b; }
     #v2Kpis .kpi .label { font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
