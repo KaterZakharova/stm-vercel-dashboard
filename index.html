@@ -29,8 +29,9 @@
     button, input, select { font: inherit; }
     .shell { max-width: 1480px; margin: 0 auto; display: grid; gap: 18px; }
     .topbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
-    .home-btn { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 8px; background: #fff; border: 1px solid #e2e8f0; color: #475569; font-size: 18px; text-decoration: none; transition: all 0.15s; flex-shrink: 0; }
+    .home-btn { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 8px; background: #fff; border: 1px solid #e2e8f0; color: #475569; font-size: 18px; text-decoration: none; transition: all 0.15s; flex-shrink: 0; margin-left: -50px; }
     .home-btn:hover { background: #0e7c66; color: #fff; border-color: #0e7c66; transform: translateY(-1px); }
+    @media (max-width: 1580px) { .home-btn { margin-left: 0; } }
     .title h1 { margin: 0; font-size: 28px; line-height: 1.15; font-weight: 760; color: var(--ink); }
     .title p { margin: 8px 0 0; color: var(--muted); font-size: 14px; }
     .top-controls { display: grid; gap: 10px; justify-items: end; }
@@ -276,12 +277,12 @@
     /* ═══ v2 styles ═══ */
     .v2-hero { display:flex; gap:24px; align-items:flex-start; margin: 16px 0 20px; padding: 16px 20px; background:#fff; border-radius:10px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); position: relative; }
 
-    /* slim hero — узкий по высоте, с сегментным баром */
-    .v2-hero-slim { display: grid; grid-template-columns: auto 1fr auto; grid-template-areas: "amt sub aux" "bar bar bar" "leg leg leg"; align-items: baseline; column-gap: 16px; row-gap: 8px; padding: 14px 20px; margin: 14px 0 14px; }
-    .v2-hero-slim .v2-hero-amount { grid-area: amt; font-size: 26px; line-height: 1; font-weight: 700; }
-    .v2-hero-slim .v2-hero-sub { grid-area: sub; font-size: 13px; color: #475569; align-self: end; }
-    .v2-hero-slim .v2-hero-aux { grid-area: aux; font-size: 12px; color: #475569; }
-    .v2-hero-slim .v2-hero-bar { grid-area: bar; height: 6px; border-radius: 3px; overflow: hidden; display: flex; background: #e2e8f0; }
+    /* slim hero — крупный шрифт, заметная рамка */
+    .v2-hero-slim { display: grid; grid-template-columns: auto 1fr auto; grid-template-areas: "amt sub aux" "bar bar bar" "leg leg leg"; align-items: baseline; column-gap: 18px; row-gap: 10px; padding: 20px 26px; margin: 14px 0 14px; border: 2px solid #0e7c66; box-shadow: 0 2px 10px rgba(14,124,102,0.12); }
+    .v2-hero-slim .v2-hero-amount { grid-area: amt; font-size: 36px; line-height: 1; font-weight: 800; color: #0e7c66; }
+    .v2-hero-slim .v2-hero-sub { grid-area: sub; font-size: 14px; color: #475569; align-self: end; }
+    .v2-hero-slim .v2-hero-aux { grid-area: aux; font-size: 14px; color: #0f172a; font-weight: 600; }
+    .v2-hero-slim .v2-hero-bar { grid-area: bar; height: 8px; border-radius: 4px; overflow: hidden; display: flex; background: #e2e8f0; }
     .v2-hero-slim .v2-hero-bar .seg { height: 100%; }
     .v2-hero-slim .v2-hero-bar .seg-shipped { background: #16a34a; }
     .v2-hero-slim .v2-hero-bar .seg-stock   { background: #2563eb; }
@@ -292,23 +293,23 @@
     .v2-hero-slim .v2-hero-bar-legend strong { color: #0f172a; font-weight: 600; margin-left: 2px; }
 
     /* двухколоночная сетка для KPI + Loss */
-    .v2-top-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 14px 0; }
+    .v2-top-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 14px 0; align-items: start; }
     @media (max-width: 1100px) { .v2-top-grid { grid-template-columns: 1fr; } }
     .v2-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
     .v2-card-head { padding: 10px 16px; border-bottom: 1px solid #f1f5f9; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #475569; font-weight: 600; }
-    .v2-card-body { padding: 12px 16px; }
+    .v2-card-body { padding: 14px 20px; }
     .v2-card-loss .v2-card-head { color: #dc2626; }
 
-    /* очень компактные KPI: 2 строки в одной карточке (label+sub сверху, value+bar снизу) */
-    #v2Kpis { display: flex; flex-direction: column; gap: 8px; padding: 0; background: none; }
-    #v2Kpis .kpi { display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto auto; column-gap: 12px; row-gap: 2px; padding: 4px 0; background: none; box-shadow: none; border-radius: 0; border: none; }
-    #v2Kpis .kpi + .kpi { border-top: 1px solid #f1f5f9; padding-top: 8px; }
-    #v2Kpis .kpi .label { grid-column: 1; grid-row: 1; font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.4px; font-weight: 600; }
-    #v2Kpis .kpi .sub { grid-column: 2; grid-row: 1; font-size: 11px; color: #94a3b8; text-align: right; align-self: end; }
-    #v2Kpis .kpi .value { grid-column: 1; grid-row: 2; font-size: 22px; font-weight: 700; color: #0f172a; line-height: 1.1; }
-    #v2Kpis .kpi-pct { grid-column: 2; grid-row: 2; font-size: 14px; font-weight: 700; align-self: end; text-align: right; }
-    #v2Kpis .kpi-mini-bar { grid-column: 1 / -1; grid-row: 3; height: 4px; border-radius: 2px; background: #e2e8f0; overflow: hidden; margin-top: 2px; }
+    /* ультра-компактные KPI: 2 строки (label + value + %) + тонкий бар */
+    #v2Kpis { display: flex; flex-direction: column; gap: 0; padding: 0; background: none; }
+    #v2Kpis .kpi { display: grid; grid-template-columns: 1fr auto auto; grid-template-rows: auto auto; column-gap: 14px; row-gap: 4px; padding: 6px 0; background: none; box-shadow: none; border-radius: 0; border: none; }
+    #v2Kpis .kpi + .kpi { border-top: 1px solid #f1f5f9; }
+    #v2Kpis .kpi .label { grid-column: 1; grid-row: 1; font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.4px; font-weight: 600; align-self: center; }
+    #v2Kpis .kpi .value { grid-column: 2; grid-row: 1; font-size: 20px; font-weight: 700; color: #0f172a; line-height: 1; align-self: center; text-align: right; }
+    #v2Kpis .kpi-pct { grid-column: 3; grid-row: 1; font-size: 13px; font-weight: 700; align-self: center; text-align: right; min-width: 50px; }
+    #v2Kpis .kpi-mini-bar { grid-column: 1 / -1; grid-row: 2; height: 4px; border-radius: 2px; background: #e2e8f0; overflow: hidden; }
     #v2Kpis .kpi-mini-bar span { display: block; height: 100%; border-radius: 2px; }
+    #v2Kpis .kpi .sub { display: none; }  /* sub-text убран ради компактности */
 
     /* Loss summary — внутри карточки, компактные строки */
     #v2LossSummary .ls-section { padding: 0; background: none; border: none; margin: 0; }
