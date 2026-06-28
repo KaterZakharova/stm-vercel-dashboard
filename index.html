@@ -275,6 +275,48 @@
 
     /* ═══ v2 styles ═══ */
     .v2-hero { display:flex; gap:24px; align-items:flex-start; margin: 16px 0 20px; padding: 16px 20px; background:#fff; border-radius:10px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); position: relative; }
+
+    /* slim hero — узкий по высоте, с сегментным баром */
+    .v2-hero-slim { display: grid; grid-template-columns: auto 1fr auto; grid-template-areas: "amt sub aux" "bar bar bar" "leg leg aux2"; align-items: baseline; gap: 6px 16px; padding: 14px 20px; margin: 14px 0 14px; }
+    .v2-hero-slim .v2-hero-amount { grid-area: amt; font-size: 26px; line-height: 1; }
+    .v2-hero-slim .v2-hero-sub { grid-area: sub; font-size: 12px; color: #475569; align-self: end; }
+    .v2-hero-slim .v2-hero-aux { grid-area: aux; font-size: 12px; }
+    .v2-hero-slim .v2-hero-bar { grid-area: bar; height: 8px; border-radius: 5px; overflow: hidden; display: flex; background: #e2e8f0; margin-top: 4px; }
+    .v2-hero-slim .v2-hero-bar .seg { height: 100%; }
+    .v2-hero-slim .v2-hero-bar .seg-shipped { background: #16a34a; }
+    .v2-hero-slim .v2-hero-bar .seg-stock   { background: #2563eb; }
+    .v2-hero-slim .v2-hero-bar .seg-produce { background: #d97706; }
+    .v2-hero-slim .v2-hero-bar .seg-tail    { background: #ca8a04; }
+    .v2-hero-slim .v2-hero-bar-legend { grid-area: leg; display: flex; gap: 16px; font-size: 11px; color: #475569; flex-wrap: wrap; }
+    .v2-hero-slim .v2-hero-bar-legend .lg-dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+
+    /* двухколоночная сетка для KPI + Loss */
+    .v2-top-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 14px 0; }
+    @media (max-width: 1100px) { .v2-top-grid { grid-template-columns: 1fr; } }
+    .v2-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+    .v2-card-head { padding: 10px 16px; border-bottom: 1px solid #f1f5f9; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #475569; font-weight: 600; }
+    .v2-card-body { padding: 12px 16px; }
+    .v2-card-loss .v2-card-head { color: #dc2626; }
+
+    /* компактные KPI: 3 строки в одной карточке вместо 3 карточек */
+    #v2Kpis { display: flex; flex-direction: column; gap: 10px; padding: 0; background: none; }
+    #v2Kpis .kpi { display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto auto; gap: 2px 14px; padding: 8px 0; border-bottom: 1px solid #f1f5f9; background: none; box-shadow: none; border-radius: 0; }
+    #v2Kpis .kpi:last-child { border-bottom: none; }
+    #v2Kpis .kpi .label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.3px; }
+    #v2Kpis .kpi .value { font-size: 19px; font-weight: 600; color: #0f172a; }
+    #v2Kpis .kpi .sub { grid-column: 1 / -1; font-size: 11px; color: #64748b; }
+    #v2Kpis .kpi-pct { font-size: 12px; font-weight: 600; align-self: center; text-align: right; }
+    #v2Kpis .kpi-mini-bar { grid-column: 1 / -1; height: 4px; border-radius: 2px; background: #e2e8f0; overflow: hidden; }
+    #v2Kpis .kpi-mini-bar span { display: block; height: 100%; }
+
+    /* Loss summary — внутри карточки, компактные строки */
+    #v2LossSummary .ls-section { padding: 0; background: none; border: none; margin-bottom: 6px; }
+    #v2LossSummary .ls-section + .ls-section { border-top: 1px solid #f1f5f9; padding-top: 8px; }
+    #v2LossSummary .ls-head { font-size: 12px; }
+    #v2LossSummary .ls-title { font-weight: 600; font-size: 12px; }
+    #v2LossSummary .ls-totals { font-size: 11px; }
+    #v2LossSummary .ls-reasons { grid-template-columns: 1fr !important; gap: 4px !important; padding: 0 !important; margin-top: 6px !important; }
+    #v2LossSummary .ls-reason { display: grid; grid-template-columns: 1fr auto; padding: 4px 8px !important; font-size: 11px; align-items: center; }
     .v2-hero-unit-switch { display: inline-flex; gap: 2px; padding: 3px; background: #f1f5f9; border-radius: 7px; margin-top: 8px; }
     .v2-hero-unit-switch button { padding: 5px 12px; border: none; background: transparent; border-radius: 5px; cursor: pointer; font-size: 12px; font-weight: 500; color: #475569; }
     .v2-hero-unit-switch button:hover { color: #0f172a; background: rgba(255,255,255,0.5); }
@@ -659,17 +701,14 @@
 
     <!-- ═══════════════════ v2 (Новая версия) ═══════════════════ -->
     <section id="v2Report" class="report-view" hidden>
-      <div class="v2-hero">
-        <div class="v2-hero-main">
-          <div class="v2-hero-amount" id="v2HeroAmount">— ₽</div>
-          <div class="v2-hero-sub" id="v2HeroSub">прогноз по выборке · все SKU</div>
-          <div class="v2-hero-breakdown" id="v2HeroBreakdown"></div>
-        </div>
+      <!-- Slim hero: сумма + сегментный progress + цель в одну строку -->
+      <div class="v2-hero v2-hero-slim">
+        <div class="v2-hero-amount" id="v2HeroAmount">— ₽</div>
+        <div class="v2-hero-sub" id="v2HeroSub">прогноз по выборке · все SKU</div>
+        <div class="v2-hero-bar" id="v2HeroBar"></div>
+        <div class="v2-hero-bar-legend" id="v2HeroBarLegend"></div>
         <div class="v2-hero-aux" id="v2HeroAux"></div>
       </div>
-
-      <!-- KPI карточки (3 шт): Валовка / Штуки / Выручка -->
-      <section class="kpis" id="v2Kpis"></section>
 
       <!-- Менеджеры — компактная свёрнутая полоса + раскрытие -->
       <section class="v2-managers">
@@ -679,6 +718,18 @@
         </div>
         <div class="v2-managers-detail" id="v2ManagersDetail" hidden></div>
       </section>
+
+      <!-- Две карточки в ряд: показатели месяца | снято и перенос -->
+      <div class="v2-top-grid">
+        <section class="v2-card" id="v2KpisCard">
+          <div class="v2-card-head">Показатели месяца · ФАКТ</div>
+          <div class="v2-card-body" id="v2Kpis"></div>
+        </section>
+        <section class="v2-card v2-card-loss" id="v2LossCard">
+          <div class="v2-card-head" id="v2LossCardHead">Снято и Перенос · ПОЧЕМУ</div>
+          <div class="v2-card-body" id="v2LossSummary"></div>
+        </section>
+      </div>
 
       <!-- View switcher: Таблица / Канбан / Воронка -->
       <div class="v2-view-switcher" id="v2ViewSwitcher">
@@ -708,9 +759,6 @@
         </div>
         <div class="v2-status-chips" id="v2StatusChips"></div>
       </div>
-
-      <!-- Сводка по снятому/переносу (для руководства) -->
-      <div id="v2LossSummary" class="v2-loss-summary" hidden></div>
 
       <!-- Панель «Документация» (редактируемые справочники) -->
       <div id="v2DocsPanel" class="v2-docs-panel" hidden>
@@ -3110,51 +3158,61 @@
         const unit = v2State.heroUnit;
         const set = unit === 'revenue' ? fc.R : unit === 'qty' ? fc.Q : fc.A;
         const fmt = unit === 'qty' ? (v => fmtQty.format(v||0) + ' шт') : (v => rub(v));
-        const subTitle = { margin:'валовка ₽ без НДС', revenue:'выручка ₽ без НДС', qty:'штуки' }[unit];
         document.getElementById('v2HeroAmount').textContent = fmt(set.total);
+        const target = unit === 'qty'
+          ? ((TARGETS[state.month] || {}).qty || 0)
+          : ((TARGETS[state.month] || {}).gp || 0);
+        const pctOfTarget = target ? Math.round(set.total/target*100) : null;
         document.getElementById('v2HeroSub').innerHTML =
-          `${subTitle} · прогноз по выборке · все SKU · ${state.month}` +
+          `прогноз${pctOfTarget != null ? ` · <strong>${pctOfTarget}%</strong> цели` : ''} · все SKU · ${state.month}` +
           ` <span class="v2-hero-unit-switch">
               <button data-hero-unit="margin"  ${unit==='margin'?'class="active"':''}>₽ валовка</button>
               <button data-hero-unit="revenue" ${unit==='revenue'?'class="active"':''}>₽ выручка</button>
               <button data-hero-unit="qty"     ${unit==='qty'?'class="active"':''}>шт</button>
            </span>`;
-        document.getElementById('v2HeroBreakdown').innerHTML =
-          `<span>Факт <strong>${fmt(set.fact)}</strong></span>` +
-          `<span>Склад <strong>${fmt(set.stock)}</strong></span>` +
-          `<span>К выпуску <strong>${fmt(set.produce)}</strong>${fc.realizableRate < 1 ? ` <small>(${Math.round(fc.realizableRate*100)}%)</small>`:''}</span>` +
-          `<span>Хвосты <strong>${fmt(set.tail)}</strong>${fc.tailIncluded? '' : ' <small>(не учтены)</small>'}</span>` +
-          (set.moved > 0 ? `<span style="color:#94a3b8">Перенос (не в прогнозе) ${fmt(set.moved)}</span>` : '') +
-          (set.lost > 0 ? `<span style="color:#dc2626">Снято под риском −${fmt(set.lost)}</span>` : '');
-        const target = unit === 'qty'
-          ? ((TARGETS[state.month] || {}).qty || 0)
-          : ((TARGETS[state.month] || {}).gp || 0);
-        document.getElementById('v2HeroAux').innerHTML = target ? `Цель: ${fmt(target)} · <strong>${pct(set.total/target)}</strong>` : '';
+        // Сегментный bar: Факт / Склад / К вып. / Хвост в пропорциях от total
+        const total = set.total || 1;
+        const segs = [
+          { key:'shipped', label:'Факт',    value:set.fact,    color:'#16a34a' },
+          { key:'stock',   label:'Склад',   value:set.stock,   color:'#2563eb' },
+          { key:'produce', label:'К вып.',  value:set.produce, color:'#d97706' },
+          { key:'tail',    label:'Хвост',   value:set.tail,    color:'#ca8a04' },
+        ];
+        document.getElementById('v2HeroBar').innerHTML = segs.map(s =>
+          `<div class="seg seg-${s.key}" style="width:${Math.max(0, s.value/total*100)}%" title="${s.label}: ${fmt(s.value)}"></div>`
+        ).join('');
+        document.getElementById('v2HeroBarLegend').innerHTML = segs.map(s =>
+          `<span><span class="lg-dot" style="background:${s.color}"></span>${s.label} ${fmt(s.value)}</span>`
+        ).join('') +
+          (set.moved > 0 ? `<span style="color:#94a3b8">Перенос ${fmt(set.moved)}</span>` : '') +
+          (set.lost > 0 ? `<span style="color:#dc2626">Снято −${fmt(set.lost)}</span>` : '');
+        document.getElementById('v2HeroAux').innerHTML = target ? `Цель: <strong>${fmt(target)}</strong>` : '';
       }
       function v2RenderKpis(rows, fc) {
         const target = (TARGETS[state.month] || {}).gp || 0;
-        const targetPct = target ? fc.factSum / target : 0;
         const planQtyTot = rows.reduce((a, r) => a + r.plan, 0);
         const factQty = rows.reduce((a, r) => a + r.shipped, 0);
         const planRev = rows.reduce((a, r) => a + (r.revenue || 0), 0);
         const factRev = rows.reduce((a, r) => a + Number(r.raw.actualRevenue || 0), 0);
-        const fmt = (a, b) => a && b ? `${pct(a/b)}` : '';
-        document.getElementById('v2Kpis').innerHTML = `
-          <div class="kpi">
-            <div class="label">Валовка управленческая · ${escapeHtml(state.month)} · факт · отгружено</div>
-            <div class="value">${rub(fc.factSum)} <span style="font-size:14px;color:${targetPct>=0.7?'#16a34a':'#d97706'}">${target?pct(targetPct):''}</span></div>
-            <div class="sub">из ${rub(target)} цель${target?`. Маржа факт: ${factRev?pct(fc.factSum/factRev):'—'}`:''}</div>
-          </div>
-          <div class="kpi">
-            <div class="label">Штуки · ${escapeHtml(state.month)} · отгружено</div>
-            <div class="value">${fmtQty.format(factQty)} <span style="font-size:14px;color:#2563eb">${fmt(factQty, planQtyTot)}</span></div>
-            <div class="sub">из ${fmtQty.format(planQtyTot)} план · Выпущено ${fmtQty.format(rows.reduce((a,r)=>a+Number(r.raw.releaseQty||0),0))}</div>
-          </div>
-          <div class="kpi">
-            <div class="label">Выручка без НДС · ${escapeHtml(state.month)} · факт</div>
-            <div class="value">${rub(factRev)} <span style="font-size:14px;color:${factRev/planRev>=0.7?'#16a34a':'#d97706'}">${fmt(factRev, planRev)}</span></div>
-            <div class="sub">из ${rub(planRev)} план</div>
+        const factGp = fc.factSum;
+        const colorFor = p => p >= 0.7 ? '#16a34a' : p >= 0.4 ? '#d97706' : '#dc2626';
+        const row = (label, value, achieved, total, sub, barColor) => {
+          const p = total ? Math.min(1, achieved/total) : 0;
+          return `<div class="kpi">
+            <div class="label">${escapeHtml(label)}</div>
+            <div class="value">${value}</div>
+            <div class="kpi-pct" style="color:${colorFor(p)}">${total?pct(p):'—'}</div>
+            <div class="kpi-mini-bar"><span style="width:${Math.max(0,p*100)}%;background:${barColor||colorFor(p)}"></span></div>
+            <div class="sub">${sub}</div>
           </div>`;
+        };
+        document.getElementById('v2Kpis').innerHTML =
+          row('Валовка управл.', rub(factGp), factGp, target,
+              `из ${rub(target)} цель${factRev?` · маржа ${pct(factGp/factRev)}`:''}`, '#0e7c66') +
+          row('Штуки', fmtQty.format(factQty), factQty, planQtyTot,
+              `из ${fmtQty.format(planQtyTot)} план · выпущено ${fmtQty.format(rows.reduce((a,r)=>a+Number(r.raw.releaseQty||0),0))}`, '#2563eb') +
+          row('Выручка без НДС', rub(factRev), factRev, planRev,
+              `из ${rub(planRev)} план`, '#0e7c66');
       }
       function v2RenderManagers(rows) {
         const byMgr = new Map();
@@ -3194,7 +3252,11 @@
         const riskRows  = rows.filter(r => r.status === 'risk');
         const movedRows = rows.filter(r => r.status === 'moved');
         const el = document.getElementById('v2LossSummary');
-        if (!riskRows.length && !movedRows.length) { el.hidden = true; return; }
+        const card = document.getElementById('v2LossCard');
+        if (!riskRows.length && !movedRows.length) {
+          el.innerHTML = '<div style="color:#94a3b8;font-size:12px;padding:8px 0">Ничего не снято и не перенесено</div>';
+          return;
+        }
         // Группа по reasonCategory отдельно для каждого статуса
         function aggregate(rs, kind) {
           const byCat = new Map(); let totalMoney = 0, totalQty = 0, unfilledCount = 0;
@@ -3242,7 +3304,6 @@
             ${M.unfilledCount > 0 ? `<div class="ls-unfilled-note">⚠ ${M.unfilledCount} SKU без категории</div>` : ''}
           </div>` : '';
         el.innerHTML = riskHtml + movedHtml;
-        el.hidden = false;
       }
       function v2RenderViewSwitcher() {
         document.querySelectorAll('#v2ViewSwitcher button').forEach(b =>
