@@ -313,12 +313,11 @@
 
     .v2-pane { background: #fff; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); width: 100%; max-width: 100%; box-sizing: border-box; overflow: hidden; }
     .v2-pane .scroll { overflow: auto; resize: vertical; min-height: 320px; max-height: 90vh; max-width: 100%; }
-    .v2-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .v2-table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
     .v2-table th, .v2-table td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; text-align: left; vertical-align: middle; overflow-wrap: break-word; }
-    .v2-table thead th { position: sticky; top: 0; z-index: 2; }
-    .v2-table th { position: relative; }
-    .v2-table td.name { min-width: 180px; }
-    .v2-table td.v2-comment-cell { min-width: 160px; }
+    .v2-table thead th { position: sticky; top: 0; z-index: 2; position: relative; }
+    .v2-table th .col-resize { position: absolute; right: 0; top: 0; bottom: 0; width: 6px; cursor: col-resize; user-select: none; z-index: 3; }
+    .v2-table th .col-resize:hover, .v2-table th .col-resize.dragging { background: #0e7c66; opacity: 0.5; }
     .v2-filter-row th { background: #fff; padding: 4px 6px; border-bottom: 1px solid #e2e8f0; top: 32px; }
     .v2-filter-row input { width: 100%; padding: 4px 6px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 11px; box-sizing: border-box; }
     .v2-filter-row input:focus { border-color: #0e7c66; outline: none; }
@@ -728,6 +727,7 @@
       <section class="v2-pane" id="v2TablePane">
         <div class="scroll">
           <table class="v2-table">
+            <colgroup id="v2TableColgroup"></colgroup>
             <thead id="v2TableHead"></thead>
             <tbody id="v2TableBody"></tbody>
             <tfoot id="v2TableFoot"></tfoot>
@@ -3041,17 +3041,14 @@
       ];
       const V2_DEFAULT_VISIBLE = V2_COLUMNS.filter(c => c.defaultVisible).map(c => c.key);
       const V2_DEFAULT_WIDTHS = {
-        // Узкие одинаковые — 60px для numeric/служебных, чтобы всё влезало
-        sku: 70, order: 70, manager: 95,
-        plan: 60, shipped: 60, stockReady: 60, toProduce: 60, movedQty: 60, tailQty: 60,
-        grossMargin: 60, revenue: 60, marginPct: 60,
-        status: 95,
-        // Широкие одинаковые — 240px для Наименования и Комментария
-        name: 240, comment: 240,
+        sku: 75, order: 100, manager: 105,
+        plan: 65, shipped: 65, stockReady: 65, toProduce: 65, movedQty: 70, tailQty: 65,
+        grossMargin: 90, revenue: 90, marginPct: 65,
+        status: 100,
+        name: 220, comment: 220,
       };
-      const V2_COL_WIDTHS_KEY = 'stmV2ColWidths_v4';
-      // удалить все старые версии — там пересохранённые ширины от drag'ов
-      try { ['stmV2ColWidths','stmV2ColWidths_v2','stmV2ColWidths_v3'].forEach(k => localStorage.removeItem(k)); } catch {}
+      const V2_COL_WIDTHS_KEY = 'stmV2ColWidths_v5';
+      try { ['stmV2ColWidths','stmV2ColWidths_v2','stmV2ColWidths_v3','stmV2ColWidths_v4'].forEach(k => localStorage.removeItem(k)); } catch {}
       const v2ColWidths = (() => {
         try { return JSON.parse(localStorage.getItem(V2_COL_WIDTHS_KEY) || '{}') || {}; } catch { return {}; }
       })();
@@ -3262,11 +3259,15 @@
         if (activeFilters.length) {
           filtered = filtered.filter(r => activeFilters.every(([k, v]) => v2MatchFilter(r, k, v)));
         }
+        // colgroup — управляет ширинами при table-layout:fixed
+        document.getElementById('v2TableColgroup').innerHTML = cols.map(c =>
+          `<col data-col="${c.key}" style="width:${v2ColWidths[c.key] || V2_DEFAULT_WIDTHS[c.key] || 100}px">`
+        ).join('');
         const filterRow = `<tr class="v2-filter-row">${cols.map(c =>
           `<th><input type="text" data-v2-col-filter="${c.key}" value="${escapeHtml(v2State.filters[c.key]||'')}" placeholder="${c.num?'>500':'фильтр'}"></th>`
         ).join('')}</tr>`;
         document.getElementById('v2TableHead').innerHTML =
-          '<tr>' + cols.map(c => `<th class="${c.num?'num':''}" data-col="${c.key}">${escapeHtml(c.label)}</th>`).join('') + '</tr>' +
+          '<tr>' + cols.map(c => `<th class="${c.num?'num':''}" data-col="${c.key}">${escapeHtml(c.label)}<span class="col-resize" data-col="${c.key}" title="Тяни, чтобы изменить ширину"></span></th>`).join('') + '</tr>' +
           filterRow;
         document.getElementById('v2TableBody').innerHTML = filtered.length
           ? filtered.map(r => v2RowHtml(r, cols)).join('')
@@ -3301,7 +3302,7 @@
         const strikeTailMoney = !r.tailIncluded && !v2State.funnelTailIncluded ? 'strike' : '';
         const cellFor = c => {
           if (c.key === 'sku')         return `<td class="sku-cell"><strong>${escapeHtml(r.sku)}</strong>${r.flagCostHole?' <span title="нет цены фабрики в 1С — маржа считается как 20% от выручки, проверь" style="color:#dc2626">⚠</span>':r.flagMarginSuspicious?' <span title="маржа >65%" style="color:#ca8a04">⚠</span>':''}</td>`;
-          if (c.key === 'name')        return `<td class="name">${escapeHtml(r.name||'')}</td>`;
+          if (c.key === 'name')        return `<td>${escapeHtml(r.name||'')}</td>`;
           if (c.key === 'order')       return `<td><small style="color:#64748b">${escapeHtml(r.order||'')}</small></td>`;
           if (c.key === 'manager')     return `<td><small>${escapeHtml(r.manager||'')}</small></td>`;
           if (c.key === 'plan')        return `<td class="num">${fmtQty.format(r.plan)}</td>`;
@@ -3572,23 +3573,26 @@
       (function v2ColResize() {
         let drag = null;
         document.getElementById('v2TableHead').addEventListener('mousedown', e => {
-          const h = e.target.closest('.col-resize-handle');
+          const h = e.target.closest('.col-resize');
           if (!h) return;
           const key = h.dataset.col;
-          const col = document.querySelector(`#v2TableHead col[data-col="${key}"]`);
-          const startW = col ? col.getBoundingClientRect().width : 100;
-          drag = { key, startX: e.clientX, startW, col };
+          const col = document.querySelector(`#v2TableColgroup col[data-col="${key}"]`);
+          if (!col) return;
+          const startW = col.getBoundingClientRect().width || parseInt(col.style.width) || 100;
+          drag = { key, startX: e.clientX, startW, col, handle: h };
+          h.classList.add('dragging');
           document.body.style.cursor = 'col-resize';
           e.preventDefault();
         });
         document.addEventListener('mousemove', e => {
           if (!drag) return;
           const newW = Math.max(50, Math.round(drag.startW + (e.clientX - drag.startX)));
-          if (drag.col) drag.col.style.width = newW + 'px';
+          drag.col.style.width = newW + 'px';
           v2ColWidths[drag.key] = newW;
         });
         document.addEventListener('mouseup', () => {
           if (!drag) return;
+          drag.handle.classList.remove('dragging');
           v2PersistColWidths();
           document.body.style.cursor = '';
           drag = null;
