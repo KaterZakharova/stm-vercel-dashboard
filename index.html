@@ -277,18 +277,19 @@
     .v2-hero { display:flex; gap:24px; align-items:flex-start; margin: 16px 0 20px; padding: 16px 20px; background:#fff; border-radius:10px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); position: relative; }
 
     /* slim hero — узкий по высоте, с сегментным баром */
-    .v2-hero-slim { display: grid; grid-template-columns: auto 1fr auto; grid-template-areas: "amt sub aux" "bar bar bar" "leg leg aux2"; align-items: baseline; gap: 6px 16px; padding: 14px 20px; margin: 14px 0 14px; }
-    .v2-hero-slim .v2-hero-amount { grid-area: amt; font-size: 26px; line-height: 1; }
-    .v2-hero-slim .v2-hero-sub { grid-area: sub; font-size: 12px; color: #475569; align-self: end; }
-    .v2-hero-slim .v2-hero-aux { grid-area: aux; font-size: 12px; }
-    .v2-hero-slim .v2-hero-bar { grid-area: bar; height: 8px; border-radius: 5px; overflow: hidden; display: flex; background: #e2e8f0; margin-top: 4px; }
+    .v2-hero-slim { display: grid; grid-template-columns: auto 1fr auto; grid-template-areas: "amt sub aux" "bar bar bar" "leg leg leg"; align-items: baseline; column-gap: 16px; row-gap: 8px; padding: 14px 20px; margin: 14px 0 14px; }
+    .v2-hero-slim .v2-hero-amount { grid-area: amt; font-size: 26px; line-height: 1; font-weight: 700; }
+    .v2-hero-slim .v2-hero-sub { grid-area: sub; font-size: 13px; color: #475569; align-self: end; }
+    .v2-hero-slim .v2-hero-aux { grid-area: aux; font-size: 12px; color: #475569; }
+    .v2-hero-slim .v2-hero-bar { grid-area: bar; height: 6px; border-radius: 3px; overflow: hidden; display: flex; background: #e2e8f0; }
     .v2-hero-slim .v2-hero-bar .seg { height: 100%; }
     .v2-hero-slim .v2-hero-bar .seg-shipped { background: #16a34a; }
     .v2-hero-slim .v2-hero-bar .seg-stock   { background: #2563eb; }
     .v2-hero-slim .v2-hero-bar .seg-produce { background: #d97706; }
     .v2-hero-slim .v2-hero-bar .seg-tail    { background: #ca8a04; }
-    .v2-hero-slim .v2-hero-bar-legend { grid-area: leg; display: flex; gap: 16px; font-size: 11px; color: #475569; flex-wrap: wrap; }
-    .v2-hero-slim .v2-hero-bar-legend .lg-dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+    .v2-hero-slim .v2-hero-bar-legend { grid-area: leg; display: flex; gap: 18px; font-size: 12px; color: #475569; flex-wrap: wrap; align-items: center; }
+    .v2-hero-slim .v2-hero-bar-legend .lg-dot { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
+    .v2-hero-slim .v2-hero-bar-legend strong { color: #0f172a; font-weight: 600; margin-left: 2px; }
 
     /* двухколоночная сетка для KPI + Loss */
     .v2-top-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 14px 0; }
@@ -299,24 +300,35 @@
     .v2-card-loss .v2-card-head { color: #dc2626; }
 
     /* компактные KPI: 3 строки в одной карточке вместо 3 карточек */
-    #v2Kpis { display: flex; flex-direction: column; gap: 10px; padding: 0; background: none; }
-    #v2Kpis .kpi { display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto auto; gap: 2px 14px; padding: 8px 0; border-bottom: 1px solid #f1f5f9; background: none; box-shadow: none; border-radius: 0; }
-    #v2Kpis .kpi:last-child { border-bottom: none; }
-    #v2Kpis .kpi .label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.3px; }
-    #v2Kpis .kpi .value { font-size: 19px; font-weight: 600; color: #0f172a; }
-    #v2Kpis .kpi .sub { grid-column: 1 / -1; font-size: 11px; color: #64748b; }
-    #v2Kpis .kpi-pct { font-size: 12px; font-weight: 600; align-self: center; text-align: right; }
-    #v2Kpis .kpi-mini-bar { grid-column: 1 / -1; height: 4px; border-radius: 2px; background: #e2e8f0; overflow: hidden; }
-    #v2Kpis .kpi-mini-bar span { display: block; height: 100%; }
+    #v2Kpis { display: flex; flex-direction: column; gap: 14px; padding: 0; background: none; }
+    #v2Kpis .kpi { display: grid; grid-template-columns: 1fr auto auto; grid-template-rows: auto auto auto; column-gap: 12px; row-gap: 4px; padding: 0; background: none; box-shadow: none; border-radius: 0; border: none; }
+    #v2Kpis .kpi + .kpi { padding-top: 12px; border-top: 1px solid #f1f5f9; }
+    #v2Kpis .kpi .label { grid-column: 1; grid-row: 1; font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.4px; font-weight: 600; align-self: end; }
+    #v2Kpis .kpi .value { grid-column: 2; grid-row: 1; font-size: 22px; font-weight: 700; color: #0f172a; line-height: 1; }
+    #v2Kpis .kpi-pct { grid-column: 3; grid-row: 1; font-size: 13px; font-weight: 700; align-self: end; min-width: 50px; text-align: right; }
+    #v2Kpis .kpi-mini-bar { grid-column: 1 / -1; grid-row: 2; height: 6px; border-radius: 3px; background: #e2e8f0; overflow: hidden; }
+    #v2Kpis .kpi-mini-bar span { display: block; height: 100%; border-radius: 3px; }
+    #v2Kpis .kpi .sub { grid-column: 1 / -1; grid-row: 3; font-size: 11px; color: #94a3b8; }
 
     /* Loss summary — внутри карточки, компактные строки */
-    #v2LossSummary .ls-section { padding: 0; background: none; border: none; margin-bottom: 6px; }
-    #v2LossSummary .ls-section + .ls-section { border-top: 1px solid #f1f5f9; padding-top: 8px; }
-    #v2LossSummary .ls-head { font-size: 12px; }
-    #v2LossSummary .ls-title { font-weight: 600; font-size: 12px; }
-    #v2LossSummary .ls-totals { font-size: 11px; }
-    #v2LossSummary .ls-reasons { grid-template-columns: 1fr !important; gap: 4px !important; padding: 0 !important; margin-top: 6px !important; }
-    #v2LossSummary .ls-reason { display: grid; grid-template-columns: 1fr auto; padding: 4px 8px !important; font-size: 11px; align-items: center; }
+    #v2LossSummary .ls-section { padding: 0; background: none; border: none; margin: 0; }
+    #v2LossSummary .ls-section + .ls-section { border-top: 1px solid #f1f5f9; padding-top: 10px; margin-top: 10px; }
+    #v2LossSummary .ls-head { display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; margin-bottom: 6px; }
+    #v2LossSummary .ls-icon { font-size: 14px; }
+    #v2LossSummary .ls-title { font-weight: 600; font-size: 12px; color: #0f172a; }
+    #v2LossSummary .ls-totals { font-size: 11px; color: #475569; }
+    #v2LossSummary .ls-reasons { display: flex !important; flex-direction: column !important; gap: 6px !important; padding: 0 !important; margin: 0 !important; }
+    #v2LossSummary .ls-reason { display: grid !important; grid-template-columns: 1fr auto; column-gap: 12px; padding: 0 !important; background: none !important; border: none !important; font-size: 12px; align-items: center; cursor: pointer; }
+    #v2LossSummary .ls-reason:hover { background: none !important; }
+    #v2LossSummary .ls-reason > div:first-child { font-weight: 500; color: #0f172a; }
+    #v2LossSummary .ls-reason > div:last-child { font-size: 11px; color: #64748b; white-space: nowrap; }
+    #v2LossSummary .ls-reason .ls-money { color: #dc2626; font-weight: 600; font-size: 12px; }
+    #v2LossSummary .ls-section.ls-moved .ls-reason .ls-money { color: #475569; }
+    #v2LossSummary .ls-reason.ls-active { background: #dc2626 !important; color: #fff; padding: 4px 8px !important; border-radius: 4px; }
+    #v2LossSummary .ls-reason.ls-active > div:first-child,
+    #v2LossSummary .ls-reason.ls-active > div:last-child,
+    #v2LossSummary .ls-reason.ls-active .ls-money { color: #fff; }
+    #v2LossSummary .ls-unfilled-note { margin-top: 8px; font-size: 11px; color: #d97706; }
     .v2-hero-unit-switch { display: inline-flex; gap: 2px; padding: 3px; background: #f1f5f9; border-radius: 7px; margin-top: 8px; }
     .v2-hero-unit-switch button { padding: 5px 12px; border: none; background: transparent; border-radius: 5px; cursor: pointer; font-size: 12px; font-weight: 500; color: #475569; }
     .v2-hero-unit-switch button:hover { color: #0f172a; background: rgba(255,255,255,0.5); }
@@ -3182,10 +3194,10 @@
           `<div class="seg seg-${s.key}" style="width:${Math.max(0, s.value/total*100)}%" title="${s.label}: ${fmt(s.value)}"></div>`
         ).join('');
         document.getElementById('v2HeroBarLegend').innerHTML = segs.map(s =>
-          `<span><span class="lg-dot" style="background:${s.color}"></span>${s.label} ${fmt(s.value)}</span>`
+          `<span><span class="lg-dot" style="background:${s.color}"></span>${s.label} <strong>${fmt(s.value)}</strong></span>`
         ).join('') +
-          (set.moved > 0 ? `<span style="color:#94a3b8">Перенос ${fmt(set.moved)}</span>` : '') +
-          (set.lost > 0 ? `<span style="color:#dc2626">Снято −${fmt(set.lost)}</span>` : '');
+          (set.moved > 0 ? `<span style="color:#94a3b8"><span class="lg-dot" style="background:#cbd5e1"></span>Перенос <strong>${fmt(set.moved)}</strong></span>` : '') +
+          (set.lost > 0 ? `<span style="color:#dc2626"><span class="lg-dot" style="background:#dc2626"></span>Снято −<strong>${fmt(set.lost)}</strong></span>` : '');
         document.getElementById('v2HeroAux').innerHTML = target ? `Цель: <strong>${fmt(target)}</strong>` : '';
       }
       function v2RenderKpis(rows, fc) {
