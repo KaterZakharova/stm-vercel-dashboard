@@ -29,9 +29,8 @@
     button, input, select { font: inherit; }
     .shell { max-width: 1480px; margin: 0 auto; display: grid; gap: 18px; }
     .topbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
-    .home-btn { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 8px; background: #fff; border: 1px solid #e2e8f0; color: #475569; font-size: 18px; text-decoration: none; transition: all 0.15s; flex-shrink: 0; margin-left: -50px; }
+    .home-btn { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 8px; background: #fff; border: 1px solid #e2e8f0; color: #475569; font-size: 18px; text-decoration: none; transition: all 0.15s; margin-bottom: 8px; }
     .home-btn:hover { background: #0e7c66; color: #fff; border-color: #0e7c66; transform: translateY(-1px); }
-    @media (max-width: 1580px) { .home-btn { margin-left: 0; } }
     .title h1 { margin: 0; font-size: 28px; line-height: 1.15; font-weight: 760; color: var(--ink); }
     .title p { margin: 8px 0 0; color: var(--muted); font-size: 14px; }
     .top-controls { display: grid; gap: 10px; justify-items: end; }
@@ -300,16 +299,17 @@
     .v2-card-body { padding: 14px 20px; }
     .v2-card-loss .v2-card-head { color: #dc2626; }
 
-    /* ультра-компактные KPI: 2 строки (label + value + %) + тонкий бар */
+    /* ультра-компактные KPI: одна строка label+value+%, тонкий бар */
     #v2Kpis { display: flex; flex-direction: column; gap: 0; padding: 0; background: none; }
-    #v2Kpis .kpi { display: grid; grid-template-columns: 1fr auto auto; grid-template-rows: auto auto; column-gap: 14px; row-gap: 4px; padding: 6px 0; background: none; box-shadow: none; border-radius: 0; border: none; }
+    #v2Kpis .kpi { display: grid; grid-template-columns: 1fr auto auto; grid-template-rows: auto auto; column-gap: 12px; row-gap: 3px; padding: 4px 0; background: none; box-shadow: none; border-radius: 0; border: none; }
     #v2Kpis .kpi + .kpi { border-top: 1px solid #f1f5f9; }
-    #v2Kpis .kpi .label { grid-column: 1; grid-row: 1; font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.4px; font-weight: 600; align-self: center; }
-    #v2Kpis .kpi .value { grid-column: 2; grid-row: 1; font-size: 20px; font-weight: 700; color: #0f172a; line-height: 1; align-self: center; text-align: right; }
-    #v2Kpis .kpi-pct { grid-column: 3; grid-row: 1; font-size: 13px; font-weight: 700; align-self: center; text-align: right; min-width: 50px; }
-    #v2Kpis .kpi-mini-bar { grid-column: 1 / -1; grid-row: 2; height: 4px; border-radius: 2px; background: #e2e8f0; overflow: hidden; }
+    #v2Kpis .kpi .label { grid-column: 1; grid-row: 1; font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.3px; font-weight: 600; align-self: center; }
+    #v2Kpis .kpi .value { grid-column: 2; grid-row: 1; font-size: 16px; font-weight: 700; color: #0f172a; line-height: 1; align-self: center; text-align: right; }
+    #v2Kpis .kpi-pct { grid-column: 3; grid-row: 1; font-size: 12px; font-weight: 700; align-self: center; text-align: right; min-width: 46px; }
+    #v2Kpis .kpi-mini-bar { grid-column: 1 / -1; grid-row: 2; height: 3px; border-radius: 2px; background: #e2e8f0; overflow: hidden; }
     #v2Kpis .kpi-mini-bar span { display: block; height: 100%; border-radius: 2px; }
-    #v2Kpis .kpi .sub { display: none; }  /* sub-text убран ради компактности */
+    #v2Kpis .kpi .sub { display: none; }
+    #v2Kpis .kpi .kpi-target { font-weight: 400; color: #94a3b8; font-size: 10px; text-transform: none; letter-spacing: 0; margin-left: 6px; }
 
     /* Loss summary — внутри карточки, компактные строки */
     #v2LossSummary .ls-section { padding: 0; background: none; border: none; margin: 0; }
@@ -507,8 +507,8 @@
 <body>
   <main class="shell">
     <div class="topbar">
-      <a href="/" class="home-btn" title="В хаб STM" aria-label="Домой">🏠</a>
       <div class="title">
+        <a href="/" class="home-btn" title="В хаб STM" aria-label="Домой">🏠</a>
         <h1>СТМ: план, выпуск и продажи</h1>
         <p>Оперативная версия: план и выпуск из отчета производства, отгрузки и выручка из 1С, валовка управленческая.</p>
         <div class="refresh-controls">
@@ -3209,28 +3209,28 @@
         const factRev = rows.reduce((a, r) => a + Number(r.raw.actualRevenue || 0), 0);
         const factGp = fc.factSum;
         const colorFor = p => p >= 0.7 ? '#16a34a' : p >= 0.4 ? '#d97706' : '#dc2626';
-        const row = (label, value, achieved, total, sub, barColor) => {
+        const row = (label, targetLabel, targetValue, value, achieved, total, barColor) => {
           const p = total ? Math.min(1, achieved/total) : 0;
           return `<div class="kpi">
-            <div class="label">${escapeHtml(label)}</div>
+            <div class="label">${escapeHtml(label)} <span class="kpi-target">${targetLabel} ${targetValue}</span></div>
             <div class="value">${value}</div>
             <div class="kpi-pct" style="color:${colorFor(p)}">${total?pct(p):'—'}</div>
             <div class="kpi-mini-bar"><span style="width:${Math.max(0,p*100)}%;background:${barColor||colorFor(p)}"></span></div>
-            <div class="sub">${sub}</div>
           </div>`;
         };
         document.getElementById('v2Kpis').innerHTML =
-          row('Валовка управл.', rub(factGp), factGp, target,
-              `из ${rub(target)} цель${factRev?` · маржа ${pct(factGp/factRev)}`:''}`, '#0e7c66') +
-          row('Штуки', fmtQty.format(factQty), factQty, planQtyTot,
-              `из ${fmtQty.format(planQtyTot)} план · выпущено ${fmtQty.format(rows.reduce((a,r)=>a+Number(r.raw.releaseQty||0),0))}`, '#2563eb') +
-          row('Выручка без НДС', rub(factRev), factRev, planRev,
-              `из ${rub(planRev)} план`, '#0e7c66');
+          row('Валовка управл.', 'цель', rub(target),       rub(factGp),         factGp,  target,      '#0e7c66') +
+          row('Штуки',           'план', fmtQty.format(planQtyTot), fmtQty.format(factQty), factQty, planQtyTot, '#2563eb') +
+          row('Выручка без НДС', 'план', rub(planRev),      rub(factRev),         factRev, planRev,    '#0e7c66');
       }
       function v2RenderManagers(rows) {
+        // Только эти три менеджера — остальные не показываем
+        const KEEP_MANAGERS = ['Ягнакова', 'Темрина', 'Лигостаева'];
+        const matchKeep = (name) => KEEP_MANAGERS.some(k => (name || '').includes(k));
         const byMgr = new Map();
         rows.forEach(r => {
-          const k = r.manager || 'Без менеджера';
+          const k = r.manager || '';
+          if (!matchKeep(k)) return;
           const acc = byMgr.get(k) || { name: k, fact:0, plan:0, factQty:0, planQty:0 };
           acc.fact += r.moneyShipped; acc.plan += r.grossMargin;
           acc.factQty += r.shipped;   acc.planQty += r.plan;
@@ -3244,7 +3244,7 @@
           const color = !goal ? 'blue' : (p>=1?'green':p>=0.6?'amber':'red');
           return `<span class="mgr-pct ${color}">${escapeHtml(m.name.split(' ')[0])} ${goal?pct(p):'—'}</span>`;
         }).join(' · ');
-        document.getElementById('v2ManagersSummary').innerHTML = summary + ` · всего ${arr.length}`;
+        document.getElementById('v2ManagersSummary').innerHTML = summary;
         const detail = arr.map(m => {
           const goal = Number(goalsMap[m.name] || 0);
           const p = goal ? m.fact/goal : 0;
