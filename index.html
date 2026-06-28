@@ -299,16 +299,16 @@
     .v2-card-body { padding: 14px 20px; flex: 1; display: flex; flex-direction: column; }
     .v2-card-loss .v2-card-head { color: #dc2626; }
 
-    /* ультра-компактные KPI: распределены по высоте карточки (space-between) */
-    #v2Kpis { display: flex; flex-direction: column; justify-content: space-between; gap: 10px; padding: 0; background: none; flex: 1; }
-    #v2Kpis .kpi { display: grid; grid-template-columns: 1fr auto auto; grid-template-rows: auto auto; column-gap: 12px; row-gap: 4px; padding: 0; background: none; box-shadow: none; border-radius: 0; border: none; }
-    #v2Kpis .kpi .label { grid-column: 1; grid-row: 1; font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.3px; font-weight: 600; align-self: center; }
-    #v2Kpis .kpi .value { grid-column: 2; grid-row: 1; font-size: 17px; font-weight: 700; color: #0f172a; line-height: 1; align-self: center; text-align: right; }
-    #v2Kpis .kpi-pct { grid-column: 3; grid-row: 1; font-size: 12px; font-weight: 700; align-self: center; text-align: right; min-width: 46px; }
-    #v2Kpis .kpi-mini-bar { grid-column: 1 / -1; grid-row: 2; height: 5px; border-radius: 3px; background: #e2e8f0; overflow: hidden; }
-    #v2Kpis .kpi-mini-bar span { display: block; height: 100%; border-radius: 2px; }
-    #v2Kpis .kpi .sub { display: none; }
-    #v2Kpis .kpi .kpi-target { font-weight: 400; color: #94a3b8; font-size: 10px; text-transform: none; letter-spacing: 0; margin-left: 6px; }
+    /* KPI: фиксированные компактные расстояния, сверху карточки */
+    #v2Kpis { display: flex; flex-direction: column; gap: 16px; padding: 0; background: none; flex: 1; }
+    #v2Kpis .kpi { display: flex; flex-direction: column; gap: 3px; padding: 0; background: none; box-shadow: none; border-radius: 0; border: none; }
+    #v2Kpis .kpi .kpi-top { display: flex; gap: 10px; align-items: baseline; font-size: 11px; color: #64748b; }
+    #v2Kpis .kpi .label { font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
+    #v2Kpis .kpi-pct { font-size: 12px; font-weight: 700; }
+    #v2Kpis .kpi-target { font-size: 10px; color: #94a3b8; font-weight: 400; margin-left: auto; }
+    #v2Kpis .kpi .value { font-size: 22px; font-weight: 700; color: #0f172a; line-height: 1; }
+    #v2Kpis .kpi-mini-bar { height: 5px; border-radius: 3px; background: #e2e8f0; overflow: hidden; }
+    #v2Kpis .kpi-mini-bar span { display: block; height: 100%; border-radius: 3px; }
 
     /* Loss summary — внутри карточки, компактные строки */
     #v2LossSummary .ls-section { padding: 0; background: none; border: none; margin: 0; }
@@ -3213,19 +3213,23 @@
         const factRev = rows.reduce((a, r) => a + Number(r.raw.actualRevenue || 0), 0);
         const factGp = fc.factSum;
         const colorFor = p => p >= 0.7 ? '#16a34a' : p >= 0.4 ? '#d97706' : '#dc2626';
-        const row = (label, targetLabel, targetValue, value, achieved, total, barColor) => {
+        const row = (label, targetText, valueText, achieved, total, barColor) => {
           const p = total ? Math.min(1, achieved/total) : 0;
           return `<div class="kpi">
-            <div class="label">${escapeHtml(label)} <span class="kpi-target">${targetLabel} ${targetValue}</span></div>
-            <div class="value">${value}</div>
-            <div class="kpi-pct" style="color:${colorFor(p)}">${total?pct(p):'—'}</div>
+            <div class="kpi-top">
+              <span class="label">${escapeHtml(label)}</span>
+              <span class="kpi-pct" style="color:${colorFor(p)}">${total?pct(p):'—'}</span>
+              <span class="kpi-target">${escapeHtml(targetText)}</span>
+            </div>
+            <div class="value">${valueText}</div>
             <div class="kpi-mini-bar"><span style="width:${Math.max(0,p*100)}%;background:${barColor||colorFor(p)}"></span></div>
           </div>`;
         };
+        const factMargin = factRev ? `маржа ${pct(factGp/factRev)}` : '';
         document.getElementById('v2Kpis').innerHTML =
-          row('Валовка управл.', 'цель', rub(target),       rub(factGp),         factGp,  target,      '#0e7c66') +
-          row('Штуки',           'план', fmtQty.format(planQtyTot), fmtQty.format(factQty), factQty, planQtyTot, '#2563eb') +
-          row('Выручка без НДС', 'план', rub(planRev),      rub(factRev),         factRev, planRev,    '#0e7c66');
+          row('Валовка управл.', `из ${rub(target)} цель${factMargin?' · '+factMargin:''}`, rub(factGp),  factGp, target,      '#0e7c66') +
+          row('Штуки',           `из ${fmtQty.format(planQtyTot)} план`,                    fmtQty.format(factQty), factQty, planQtyTot, '#2563eb') +
+          row('Выручка без НДС', `из ${rub(planRev)} план`,                                 rub(factRev), factRev, planRev,    '#0e7c66');
       }
       function v2RenderManagers(rows) {
         // Только эти три менеджера — остальные не показываем
