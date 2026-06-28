@@ -403,6 +403,8 @@
     .v2-status-badge.moved  { color: #475569; border-color: #cbd5e1; background: #f8fafc; }
     .v2-status-badge.risk   { color: #dc2626; border-color: #fca5a5; background: #fef2f2; }
     .v2-status-extra { font-size: 10px; color:#64748b; margin-top:2px; display:block; }
+    .v2-table .v2-expand-detail { background: none; border: none; cursor: pointer; padding: 0 4px; margin-left: 4px; color: #64748b; font-size: 12px; }
+    .v2-table .v2-expand-detail:hover { color: #0e7c66; }
 
     .v2-comment-cell input { width: 100%; border: 1px solid transparent; padding: 4px 6px; font-size: 12px; border-radius: 4px; background: transparent; }
     .v2-comment-cell input:focus { border-color: #0e7c66; background: #fff; outline: none; }
@@ -752,6 +754,7 @@
 
       <!-- Status filter chips -->
       <div class="v2-toolbar">
+        <button type="button" class="link-button" id="v2ToggleReasonsBtn" title="Показать/скрыть причины переноса и снятия для всех строк">▾ Причины</button>
         <button type="button" class="link-button" id="v2DocsBtn" title="Справочники: причины переноса/снятия">📋 Документация</button>
         <button type="button" class="link-button" id="v2ImportV1Btn" title="Перетянуть снятые галки из v1 в статусы v2">⇧ Импорт из v1</button>
         <button type="button" class="link-button" id="v2ExcelBtn" title="Скачать CSV с текущими фильтрами и видимыми колонками">⬇ Excel</button>
@@ -2931,6 +2934,8 @@
         heroUnit: localStorage.getItem('stmV2HeroUnit') || 'margin',     // margin | revenue | qty
         filters: {},                                                     // per-column substring/numeric
         lossCatFilter: null,                                             // null | string — клик по причине в сводке
+        showAllReasons: localStorage.getItem('stmV2ShowAllReasons') === '1',  // глобальный показ деталей переноса/снятия
+        expandedDetailSkus: new Set(),                                   // SKU с развёрнутой формой при глобально-свернутых
       };
 
       // shared meta v2 fields (Postgres). Используем тот же sharedMeta object — он уже extended на бэке.
@@ -3424,7 +3429,11 @@
             const opts = STATUS_ORDER.map(s => `<option value="${s}"${s===r.status?' selected':''}>${STATUS_LABELS[s]}</option>`).join('');
             const extra = r.movedQty>0 && r.shipped>0 ? `<span class="v2-status-extra">+ перенос ${fmtQty.format(r.movedQty)}</span>` :
                           r.tailQty>0 && r.status!=='tail' ? `<span class="v2-status-extra">+ хвост ${fmtQty.format(r.tailQty)}</span>` : '';
-            return `<td><select class="v2-status-badge ${r.status}" data-v2-status-sku="${escapeHtml(r.sku)}">${opts}</select>${extra}</td>`;
+            // Маленький ▾/▸ для разворота деталей переноса/снятия
+            const expandIcon = (r.status === 'moved' || r.status === 'risk')
+              ? `<button type="button" class="v2-expand-detail" data-expand-sku="${escapeHtml(r.sku)}" title="${detailVisible ? 'Скрыть детали' : 'Показать детали (категория, причина)'}">${detailVisible ? '▾' : '▸'}</button>`
+              : '';
+            return `<td><select class="v2-status-badge ${r.status}" data-v2-status-sku="${escapeHtml(r.sku)}">${opts}</select>${expandIcon}${extra}</td>`;
           }
           if (c.key === 'comment')     return `<td class="v2-comment-cell"><input type="text" data-v2-comment-sku="${escapeHtml(r.sku)}" value="${escapeHtml(r.comment||'')}" placeholder="комментарий..."></td>`;
           return '<td></td>';
@@ -3433,7 +3442,8 @@
         // Inline detail row для статусов 'moved' и 'tail' — управление qty/датой/причиной/учётом денег
         let detailRow = '';
         const free = Math.max(0, r.plan - r.shipped - r.stockReady);
-        if (r.status === 'moved' || r.status === 'risk') {
+        const detailVisible = v2State.showAllReasons || v2State.expandedDetailSkus.has(r.sku);
+        if ((r.status === 'moved' || r.status === 'risk') && detailVisible) {
           const mdate = r.movedDate || ''; const mqty = r.movedQty || 0; const mreason = r.movedReason || '';
           const cat = r.reasonCategory || '';
           const reasons = v2DictReasons(r.status);
@@ -3951,6 +3961,30 @@
         document.getElementById('v2ImportClose').addEventListener('click', () => { el.hidden = true; });
       }
       document.getElementById('v2ExcelBtn').addEventListener('click', v2ExportExcel);
+
+      // Кнопка «Причины» — глобально показать/скрыть детали переноса/снятия
+      const reasonsBtn = document.getElementById('v2ToggleReasonsBtn');
+      function v2UpdateReasonsBtn() {
+        reasonsBtn.textContent = v2State.showAllReasons ? '▴ Скрыть причины' : '▾ Причины';
+        reasonsBtn.classList.toggle('active', v2State.showAllReasons);
+      }
+      v2UpdateReasonsBtn();
+      reasonsBtn.addEventListener('click', () => {
+        v2State.showAllReasons = !v2State.showAllReasons;
+        localStorage.setItem('stmV2ShowAllReasons', v2State.showAllReasons ? '1' : '0');
+        v2UpdateReasonsBtn();
+        v2Render();
+      });
+
+      // Клик по маленькому ▾/▸ возле статуса — toggle per-SKU
+      document.getElementById('v2TableBody').addEventListener('click', e => {
+        const b = e.target.closest('[data-expand-sku]');
+        if (!b) return;
+        const sku = b.dataset.expandSku;
+        if (v2State.expandedDetailSkus.has(sku)) v2State.expandedDetailSkus.delete(sku);
+        else v2State.expandedDetailSkus.add(sku);
+        v2Render();
+      });
 
       // Документация — панель со справочниками
       function v2DocsOpen() {
