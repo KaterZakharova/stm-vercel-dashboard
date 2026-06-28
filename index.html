@@ -299,16 +299,16 @@
     .v2-card-body { padding: 12px 16px; }
     .v2-card-loss .v2-card-head { color: #dc2626; }
 
-    /* компактные KPI: 3 строки в одной карточке вместо 3 карточек */
-    #v2Kpis { display: flex; flex-direction: column; gap: 14px; padding: 0; background: none; }
-    #v2Kpis .kpi { display: grid; grid-template-columns: 1fr auto auto; grid-template-rows: auto auto auto; column-gap: 12px; row-gap: 4px; padding: 0; background: none; box-shadow: none; border-radius: 0; border: none; }
-    #v2Kpis .kpi + .kpi { padding-top: 12px; border-top: 1px solid #f1f5f9; }
-    #v2Kpis .kpi .label { grid-column: 1; grid-row: 1; font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.4px; font-weight: 600; align-self: end; }
-    #v2Kpis .kpi .value { grid-column: 2; grid-row: 1; font-size: 22px; font-weight: 700; color: #0f172a; line-height: 1; }
-    #v2Kpis .kpi-pct { grid-column: 3; grid-row: 1; font-size: 13px; font-weight: 700; align-self: end; min-width: 50px; text-align: right; }
-    #v2Kpis .kpi-mini-bar { grid-column: 1 / -1; grid-row: 2; height: 6px; border-radius: 3px; background: #e2e8f0; overflow: hidden; }
-    #v2Kpis .kpi-mini-bar span { display: block; height: 100%; border-radius: 3px; }
-    #v2Kpis .kpi .sub { grid-column: 1 / -1; grid-row: 3; font-size: 11px; color: #94a3b8; }
+    /* очень компактные KPI: 2 строки в одной карточке (label+sub сверху, value+bar снизу) */
+    #v2Kpis { display: flex; flex-direction: column; gap: 8px; padding: 0; background: none; }
+    #v2Kpis .kpi { display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto auto; column-gap: 12px; row-gap: 2px; padding: 4px 0; background: none; box-shadow: none; border-radius: 0; border: none; }
+    #v2Kpis .kpi + .kpi { border-top: 1px solid #f1f5f9; padding-top: 8px; }
+    #v2Kpis .kpi .label { grid-column: 1; grid-row: 1; font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.4px; font-weight: 600; }
+    #v2Kpis .kpi .sub { grid-column: 2; grid-row: 1; font-size: 11px; color: #94a3b8; text-align: right; align-self: end; }
+    #v2Kpis .kpi .value { grid-column: 1; grid-row: 2; font-size: 22px; font-weight: 700; color: #0f172a; line-height: 1.1; }
+    #v2Kpis .kpi-pct { grid-column: 2; grid-row: 2; font-size: 14px; font-weight: 700; align-self: end; text-align: right; }
+    #v2Kpis .kpi-mini-bar { grid-column: 1 / -1; grid-row: 3; height: 4px; border-radius: 2px; background: #e2e8f0; overflow: hidden; margin-top: 2px; }
+    #v2Kpis .kpi-mini-bar span { display: block; height: 100%; border-radius: 2px; }
 
     /* Loss summary — внутри карточки, компактные строки */
     #v2LossSummary .ls-section { padding: 0; background: none; border: none; margin: 0; }
