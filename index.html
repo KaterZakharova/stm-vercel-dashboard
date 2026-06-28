@@ -29,6 +29,8 @@
     button, input, select { font: inherit; }
     .shell { max-width: 1480px; margin: 0 auto; display: grid; gap: 18px; }
     .topbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+    .home-btn { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 8px; background: #fff; border: 1px solid #e2e8f0; color: #475569; font-size: 18px; text-decoration: none; transition: all 0.15s; flex-shrink: 0; }
+    .home-btn:hover { background: #0e7c66; color: #fff; border-color: #0e7c66; transform: translateY(-1px); }
     .title h1 { margin: 0; font-size: 28px; line-height: 1.15; font-weight: 760; color: var(--ink); }
     .title p { margin: 8px 0 0; color: var(--muted); font-size: 14px; }
     .top-controls { display: grid; gap: 10px; justify-items: end; }
@@ -335,7 +337,8 @@
     .v2-table .stage-produce { color: #d97706; }
     .v2-table .stage-moved { color: #64748b; }
     .v2-table .stage-tail { color: #ca8a04; }
-    .v2-table .sku-cell { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; }
+    .v2-table .sku-cell { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; color: #0f172a; font-weight: 600; }
+    .v2-table td.v2-name-cell { color: #0f172a; font-weight: 500; }
     .v2-table .row-flag { display:inline-block; width:14px; height:14px; vertical-align:middle; margin-left:4px; }
 
     .v2-status-badge { display: inline-flex; align-items:center; gap:4px; padding: 3px 9px; border-radius: 6px; font-size: 12px; font-weight: 500; border: 1px solid; cursor: pointer; background:#fff; }
@@ -360,8 +363,10 @@
     .v2-detail-form .v2-detail-grow input[type=text] { width: 100%; }
     .v2-detail-form .v2-detail-hint { color: #94a3b8; font-size: 11px; margin-left: 4px; }
     .v2-detail-form .v2-detail-summary { color: #16a34a; font-size: 11px; font-style: italic; }
-    .v2-detail-form .v2-detail-save { padding: 4px 12px; background: #0e7c66; color: #fff; border: none; border-radius: 5px; cursor: pointer; font-size: 12px; }
-    .v2-detail-form .v2-detail-save:hover { background: #0a6353; }
+    .v2-detail-form .v2-detail-save { padding: 4px 12px; background: #fff; color: #475569; border: 1px solid #cbd5e1; border-radius: 5px; cursor: pointer; font-size: 12px; }
+    .v2-detail-form .v2-detail-save:hover { background: #f1f5f9; color: #0f172a; }
+    .v2-detail-form .v2-autosave-badge { font-size: 11px; color: #16a34a; font-weight: 500; padding: 3px 8px; background: #f0fdf4; border-radius: 4px; opacity: 0; transition: opacity 0.3s; }
+    .v2-detail-form .v2-autosave-badge.show { opacity: 1; }
 
     .v2-loss-summary { margin: 12px 0; font-size: 13px; }
     .v2-loss-summary .ls-section { padding: 12px 18px; border-radius: 10px; margin-bottom: 8px; }
@@ -447,6 +452,7 @@
 <body>
   <main class="shell">
     <div class="topbar">
+      <a href="/" class="home-btn" title="В хаб STM" aria-label="Домой">🏠</a>
       <div class="title">
         <h1>СТМ: план, выпуск и продажи</h1>
         <p>Оперативная версия: план и выпуск из отчета производства, отгрузки и выручка из 1С, валовка управленческая.</p>
@@ -3329,7 +3335,7 @@
         const strikeTailMoney = !r.tailIncluded && !v2State.funnelTailIncluded ? 'strike' : '';
         const cellFor = c => {
           if (c.key === 'sku')         return `<td class="sku-cell"><strong>${escapeHtml(r.sku)}</strong>${r.flagCostHole?' <span title="нет цены фабрики в 1С — маржа считается как 20% от выручки, проверь" style="color:#dc2626">⚠</span>':r.flagMarginSuspicious?' <span title="маржа >65%" style="color:#ca8a04">⚠</span>':''}</td>`;
-          if (c.key === 'name')        return `<td>${escapeHtml(r.name||'')}</td>`;
+          if (c.key === 'name')        return `<td class="v2-name-cell">${escapeHtml(r.name||'')}</td>`;
           if (c.key === 'order')       return `<td><small style="color:#64748b">${escapeHtml(r.order||'')}</small></td>`;
           if (c.key === 'manager')     return `<td><small>${escapeHtml(r.manager||'')}</small></td>`;
           if (c.key === 'plan')        return `<td class="num">${fmtQty.format(r.plan)}</td>`;
@@ -3376,6 +3382,7 @@
               <label>Дата <input type="date" data-field="moved_date" value="${escapeHtml(mdate)}"></label>` : ''}
               <label class="v2-detail-grow">Подробнее <input type="text" data-field="moved_reason" value="${escapeHtml(mreason)}" placeholder="${isMoved ? 'например: упаковка приедет 30 июня' : 'почему снят: клиент отказался, аннулирован и т.д.'}"></label>
               <button type="button" class="v2-detail-save" data-action="save-moved">Применить</button>
+              <span class="v2-autosave-badge" data-autosave-badge>✓ сохранено</span>
               ${isMoved && r.shipped > 0 ? `<span class="v2-detail-summary">Отгружено ${fmtQty.format(r.shipped)} остаётся в прогнозе.</span>` : ''}
             </div>
           </td></tr>`;
@@ -3387,6 +3394,7 @@
               <label>Количество <input type="number" min="0" max="${free}" step="1" data-field="tail_qty" value="${tqty}" style="width:90px"> шт <span class="v2-detail-hint">авто-правило: остаток &lt; ${TAIL_CONFIG.maxTailRatio*100}% плана или &lt; ${TAIL_CONFIG.maxTailAbs} шт</span></label>
               <label class="v2-detail-grow"><input type="checkbox" data-field="tail_included" ${tincl?'checked':''}> учитывать ${rub(r.moneyTail)} в прогнозе</label>
               <button type="button" class="v2-detail-save" data-action="save-tail">Применить</button>
+              <span class="v2-autosave-badge" data-autosave-badge>✓ сохранено</span>
             </div>
           </td></tr>`;
         }
@@ -3562,6 +3570,59 @@
           setComment(row, com.value);
         }
       });
+      // ─── Автосохранение полей detail-формы (debounce 700мс) ───
+      // Меняешь категорию/количество/дату/причину — сразу пишется в Postgres
+      // без нажатия «Применить». Badge «✓ сохранено» мигает зелёным.
+      const v2AutosaveTimers = new Map();
+      function v2ScheduleAutosave(form) {
+        const sku = form.dataset.v2DetailSku;
+        if (!sku) return;
+        const prev = v2AutosaveTimers.get(sku);
+        if (prev) clearTimeout(prev);
+        const t = setTimeout(async () => {
+          v2AutosaveTimers.delete(sku);
+          const row = DATA.find(r => r.month === state.month && r.sku === sku);
+          if (!row) return;
+          const get = (f) => form.querySelector(`[data-field="${f}"]`);
+          const patch = {};
+          const cat = get('reason_category'); if (cat) patch.reason_category = cat.value || null;
+          const rsn = get('moved_reason');    if (rsn) patch.moved_reason = rsn.value || null;
+          const qty = get('moved_qty');       if (qty) patch.moved_qty = Number(qty.value) || 0;
+          const dat = get('moved_date');      if (dat) patch.moved_date = dat.value || null;
+          const tqty = get('tail_qty');       if (tqty) patch.tail_qty = Number(tqty.value) || 0;
+          const tinc = get('tail_included');  if (tinc) patch.tail_included = tinc.checked;
+          const ok = await v2PushMeta(row, patch);
+          // badge мигает на 1.5 сек, форму не перерисовываем (чтобы не сбивать фокус)
+          const badge = form.querySelector('[data-autosave-badge]');
+          if (badge) {
+            badge.textContent = ok ? '✓ сохранено' : '✗ ошибка';
+            badge.style.color = ok ? '#16a34a' : '#dc2626';
+            badge.style.background = ok ? '#f0fdf4' : '#fef2f2';
+            badge.classList.add('show');
+            setTimeout(() => badge.classList.remove('show'), 1500);
+          }
+          // обновим только сводку и hero — без re-render таблицы (фокус сохранится)
+          const rows = v2BuildRows();
+          const fc = v2Forecast(rows);
+          v2RenderHero(rows, fc);
+          v2RenderLossSummary(rows);
+          v2RenderStatusChips(rows);
+        }, 700);
+        v2AutosaveTimers.set(sku, t);
+      }
+      document.getElementById('v2TableBody').addEventListener('input', e => {
+        const form = e.target.closest('[data-v2-detail-sku]');
+        if (!form) return;
+        if (!e.target.matches('[data-field]')) return;
+        v2ScheduleAutosave(form);
+      });
+      document.getElementById('v2TableBody').addEventListener('change', e => {
+        const form = e.target.closest('[data-v2-detail-sku]');
+        if (!form) return;
+        if (!e.target.matches('[data-field]')) return;
+        v2ScheduleAutosave(form);
+      }, true);  // capture — чтобы поймать select.change до status-dropdown handler
+
       // Кнопка «Применить» в detail-row (для moved / tail). Обрабатываем сразу до bubble в другие listeners.
       document.getElementById('v2TableBody').addEventListener('click', async e => {
         const btn = e.target.closest('[data-action]');
