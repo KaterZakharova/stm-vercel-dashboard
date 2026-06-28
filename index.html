@@ -363,7 +363,11 @@
     .v2-detail-form .v2-detail-save { padding: 4px 12px; background: #0e7c66; color: #fff; border: none; border-radius: 5px; cursor: pointer; font-size: 12px; }
     .v2-detail-form .v2-detail-save:hover { background: #0a6353; }
 
-    .v2-loss-summary { margin: 12px 0; padding: 14px 18px; background: linear-gradient(to right, #fef2f2, #fff); border: 1px solid #fecaca; border-left: 4px solid #dc2626; border-radius: 10px; font-size: 13px; }
+    .v2-loss-summary { margin: 12px 0; font-size: 13px; }
+    .v2-loss-summary .ls-section { padding: 12px 18px; border-radius: 10px; margin-bottom: 8px; }
+    .v2-loss-summary .ls-section.ls-risk  { background: linear-gradient(to right, #fef2f2, #fff); border: 1px solid #fecaca; border-left: 4px solid #dc2626; }
+    .v2-loss-summary .ls-section.ls-moved { background: linear-gradient(to right, #f1f5f9, #fff);  border: 1px solid #cbd5e1; border-left: 4px solid #475569; }
+    .v2-loss-summary .ls-unfilled-note { margin-top: 6px; padding-left: 28px; font-size: 11px; color: #d97706; }
     .v2-loss-summary .ls-head { display: flex; gap: 14px; align-items: baseline; margin-bottom: 8px; }
     .v2-loss-summary .ls-icon { font-size: 18px; }
     .v2-loss-summary .ls-title { font-size: 15px; font-weight: 600; color: #0f172a; }
@@ -2801,23 +2805,26 @@
       // ─── Документация (справочники, редактируемые юзером) ──
       const V2_DICT_KEY = 'stmV2Dict';
       const V2_DICT_DEFAULTS = {
+        // Перенос = сделаем, но позже (есть конкретные обстоятельства, мешающие сейчас)
         reasonsMoved: [
           'Нет сырья',
-          'Упаковка задержалась',
-          'Отказ клиента / снижение заказа',
+          'Нет упаковки',
           'Производственный сбой',
-          'Логистика',
+          'Логистика / СиМ давальца',
           'Документация / стикер / маркировка',
-          'Передоговорка дат',
+          'Передоговорка дат с клиентом',
+          'Очередь производства',
           'Другое',
         ],
+        // Снято = совсем не будем делать в этом периоде (не вернётся в план)
         reasonsRisk: [
-          'Нет сырья',
-          'Упаковка',
-          'Отказ клиента',
-          'Запрет производства',
+          'Снято с производства',
+          'Клиент отказался от заказа',
+          'Аннулирован заказ',
+          'Сторнирован',
+          'Не оплачен',
+          'Снято с ассортимента',
           'Проблема с качеством',
-          'Снятие с ассортимента',
           'Другое',
         ],
       };
@@ -3172,43 +3179,57 @@
         document.getElementById('v2ManagersToggle').textContent = (v2State.managersOpen ? '▾' : '▸') + ' Менеджеры';
       }
       function v2RenderLossSummary(rows) {
-        const lost = rows.filter(r => r.status === 'risk' || r.status === 'moved');
+        const riskRows  = rows.filter(r => r.status === 'risk');
+        const movedRows = rows.filter(r => r.status === 'moved');
         const el = document.getElementById('v2LossSummary');
-        if (!lost.length) { el.hidden = true; return; }
-        // Группа по reasonCategory
-        const byCat = new Map();
-        let totalMoney = 0, totalQty = 0;
-        let unfilledCount = 0;
-        lost.forEach(r => {
-          const lostMoney = r.moneyStock + r.moneyProduce + r.moneyTail + (r.status === 'moved' ? r.moneyMoved : 0);
-          const lostQty   = r.stockReady + r.toProduce + r.tailQty + (r.status === 'moved' ? r.movedQty : 0);
-          totalMoney += lostMoney; totalQty += lostQty;
-          const cat = (r.reasonCategory || '').trim() || '— без категории —';
-          if (cat === '— без категории —') unfilledCount++;
-          const a = byCat.get(cat) || { money: 0, qty: 0, count: 0, status: r.status };
-          a.money += lostMoney; a.qty += lostQty; a.count++;
-          byCat.set(cat, a);
-        });
-        const cats = [...byCat.entries()].sort((a,b) => b[1].money - a[1].money);
-        const sumQty = rows.reduce((s, r) => s + r.plan, 0);
-        const lostPct = sumQty > 0 ? totalQty / sumQty : 0;
-        const reasonsHtml = cats.map(([name, s]) => {
+        if (!riskRows.length && !movedRows.length) { el.hidden = true; return; }
+        // Группа по reasonCategory отдельно для каждого статуса
+        function aggregate(rs, kind) {
+          const byCat = new Map(); let totalMoney = 0, totalQty = 0, unfilledCount = 0;
+          rs.forEach(r => {
+            const lostMoney = r.moneyStock + r.moneyProduce + r.moneyTail + (kind === 'moved' ? r.moneyMoved : 0);
+            const lostQty   = r.stockReady + r.toProduce + r.tailQty + (kind === 'moved' ? r.movedQty : 0);
+            totalMoney += lostMoney; totalQty += lostQty;
+            const cat = (r.reasonCategory || '').trim() || '— без категории —';
+            if (cat === '— без категории —') unfilledCount++;
+            const a = byCat.get(cat) || { money: 0, qty: 0, count: 0 };
+            a.money += lostMoney; a.qty += lostQty; a.count++;
+            byCat.set(cat, a);
+          });
+          return { byCat: [...byCat.entries()].sort((a,b) => b[1].money - a[1].money), totalMoney, totalQty, unfilledCount };
+        }
+        const R = aggregate(riskRows, 'risk');
+        const M = aggregate(movedRows, 'moved');
+        const sumPlan = rows.reduce((s, r) => s + r.plan, 0);
+        const reasonsHtml = (entries) => entries.map(([name, s]) => {
           const isUnfilled = name === '— без категории —';
           const active = v2State.lossCatFilter === name;
-          return `<div class="ls-reason${isUnfilled?' ls-unfilled':''}${active?' ls-active':''}" data-loss-cat="${escapeHtml(name)}" title="${isUnfilled?'Нет категории — нужно проставить вручную в строке':active?'Клик уберёт фильтр':'Клик отфильтрует таблицу'}">
+          return `<div class="ls-reason${isUnfilled?' ls-unfilled':''}${active?' ls-active':''}" data-loss-cat="${escapeHtml(name)}" title="${isUnfilled?'Нет категории — проставь в строке':active?'Клик уберёт фильтр':'Клик отфильтрует таблицу'}">
             <div><b>${escapeHtml(name)}</b>${active?' ×':''}</div>
             <div><span class="ls-money">${rub(s.money)}</span> · <span class="ls-count">${s.count} SKU · ${fmtQty.format(s.qty)} шт</span></div>
           </div>`;
         }).join('');
-        el.innerHTML = `
-          <div class="ls-head">
-            <span class="ls-icon">🚨</span>
-            <span class="ls-title">Снято и Перенос с ${escapeHtml(state.month)}:</span>
-            <span class="ls-totals">потеря <strong>${rub(totalMoney)}</strong> · <strong>${fmtQty.format(totalQty)} шт</strong> · ${lost.length} SKU${lostPct ? ` · <strong>${pct(lostPct)}</strong> от плана` : ''}</span>
-          </div>
-          <div class="ls-reasons">${reasonsHtml}</div>
-          ${unfilledCount > 0 ? `<div style="margin-top:8px;padding-left:28px;font-size:12px;color:#d97706"><b>⚠ ${unfilledCount}</b> SKU без категории — проставь её в строке таблицы (выпадашка «Категория»).</div>` : ''}
-        `;
+        const riskHtml = riskRows.length ? `
+          <div class="ls-section ls-risk">
+            <div class="ls-head">
+              <span class="ls-icon">🚨</span>
+              <span class="ls-title">Снято — не будем делать:</span>
+              <span class="ls-totals">потеря <strong>${rub(R.totalMoney)}</strong> · <strong>${fmtQty.format(R.totalQty)} шт</strong> · ${riskRows.length} SKU${sumPlan ? ` · <strong>${pct(R.totalQty/sumPlan)}</strong> от плана` : ''}</span>
+            </div>
+            <div class="ls-reasons">${reasonsHtml(R.byCat)}</div>
+            ${R.unfilledCount > 0 ? `<div class="ls-unfilled-note">⚠ ${R.unfilledCount} SKU без категории</div>` : ''}
+          </div>` : '';
+        const movedHtml = movedRows.length ? `
+          <div class="ls-section ls-moved">
+            <div class="ls-head">
+              <span class="ls-icon">📦</span>
+              <span class="ls-title">Перенос — сделаем в след. месяце:</span>
+              <span class="ls-totals">сдвиг <strong>${rub(M.totalMoney)}</strong> · <strong>${fmtQty.format(M.totalQty)} шт</strong> · ${movedRows.length} SKU</span>
+            </div>
+            <div class="ls-reasons">${reasonsHtml(M.byCat)}</div>
+            ${M.unfilledCount > 0 ? `<div class="ls-unfilled-note">⚠ ${M.unfilledCount} SKU без категории</div>` : ''}
+          </div>` : '';
+        el.innerHTML = riskHtml + movedHtml;
         el.hidden = false;
       }
       function v2RenderViewSwitcher() {
@@ -3336,14 +3357,18 @@
             .join('');
           const isMoved = r.status === 'moved';
           const icon = isMoved ? '📦' : '🚨';
-          const label = isMoved ? 'Перенос' : 'Снято';
+          const label = isMoved ? 'Перенос — сделаем позже' : 'Снято — НЕ будем делать';
+          const subhint = isMoved
+            ? 'Деньги уедут в прогноз следующего месяца'
+            : 'Заказ снят, деньги выпадают из прогноза';
           detailRow = `<tr class="v2-detail-row"><td colspan="${cols.length}">
             <div class="v2-detail-form" data-v2-detail-sku="${escapeHtml(r.sku)}">
               <span class="v2-detail-label">${icon} ${label}:</span>
-              <label>Категория <select data-field="reason_category" style="min-width:160px">${catOptions}</select></label>
+              <span class="v2-detail-hint" style="font-size:11px">${subhint}</span>
+              <label>Категория <select data-field="reason_category" style="min-width:180px">${catOptions}</select></label>
               ${isMoved ? `<label>Кол-во <input type="number" min="0" max="${free}" step="1" data-field="moved_qty" value="${mqty}" style="width:80px"> шт</label>
               <label>Дата <input type="date" data-field="moved_date" value="${escapeHtml(mdate)}"></label>` : ''}
-              <label class="v2-detail-grow">${isMoved ? 'Причина' : 'Подробнее'} <input type="text" data-field="moved_reason" value="${escapeHtml(mreason)}" placeholder="${isMoved ? 'например: упаковка приедет 30 июня' : 'детали блокера'}"></label>
+              <label class="v2-detail-grow">Подробнее <input type="text" data-field="moved_reason" value="${escapeHtml(mreason)}" placeholder="${isMoved ? 'например: упаковка приедет 30 июня' : 'почему снят: клиент отказался, аннулирован и т.д.'}"></label>
               <button type="button" class="v2-detail-save" data-action="save-moved">Применить</button>
               ${isMoved && r.shipped > 0 ? `<span class="v2-detail-summary">Отгружено ${fmtQty.format(r.shipped)} остаётся в прогнозе.</span>` : ''}
             </div>
