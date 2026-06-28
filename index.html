@@ -3517,7 +3517,28 @@
         }
         btn.textContent = ok ? '✓ сохранено' : '✗ ошибка';
         btn.style.background = ok ? '#16a34a' : '#dc2626';
-        setTimeout(() => { btn.disabled = false; v2Render(); }, ok ? 600 : 1500);
+        setTimeout(() => {
+          btn.disabled = false;
+          // сохраняем scroll position и подсвечиваем строку, чтобы было видно что сохранилось
+          const scrollY = window.scrollY;
+          const tableScroll = document.querySelector('#v2TablePane .scroll');
+          const tableScrollTop = tableScroll ? tableScroll.scrollTop : 0;
+          v2Render();
+          window.scrollTo(window.scrollX, scrollY);
+          const newScroll = document.querySelector('#v2TablePane .scroll');
+          if (newScroll) newScroll.scrollTop = tableScrollTop;
+          // короткий flash на строке после re-render
+          requestAnimationFrame(() => {
+            const newForm = document.querySelector(`[data-v2-detail-sku="${CSS.escape(sku)}"]`);
+            if (newForm) {
+              const tr = newForm.closest('tr');
+              if (tr) {
+                tr.style.transition = 'background 0.8s'; tr.style.background = '#dcfce7';
+                setTimeout(() => { tr.style.background = ''; }, 1200);
+              }
+            }
+          });
+        }, ok ? 400 : 1500);
       });
 
       // Hero unit switch (валовка/выручка/штуки)
