@@ -425,7 +425,12 @@
     .v2-kanban-tails { margin-top: 14px; padding: 12px 14px; background: #fefce8; border: 1px solid #fde047; border-radius: 8px; font-size: 13px; }
 
     /* Funnel */
-    .v2-funnel-controls { display: flex; gap: 24px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; font-size: 13px; }
+    .v2-funnel-controls { display: flex; gap: 24px; align-items: center; margin-bottom: 6px; flex-wrap: wrap; font-size: 13px; }
+    .v2-funnel-hint { font-size: 12px; color: #475569; margin-bottom: 12px; padding: 8px 12px; background: #f8fafc; border-radius: 6px; border-left: 3px solid #0e7c66; }
+    .v2-funnel-hint .v2-fhint-math { margin-bottom: 4px; }
+    .v2-funnel-hint .v2-fhint-hist { color: #64748b; font-size: 11px; }
+    .v2-funnel-hint .v2-fhint-apply { margin-left: 8px; padding: 2px 8px; background: #0e7c66; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; }
+    .v2-funnel-hint .v2-fhint-apply:hover { background: #0a6353; }
     .v2-slider-label { display: flex; gap: 8px; align-items: center; }
     .v2-slider-label input[type=range] { width: 200px; }
     .v2-funnel { display: flex; height: 60px; border-radius: 10px; overflow: hidden; border: 1px solid #e2e8f0; }
@@ -762,6 +767,7 @@
             Учитывать деньги хвостов
           </label>
         </div>
+        <div id="v2FunnelSliderHint" class="v2-funnel-hint"></div>
         <div class="v2-funnel" id="v2Funnel"></div>
         <div class="v2-funnel-detail" id="v2FunnelDetail"></div>
       </section>
@@ -3435,10 +3441,44 @@
           : '🏷 Хвосты: нет';
       }
 
+      // Историческая реализуемость = выпуск/план по прошлым закрытым месяцам.
+      // Если есть данные предыдущих месяцев — считаем по ним и предлагаем как ориентир.
+      function v2HistoricalRealizability() {
+        const monthIdx = (m) => MONTH_ORDER.indexOf(m);
+        const curIdx = monthIdx(state.month);
+        const past = DATA.filter(r => {
+          const i = monthIdx(r.month);
+          return i >= 0 && i < curIdx && Number(r.planQty || 0) > 0;
+        });
+        if (!past.length) return null;
+        const planSum = past.reduce((s, r) => s + Number(r.planQty || 0), 0);
+        const releaseSum = past.reduce((s, r) => s + Number(r.releaseQty || 0), 0);
+        if (planSum <= 0) return null;
+        return { rate: Math.min(1, releaseSum / planSum), planSum, releaseSum, months: [...new Set(past.map(r => r.month))] };
+      }
+
       function v2RenderFunnel(rows, fc) {
         document.getElementById('v2FunnelSliderValue').textContent = v2State.funnelRealizable + '%';
         document.getElementById('v2FunnelSlider').value = v2State.funnelRealizable;
         document.getElementById('v2FunnelTailToggle').checked = v2State.funnelTailIncluded;
+        // Подсказка под слайдером: что значит % в штуках/рублях + историческое значение
+        const hint = document.getElementById('v2FunnelSliderHint');
+        if (hint) {
+          const h = v2HistoricalRealizability();
+          const producePartQty = Math.round(fc.produceQty);
+          const producePartMoney = fc.produceSum;
+          const fullQty = Math.round(fc.A.produceFull > 0 ? fc.produceQty / fc.realizableRate : 0);
+          const fullMoney = fc.produceSumFull;
+          hint.innerHTML = `
+            <div class="v2-fhint-math">
+              <span>Из <strong>${fmtQty.format(fullQty)} шт</strong> «к выпуску» (<strong>${rub(fullMoney)}</strong>)
+              × <strong>${v2State.funnelRealizable}%</strong>
+              = <strong>${fmtQty.format(producePartQty)} шт</strong> · <strong>${rub(producePartMoney)}</strong> в прогнозе</span>
+            </div>
+            ${h ? `<div class="v2-fhint-hist">📊 Историческая реализуемость по ${h.months.join('+')}: <strong>${Math.round(h.rate*100)}%</strong> (плана ${fmtQty.format(h.planSum)}, выпущено ${fmtQty.format(h.releaseSum)})
+              <button type="button" class="v2-fhint-apply" data-apply-rate="${Math.round(h.rate*100)}">Применить ${Math.round(h.rate*100)}%</button></div>` : ''}
+          `;
+        }
         const segs = [
           { key: 'shipped', label: 'Факт', value: fc.factSum, qty: fc.factQty },
           { key: 'stock',   label: 'Склад', value: fc.stockSum, qty: fc.stockQty },
@@ -3481,6 +3521,17 @@
         v2State.funnelRealizable = Number(e.target.value);
         localStorage.setItem('stmV2FunnelSlider', String(v2State.funnelRealizable));
         v2Render();
+      });
+      // клик по «Применить N%» в подсказке слайдера
+      document.getElementById('v2Report').addEventListener('click', e => {
+        const b = e.target.closest('[data-apply-rate]');
+        if (!b) return;
+        const r = Number(b.dataset.applyRate);
+        if (Number.isFinite(r)) {
+          v2State.funnelRealizable = Math.max(0, Math.min(100, r));
+          localStorage.setItem('stmV2FunnelSlider', String(v2State.funnelRealizable));
+          v2Render();
+        }
       });
       document.getElementById('v2FunnelTailToggle').addEventListener('change', e => {
         v2State.funnelTailIncluded = e.target.checked;
