@@ -3415,6 +3415,9 @@
         const strikeMoney   = (r.status === 'moved' || r.status === 'risk') ? 'strike' : '';
         const strikeMoved   = 'strike';  // moved всегда не в прогноз текущего месяца
         const strikeTailMoney = !r.tailIncluded && !v2State.funnelTailIncluded ? 'strike' : '';
+        // detailVisible надо объявить ДО cellFor (cellFor его читает внутри case status)
+        const detailVisible = v2State.showAllReasons || v2State.expandedDetailSkus.has(r.sku);
+        const free = Math.max(0, r.plan - r.shipped - r.stockReady);
         const cellFor = c => {
           if (c.key === 'sku')         return `<td class="sku-cell"><strong>${escapeHtml(r.sku)}</strong>${r.flagCostHole?' <span title="нет цены фабрики в 1С — маржа считается как 20% от выручки, проверь" style="color:#dc2626">⚠</span>':r.flagMarginSuspicious?' <span title="маржа >65%" style="color:#ca8a04">⚠</span>':''}</td>`;
           if (c.key === 'name')        return `<td class="v2-name-cell">${escapeHtml(r.name||'')}</td>`;
@@ -3445,8 +3448,6 @@
         const mainRow = `<tr class="${cls}">${cols.map(cellFor).join('')}</tr>`;
         // Inline detail row для статусов 'moved' и 'tail' — управление qty/датой/причиной/учётом денег
         let detailRow = '';
-        const free = Math.max(0, r.plan - r.shipped - r.stockReady);
-        const detailVisible = v2State.showAllReasons || v2State.expandedDetailSkus.has(r.sku);
         if ((r.status === 'moved' || r.status === 'risk') && detailVisible) {
           const mdate = r.movedDate || ''; const mqty = r.movedQty || 0; const mreason = r.movedReason || '';
           const cat = r.reasonCategory || '';
