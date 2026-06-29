@@ -3462,11 +3462,14 @@
         const chip = (key, cls, label, count) =>
           `<button type="button" class="${inc.has(key)?'on '+cls:''}" data-include="${key}" title="Клик переключает">${label}${count?` <span style="opacity:0.75">${count}</span>`:''}</button>`;
         const dopLabel = dopQueueLoaded ? '+ ДОПы' : '+ ДОПы (нет SSO?)';
+        const fmtK = q => q >= 1000 ? `${Math.round(q/100)/10}K шт` : `${q} шт`;
+        const carryLbl = `+ Переносы${counts.carryQty?` · ${fmtK(counts.carryQty)}`:''}`;
+        const dopLbl   = `${dopLabel}${counts.dopQty?` · ${fmtK(counts.dopQty)}`:''}`;
         document.getElementById('v2HeroInclude').innerHTML =
           `<span class="lbl">Учитывать:</span>` +
           chip('base',  '',      'План',       counts.base) +
-          chip('carry', 'carry', '+ Переносы', counts.carry) +
-          chip('dop',   'dop',   dopLabel,     counts.dop);
+          chip('carry', 'carry', carryLbl,     counts.carry) +
+          chip('dop',   'dop',   dopLbl,       counts.dop);
       }
       // Считает сколько потенциально доступно строк base / carry / dop для текущего месяца,
       // независимо от того что выбрано в includeOrigins.
@@ -3475,7 +3478,36 @@
         const carry = v2BuildCarryRows(state.month, baseSkus);
         const carrySkus = new Set([...baseSkus, ...carry.map(c => c.sku)]);
         const dop = v2BuildDopRows(state.month, carrySkus);
-        return { base: baseSkus.size, carry: carry.length, dop: dop.length };
+        const dopQty = dop.reduce((a, r) => a + (r.toProduce || 0), 0);
+        const carryQty = carry.reduce((a, r) => a + (r.toProduce || 0), 0);
+        // Дебаг для консоли — что было отфильтровано
+        if (typeof window !== 'undefined') {
+          const rawDopForMonth = dopQueueRows.filter(r => {
+            const ym = r.ship_month || '';
+            return MONTH_FROM_YM[ym.slice(5,7)] === state.month;
+          });
+          const filteredOut = rawDopForMonth.filter(r => {
+            if (r.in_plan) return true;
+            if (/^raw/i.test(r.sku||'')) return true;
+            if (carrySkus.has(r.sku)) return true;
+            return false;
+          });
+          window.__v2DopDebug = {
+            month: state.month,
+            allDopQueueRows: dopQueueRows.length,
+            rawDopForMonth: rawDopForMonth.length,
+            rawDopQtyTotal: rawDopForMonth.reduce((a,r)=>a+Number(r.qty||0),0),
+            filteredOut: filteredOut.length,
+            filteredReasons: filteredOut.map(r=>({
+              sku: r.sku,
+              qty: r.qty,
+              reason: r.in_plan ? 'in_plan=true' : /^raw/i.test(r.sku||'') ? 'raw' : carrySkus.has(r.sku) ? 'overlap(base/carry)' : '?'
+            })),
+            kept: dop.length,
+            keptQty: dopQty,
+          };
+        }
+        return { base: baseSkus.size, carry: carry.length, dop: dop.length, dopQty, carryQty };
       }
       function v2RenderKpis(rows, fc) {
         const target = (TARGETS[state.month] || {}).gp || 0;
