@@ -312,6 +312,8 @@
 
     /* Бейдж «ДОП» рядом с SKU — синий, для строк origin='dop' (из /s3-plan dop-queue) */
     .v2-dop-badge { display: inline-block; margin-left: 6px; padding: 1px 6px; font-size: 10px; font-weight: 700; color: #1e40af; background: #dbeafe; border: 1px solid #93c5fd; border-radius: 4px; vertical-align: middle; letter-spacing: 0.3px; cursor: help; }
+    /* Бейдж «Перенос» — фиолетовый, для строк origin='carry' (status=moved из прошлого месяца) */
+    .v2-carry-badge { display: inline-block; margin-left: 6px; padding: 1px 6px; font-size: 10px; font-weight: 700; color: #6b21a8; background: #f3e8ff; border: 1px solid #d8b4fe; border-radius: 4px; vertical-align: middle; letter-spacing: 0.3px; cursor: help; }
 
     /* Loss summary — внутри карточки, компактные строки */
     #v2LossSummary .ls-section { padding: 0; background: none; border: none; margin: 0; }
@@ -2966,9 +2968,71 @@
       function v2BuildRows() {
         const baseRows = DATA.filter(r => r.month === state.month);
         const built = baseRows.map(r => buildV2Row(r));
-        // Доп очередь — виртуальные строки для SKU, которых нет в DATA текущего месяца.
-        const dopVirtual = v2BuildDopRows(state.month, new Set(built.map(b => b.sku)));
-        return built.concat(dopVirtual);
+        const seen = new Set(built.map(b => b.sku));
+        // Перенесённые из прошлого месяца: meta.status=moved + moved_date в текущем месяце.
+        const carryVirtual = v2BuildCarryRows(state.month, seen);
+        carryVirtual.forEach(c => seen.add(c.sku));
+        // Доп очередь — виртуальные строки для SKU, которых нет ни в base, ни в carry.
+        const dopVirtual = v2BuildDopRows(state.month, seen);
+        return built.concat(carryVirtual).concat(dopVirtual);
+      }
+      // Carry-over из прошлых месяцев: meta.status='moved' + moved_date YYYY-MM матчит state.month + moved_qty>0.
+      // Виртуальная строка для текущего месяца с planQty=moved_qty. SKU не должен уже быть в base.
+      function v2BuildCarryRows(monthName, existingSkus) {
+        // year-month → russian month name (для матчинга moved_date)
+        const targetYm = (() => {
+          const idx = MONTH_ORDER.indexOf(monthName);
+          if (idx < 0) return null;
+          // YYYY-MM для 2026: Май=05, Июнь=06, Июль=07, Август=08
+          const monthNum = { 'Май':'05','Июнь':'06','Июль':'07','Август':'08' }[monthName];
+          return monthNum ? `2026-${monthNum}` : null;
+        })();
+        if (!targetYm) return [];
+        // dataBySku для подтяга цен/менеджера/имени
+        const dataBySku = new Map();
+        const monthIdx = m => MONTH_ORDER.indexOf(m);
+        DATA.forEach(r => {
+          const cur = dataBySku.get(r.sku);
+          if (!cur || monthIdx(r.month) > monthIdx(cur.month)) dataBySku.set(r.sku, r);
+        });
+        const out = [];
+        // sharedMeta key format: "Месяц::SKU"
+        Object.keys(sharedMeta).forEach(k => {
+          const m = sharedMeta[k];
+          if (!m || typeof m !== 'object') return;
+          if (m.status !== 'moved') return;
+          const md = m.moved_date || '';
+          if (typeof md !== 'string' || md.slice(0,7) !== targetYm) return;
+          const qty = Number(m.moved_qty || 0);
+          if (qty <= 0) return;
+          const [srcMonth, sku] = k.split('::');
+          if (!sku) return;
+          if (srcMonth === monthName) return;          // уже в текущем месяце — не виртуалим
+          if (existingSkus && existingSkus.has(sku)) return;
+          const d = dataBySku.get(sku);
+          const raw = {
+            sku,
+            name: d ? d.name : sku,
+            manager: d ? (d.manager || '') : '',
+            counterparty: d ? (d.counterparty || '') : '',
+            order: d ? (d.order || '') : '',
+            month: monthName,
+            planQty: qty,
+            shippedQty: 0, stockStm: 0, stockPgp: 0,
+            factoryPrice: d ? Number(d.factoryPrice || 0) : 0,
+            clientPrice:  d ? Number(d.clientPrice  || 0) : 0,
+            actualClientPrice: 0,
+            actualRevenue: 0, actualGp: 0,
+            plannedRevenue: qty * Number(d ? d.clientPrice || 0 : 0),
+            plannedGp:      qty * Math.max(0, (d ? d.clientPrice||0 : 0) - (d ? d.factoryPrice||0 : 0)),
+            _origin: 'carry', _carryFrom: srcMonth,
+          };
+          const v2 = buildV2Row(raw);
+          v2.origin = 'carry';
+          v2.carryFrom = srcMonth;
+          out.push(v2);
+        });
+        return out;
       }
       // Строит виртуальные v2-строки из dop-queue (in_plan=false, ship_month=месяц).
       // Цены и менеджер берутся из DATA по любому месяцу того же SKU (самая свежая запись).
@@ -3271,13 +3335,18 @@
            </span>`;
         // Сегментный bar: Факт / Склад / К вып. / Хвост в пропорциях от total
         const total = set.total || 1;
-        // Сумма ДОП внутри produce — для подсветки в tooltip и легенде
+        // Суммы ДОП и Перенос внутри produce — для подсветки в tooltip и легенде
         const dopRows = rows.filter(r => r.origin === 'dop');
+        const carryRows = rows.filter(r => r.origin === 'carry');
         const dopCount = dopRows.length;
-        const dopSum = unit === 'revenue' ? dopRows.reduce((a,r)=>a+r.revProduce,0)
-                     : unit === 'qty'     ? dopRows.reduce((a,r)=>a+r.toProduce,0)
-                                          : dopRows.reduce((a,r)=>a+r.moneyProduce,0);
-        const dopHint = dopCount ? ` (вкл. ДОП ${dopCount} SKU · ${fmt(dopSum)})` : '';
+        const carryCount = carryRows.length;
+        const pickVal = arr => unit === 'revenue' ? arr.reduce((a,r)=>a+r.revProduce,0)
+                              : unit === 'qty'     ? arr.reduce((a,r)=>a+r.toProduce,0)
+                                                   : arr.reduce((a,r)=>a+r.moneyProduce,0);
+        const dopSum   = pickVal(dopRows);
+        const carrySum = pickVal(carryRows);
+        const dopHint = (dopCount || carryCount) ?
+          ` (${dopCount?`ДОП ${dopCount} SKU · ${fmt(dopSum)}`:''}${dopCount && carryCount?' · ':''}${carryCount?`Перенос ${carryCount} SKU · ${fmt(carrySum)}`:''})` : '';
         const segs = [
           { key:'shipped', label:'Факт',    value:set.fact,    color:'#16a34a', extra:'' },
           { key:'stock',   label:'Склад',   value:set.stock,   color:'#2563eb', extra:'' },
@@ -3288,7 +3357,7 @@
           `<div class="seg seg-${s.key}" style="width:${Math.max(0, s.value/total*100)}%" title="${s.label}: ${fmt(s.value)}${s.extra}"></div>`
         ).join('');
         document.getElementById('v2HeroBarLegend').innerHTML = segs.map(s =>
-          `<span title="${s.label}: ${fmt(s.value)}${s.extra}"><span class="lg-dot" style="background:${s.color}"></span>${s.label} <strong>${fmt(s.value)}</strong>${s.key==='produce' && dopCount ? ` <span class="v2-dop-badge" style="margin-left:4px">ДОП ${dopCount}</span>` : ''}</span>`
+          `<span title="${s.label}: ${fmt(s.value)}${s.extra}"><span class="lg-dot" style="background:${s.color}"></span>${s.label} <strong>${fmt(s.value)}</strong>${s.key==='produce' && dopCount ? ` <span class="v2-dop-badge" style="margin-left:4px">ДОП ${dopCount}</span>` : ''}${s.key==='produce' && carryCount ? ` <span class="v2-carry-badge" style="margin-left:4px">Перенос ${carryCount}</span>` : ''}</span>`
         ).join('') +
           (set.moved > 0 ? `<span style="color:#94a3b8"><span class="lg-dot" style="background:#cbd5e1"></span>Перенос <strong>${fmt(set.moved)}</strong></span>` : '') +
           (set.lost > 0 ? `<span style="color:#dc2626"><span class="lg-dot" style="background:#dc2626"></span>Снято −<strong>${fmt(set.lost)}</strong></span>` : '');
@@ -3513,8 +3582,11 @@
             const dopBadge = r.origin === 'dop'
               ? ` <span class="v2-dop-badge" title="ДОП из /s3-plan: заказ ${escapeHtml(r.raw.order||'—')}${r.dopComment?' · '+escapeHtml(r.dopComment):''}">ДОП</span>`
               : '';
+            const carryBadge = r.origin === 'carry'
+              ? ` <span class="v2-carry-badge" title="Перенос из ${escapeHtml(r.carryFrom||'?')}">Перенос ${escapeHtml(r.carryFrom||'')}</span>`
+              : '';
             const warn = r.flagCostHole?' <span title="нет цены фабрики в 1С — маржа считается как 20% от выручки, проверь" style="color:#dc2626">⚠</span>':r.flagMarginSuspicious?' <span title="маржа >65%" style="color:#ca8a04">⚠</span>':'';
-            return `<td class="sku-cell"><strong>${escapeHtml(r.sku)}</strong>${warn}${dopBadge}</td>`;
+            return `<td class="sku-cell"><strong>${escapeHtml(r.sku)}</strong>${warn}${dopBadge}${carryBadge}</td>`;
           }
           if (c.key === 'name')        return `<td class="v2-name-cell">${escapeHtml(r.name||'')}</td>`;
           if (c.key === 'order')       return `<td><small style="color:#64748b">${escapeHtml(r.order||'')}</small></td>`;
