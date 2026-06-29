@@ -3054,25 +3054,30 @@
         if (inc.has('dop'))   dopVirtual.forEach(r => out.push(r));
         return out;
       }
-      // Carry-over из прошлых месяцев: meta.status='moved' + moved_date YYYY-MM матчит state.month.
+      // Carry-over из прошлых месяцев: meta.status='moved' AND (moved_date в текущем месяце ИЛИ дата пустая + текущий = следующий за исходным).
       // ВАЖНО: цифры (штуки и валовка) КОПИРУЮТСЯ из исходного месяца как есть, без пересчёта.
-      // Когда SKU в конце месяца придёт в основной план Юля через 1С — existingSkus.has(sku) отсечёт carry (дубль).
+      // Когда SKU в конце месяца придёт в основной план через 1С — existingSkus.has(sku) отсечёт carry (дубль).
       function v2BuildCarryRows(monthName, existingSkus) {
         const targetYm = (() => {
           const monthNum = { 'Май':'05','Июнь':'06','Июль':'07','Август':'08' }[monthName];
           return monthNum ? `2026-${monthNum}` : null;
         })();
         if (!targetYm) return [];
+        const NEXT_MONTH = { 'Май':'Июнь', 'Июнь':'Июль', 'Июль':'Август' };
         const out = [];
         Object.keys(sharedMeta).forEach(k => {
           const m = sharedMeta[k];
           if (!m || typeof m !== 'object') return;
           if (m.status !== 'moved') return;
           const md = m.moved_date || '';
-          if (typeof md !== 'string' || md.slice(0,7) !== targetYm) return;
           const [srcMonth, sku] = k.split('::');
           if (!sku) return;
           if (srcMonth === monthName) return;
+          // Дата явно заполнена → проверяем что она в текущем месяце
+          // Иначе → если дата пустая, переносим по умолчанию в следующий месяц от исходного
+          const dateMatches = md && md.slice(0,7) === targetYm;
+          const implicitMatch = !md && NEXT_MONTH[srcMonth] === monthName;
+          if (!dateMatches && !implicitMatch) return;
           if (existingSkus && existingSkus.has(sku)) return;
           // Берём исходную v2-row из соседней вкладки и копируем суммы переноса.
           const srcData = DATA.find(r => r.month === srcMonth && r.sku === sku);
