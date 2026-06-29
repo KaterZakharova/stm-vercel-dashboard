@@ -3281,6 +3281,8 @@
         const A = { fact:0, stock:0, produceFull:0, tail:0, moved:0, lost:0 }; // валовка
         const R = { fact:0, stock:0, produceFull:0, tail:0, moved:0, lost:0 }; // выручка
         const Q = { fact:0, stock:0, produceFull:0, tail:0, moved:0, lost:0 }; // штуки
+        // Carry (переносы из прошлого месяца) — уже подтверждены, идут в "К выпуску" БЕЗ слайдера реализуемости.
+        let carryA = 0, carryR = 0, carryQ = 0;
         rows.forEach(r => {
           A.fact += r.moneyShipped;  R.fact += r.revShipped;  Q.fact += r.shipped;
           if (r.status === 'risk') {
@@ -3293,6 +3295,11 @@
             A.moved += r.moneyMoved + r.moneyStock + r.moneyProduce + r.moneyTail;
             R.moved += r.revMoved   + r.revStock   + r.revProduce   + r.revTail;
             Q.moved += r.movedQty   + r.stockReady + r.toProduce    + r.tailQty;
+            return;
+          }
+          if (r.origin === 'carry') {
+            // Переносы — идут 100% в produce, слайдер не применяется (уже committed).
+            carryA += r.moneyProduce; carryR += r.revProduce; carryQ += r.toProduce;
             return;
           }
           A.stock += r.moneyStock; R.stock += r.revStock; Q.stock += r.stockReady;
@@ -3310,9 +3317,12 @@
         const svcGp  = monthServices.reduce((a, s) => a + Number(s.gp      || 0), 0);
         A.fact += svcGp;
         R.fact += svcRev;
-        A.produce = A.produceFull * realizableRate;
-        R.produce = R.produceFull * realizableRate;
-        Q.produce = Q.produceFull * realizableRate;
+        // Carry прибавляется к produce БЕЗ слайдера (он уже учтён в исходном месяце).
+        A.produce = A.produceFull * realizableRate + carryA;
+        R.produce = R.produceFull * realizableRate + carryR;
+        Q.produce = Q.produceFull * realizableRate + carryQ;
+        // Сохраняем carry-суммы для подсветки и tooltip
+        A.carry = carryA; R.carry = carryR; Q.carry = carryQ;
         A.total = A.fact + A.stock + A.produce + A.tail;
         R.total = R.fact + R.stock + R.produce + R.tail;
         Q.total = Q.fact + Q.stock + Q.produce + Q.tail;
