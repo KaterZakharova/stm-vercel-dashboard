@@ -3115,18 +3115,16 @@
       // Скипаем SKU которые уже есть в baseRows (чтобы не дублировать с обычным планом).
       function v2BuildDopRows(monthName, existingSkus) {
         if (!dopQueueLoaded || !dopQueueRows.length) return [];
-        const stmSkus = new Set(DATA.map(r => r.sku));
-        // самая свежая запись по SKU из DATA — для подтяга цен/менеджера
+        // Бэкенд /api/s3-plan/dop-queue уже фильтрует по STM-классификатору, double-фильтр не нужен.
+        // Берём ВСЕ строки in_plan=false с ship_month=monthName, включая новинки которых нет в DATA.
         const dataBySku = new Map();
         const monthIdx = m => MONTH_ORDER.indexOf(m);
         DATA.forEach(r => {
           const cur = dataBySku.get(r.sku);
           if (!cur || monthIdx(r.month) > monthIdx(cur.month)) dataBySku.set(r.sku, r);
         });
-        // фильтр строк: in_plan=false + ship_month матчит monthName + SKU из STM-классификатора
         const candidates = dopQueueRows.filter(r => {
           if (r.in_plan) return false;
-          if (!stmSkus.has(r.sku)) return false;
           if (existingSkus && existingSkus.has(r.sku)) return false;
           const ym = r.ship_month;
           if (!ym) return false;
