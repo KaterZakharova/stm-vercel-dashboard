@@ -3461,11 +3461,12 @@
         const counts = v2OriginCounts();
         const chip = (key, cls, label, count) =>
           `<button type="button" class="${inc.has(key)?'on '+cls:''}" data-include="${key}" title="Клик переключает">${label}${count?` <span style="opacity:0.75">${count}</span>`:''}</button>`;
+        const dopLabel = dopQueueLoaded ? '+ ДОПы' : '+ ДОПы (нет SSO?)';
         document.getElementById('v2HeroInclude').innerHTML =
           `<span class="lbl">Учитывать:</span>` +
           chip('base',  '',      'План',       counts.base) +
           chip('carry', 'carry', '+ Переносы', counts.carry) +
-          chip('dop',   'dop',   '+ ДОПы',     counts.dop);
+          chip('dop',   'dop',   dopLabel,     counts.dop);
       }
       // Считает сколько потенциально доступно строк base / carry / dop для текущего месяца,
       // независимо от того что выбрано в includeOrigins.
