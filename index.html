@@ -3160,6 +3160,14 @@
             A.tail += r.moneyTail; R.tail += r.revTail; Q.tail += r.tailQty;
           }
         });
+        // Услуги месяца — выручка и валовка прибавляются к факту (v1 делал так же).
+        // В количество штук НЕ идут (это услуги, не товар).
+        const monthServices = (typeof SERVICES !== 'undefined' && Array.isArray(SERVICES))
+          ? SERVICES.filter(s => s.month === state.month) : [];
+        const svcRev = monthServices.reduce((a, s) => a + Number(s.revenue || 0), 0);
+        const svcGp  = monthServices.reduce((a, s) => a + Number(s.gp      || 0), 0);
+        A.fact += svcGp;
+        R.fact += svcRev;
         A.produce = A.produceFull * realizableRate;
         R.produce = R.produceFull * realizableRate;
         Q.produce = Q.produceFull * realizableRate;
@@ -3174,6 +3182,8 @@
           realizableRate, tailIncluded: tailGlobal,
           // новые: разбивка по единицам
           A, R, Q,
+          // услуги (для отображения в legend/footer)
+          services: { revenue: svcRev, gp: svcGp, count: monthServices.length },
         };
       }
 
@@ -3288,9 +3298,10 @@
         const target = (TARGETS[state.month] || {}).gp || 0;
         const planQtyTot = rows.reduce((a, r) => a + r.plan, 0);
         const factQty = rows.reduce((a, r) => a + r.shipped, 0);
-        const planRev = rows.reduce((a, r) => a + (r.revenue || 0), 0);
-        const factRev = rows.reduce((a, r) => a + Number(r.raw.actualRevenue || 0), 0);
-        const factGp = fc.factSum;
+        // Выручка: plan = только товары, fact = товары + услуги (как в v1).
+        const planRev = rows.reduce((a, r) => a + (r.revenue || 0), 0) + (fc.services ? fc.services.revenue : 0);
+        const factRev = fc.R.fact;  // включает услуги (см. v2Forecast)
+        const factGp = fc.factSum;  // тоже включает услуги
         const colorFor = p => p >= 0.7 ? '#16a34a' : p >= 0.4 ? '#d97706' : '#dc2626';
         const row = (label, targetText, valueText, achieved, total, barColor) => {
           const p = total ? Math.min(1, achieved/total) : 0;
