@@ -3054,61 +3054,54 @@
         if (inc.has('dop'))   dopVirtual.forEach(r => out.push(r));
         return out;
       }
-      // Carry-over из прошлых месяцев: meta.status='moved' + moved_date YYYY-MM матчит state.month + moved_qty>0.
-      // Виртуальная строка для текущего месяца с planQty=moved_qty. SKU не должен уже быть в base.
+      // Carry-over из прошлых месяцев: meta.status='moved' + moved_date YYYY-MM матчит state.month.
+      // ВАЖНО: цифры (штуки и валовка) КОПИРУЮТСЯ из исходного месяца как есть, без пересчёта.
+      // Когда SKU в конце месяца придёт в основной план Юля через 1С — existingSkus.has(sku) отсечёт carry (дубль).
       function v2BuildCarryRows(monthName, existingSkus) {
-        // year-month → russian month name (для матчинга moved_date)
         const targetYm = (() => {
-          const idx = MONTH_ORDER.indexOf(monthName);
-          if (idx < 0) return null;
-          // YYYY-MM для 2026: Май=05, Июнь=06, Июль=07, Август=08
           const monthNum = { 'Май':'05','Июнь':'06','Июль':'07','Август':'08' }[monthName];
           return monthNum ? `2026-${monthNum}` : null;
         })();
         if (!targetYm) return [];
-        // dataBySku для подтяга цен/менеджера/имени
-        const dataBySku = new Map();
-        const monthIdx = m => MONTH_ORDER.indexOf(m);
-        DATA.forEach(r => {
-          const cur = dataBySku.get(r.sku);
-          if (!cur || monthIdx(r.month) > monthIdx(cur.month)) dataBySku.set(r.sku, r);
-        });
         const out = [];
-        // sharedMeta key format: "Месяц::SKU"
         Object.keys(sharedMeta).forEach(k => {
           const m = sharedMeta[k];
           if (!m || typeof m !== 'object') return;
           if (m.status !== 'moved') return;
           const md = m.moved_date || '';
           if (typeof md !== 'string' || md.slice(0,7) !== targetYm) return;
-          const qty = Number(m.moved_qty || 0);
-          if (qty <= 0) return;
           const [srcMonth, sku] = k.split('::');
           if (!sku) return;
-          if (srcMonth === monthName) return;          // уже в текущем месяце — не виртуалим
+          if (srcMonth === monthName) return;
           if (existingSkus && existingSkus.has(sku)) return;
-          const d = dataBySku.get(sku);
-          const raw = {
-            sku,
-            name: d ? d.name : sku,
-            manager: d ? (d.manager || '') : '',
-            counterparty: d ? (d.counterparty || '') : '',
-            order: d ? (d.order || '') : '',
-            month: monthName,
-            planQty: qty,
-            shippedQty: 0, stockStm: 0, stockPgp: 0,
-            factoryPrice: d ? Number(d.factoryPrice || 0) : 0,
-            clientPrice:  d ? Number(d.clientPrice  || 0) : 0,
-            actualClientPrice: 0,
-            actualRevenue: 0, actualGp: 0,
-            plannedRevenue: qty * Number(d ? d.clientPrice || 0 : 0),
-            plannedGp:      qty * Math.max(0, (d ? d.clientPrice||0 : 0) - (d ? d.factoryPrice||0 : 0)),
-            _origin: 'carry', _carryFrom: srcMonth,
-          };
-          const v2 = buildV2Row(raw);
-          v2.origin = 'carry';
-          v2.carryFrom = srcMonth;
-          out.push(v2);
+          // Берём исходную v2-row из соседней вкладки и копируем суммы переноса.
+          const srcData = DATA.find(r => r.month === srcMonth && r.sku === sku);
+          if (!srcData) return;
+          const srcV2 = buildV2Row(srcData);
+          // Полный объём переноса = всё что не отгружено: movedQty + stockReady + toProduce + tailQty.
+          const carryQty = srcV2.movedQty + srcV2.stockReady + srcV2.toProduce + srcV2.tailQty;
+          const carryGp  = srcV2.moneyMoved + srcV2.moneyStock + srcV2.moneyProduce + srcV2.moneyTail;
+          const carryRev = srcV2.revMoved   + srcV2.revStock   + srcV2.revProduce   + srcV2.revTail;
+          if (carryQty <= 0) return;
+          const unitMargin = carryQty > 0 ? carryGp / carryQty : 0;
+          // Полностью собираем v2-row вручную: всё незавершённое падает в "К выпуску".
+          out.push({
+            raw: { ...srcData, month: monthName, _origin: 'carry' },
+            sku, name: srcV2.name, manager: srcV2.manager, counterparty: srcV2.counterparty,
+            order: srcV2.order,
+            plan: carryQty, shipped: 0, stockReady: 0, toProduce: carryQty,
+            movedQty: 0, tailQty: 0,
+            v: unitMargin,
+            moneyShipped: 0, moneyStock: 0, moneyProduce: carryGp, moneyMoved: 0, moneyTail: 0,
+            revShipped: 0,   revStock: 0,   revProduce: carryRev, revMoved: 0,   revTail: 0,
+            grossMargin: carryGp, revenue: carryRev,
+            marginPct: carryRev > 0 ? carryGp / carryRev : null,
+            flagCostHole: false, flagMarginSuspicious: false, costAssumed20: false,
+            status: 'prod', statusOverride: false,
+            tailIncluded: false, movedDate: '', movedReason: '', reasonCategory: '',
+            comment: '',
+            origin: 'carry', carryFrom: srcMonth,
+          });
         });
         return out;
       }
@@ -3174,6 +3167,13 @@
           const v2 = buildV2Row(raw);
           v2.origin = 'dop';
           v2.dopComment = raw._dopComment;
+          // Валовка по ДОПам пока ненадёжна (цены могут быть нулевые у новинок) — обнуляем,
+          // ставим флаг чтобы в таблице показать звёздочку с tooltip «на доработке».
+          // Штуки оставляем как есть (из dop-queue qty).
+          v2.gpUncertain = true;
+          v2.moneyShipped = 0; v2.moneyStock = 0; v2.moneyProduce = 0; v2.moneyMoved = 0; v2.moneyTail = 0;
+          v2.grossMargin = 0;
+          v2.marginPct = null;
           out.push(v2);
         });
         return out;
@@ -3483,9 +3483,12 @@
           </div>`;
         };
         const factMargin = factRev ? `маржа ${pct(factGp/factRev)}` : '';
+        // Потенциал в штуках = факт + склад + к выпуску × слайдер + хвост (если включён)
+        const potentialQty = fc.factQty + fc.stockQty + fc.produceQty + fc.tailQty;
+        const potentialText = potentialQty > factQty ? ` · потенциал <strong>${fmtQty.format(potentialQty)} шт</strong>` : '';
         document.getElementById('v2Kpis').innerHTML =
           row('Валовка управл.', `из ${rub(target)} цель${factMargin?' · '+factMargin:''}`, rub(factGp),  factGp, target,      '#0e7c66') +
-          row('Штуки',           `из ${fmtQty.format(planQtyTot)} план`,                    fmtQty.format(factQty), factQty, planQtyTot, '#2563eb') +
+          row('Штуки',           `из ${fmtQty.format(planQtyTot)} план${potentialText}`,    fmtQty.format(factQty), factQty, planQtyTot, '#2563eb') +
           row('Выручка без НДС', `из ${rub(planRev)} план`,                                 rub(factRev), factRev, planRev,    '#0e7c66');
       }
       function v2RenderManagers(rows) {
@@ -3695,7 +3698,10 @@
           if (c.key === 'toProduce')   return `<td class="num stage-produce ${strikeProduce}">${r.toProduce?fmtQty.format(r.toProduce):'—'}</td>`;
           if (c.key === 'movedQty')    return `<td class="num stage-moved ${r.movedQty?strikeMoved:''}">${r.movedQty?fmtQty.format(r.movedQty):'—'}</td>`;
           if (c.key === 'tailQty')     return `<td class="num stage-tail ${strikeTailMoney}">${r.tailQty?fmtQty.format(r.tailQty):'—'}</td>`;
-          if (c.key === 'grossMargin') return `<td class="num ${strikeMoney}">${rub(r.grossMargin)}</td>`;
+          if (c.key === 'grossMargin') {
+            if (r.gpUncertain) return `<td class="num" style="color:#94a3b8" title="Валовка по ДОПам пока не считается — нет цен в DATA. На доработке: расширяем /api/s3-plan/dop-queue чтобы тянуло factoryPrice/clientPrice из 1С">— <span style="color:#d97706;font-weight:700">*</span></td>`;
+            return `<td class="num ${strikeMoney}">${rub(r.grossMargin)}</td>`;
+          }
           if (c.key === 'revenue')     return `<td class="num">${rub(r.revenue)}</td>`;
           if (c.key === 'marginPct')   return `<td class="num">${r.marginPct!=null?pct(r.marginPct):'—'}</td>`;
           if (c.key === 'status') {
