@@ -277,7 +277,9 @@
     .v2-hero { display:flex; gap:24px; align-items:flex-start; margin: 16px 0 20px; padding: 16px 20px; background:#fff; border-radius:10px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); position: relative; }
 
     /* slim hero — крупный шрифт, заметная рамка */
-    .v2-hero-slim { display: grid; grid-template-columns: auto 1fr auto; grid-template-areas: "amt sub aux" "bar bar bar" "leg leg leg" "inc inc inc"; align-items: baseline; column-gap: 18px; row-gap: 10px; padding: 20px 26px; margin: 14px 0 14px; border: 2px solid #0e7c66; box-shadow: 0 2px 10px rgba(14,124,102,0.12); }
+    .v2-hero-slim { display: grid; grid-template-columns: auto 1fr auto; grid-template-areas: "note note note" "amt sub aux" "bar bar bar" "leg leg leg" "inc inc inc"; align-items: baseline; column-gap: 18px; row-gap: 10px; padding: 20px 26px; margin: 14px 0 14px; border: 2px solid #0e7c66; box-shadow: 0 2px 10px rgba(14,124,102,0.12); }
+    .v2-hero-slim .v2-hero-note { grid-area: note; font-size: 12px; font-weight: 700; color: #dc2626; min-height: 0; }
+    .v2-hero-slim .v2-hero-note:empty { display: none; }
     .v2-hero-slim .v2-hero-amount { grid-area: amt; font-size: 36px; line-height: 1; font-weight: 800; color: #0e7c66; }
     .v2-hero-slim .v2-hero-sub { grid-area: sub; font-size: 14px; color: #475569; align-self: end; }
     .v2-hero-slim .v2-hero-aux { grid-area: aux; font-size: 14px; color: #0f172a; font-weight: 600; }
@@ -788,6 +790,7 @@
       </details>
       <!-- Slim hero: сумма + сегментный progress + цель в одну строку -->
       <div class="v2-hero v2-hero-slim">
+        <div class="v2-hero-note" id="v2HeroNote"></div>
         <div class="v2-hero-amount" id="v2HeroAmount">— ₽</div>
         <div class="v2-hero-sub" id="v2HeroSub">прогноз по выборке · все SKU</div>
         <div class="v2-hero-bar" id="v2HeroBar"></div>
@@ -3417,6 +3420,12 @@
         const set = unit === 'revenue' ? fc.R : unit === 'qty' ? fc.Q : fc.A;
         const fmt = unit === 'qty' ? (v => fmtQty.format(v||0) + ' шт') : (v => rub(v));
         document.getElementById('v2HeroAmount').textContent = fmt(set.total);
+        // Подсветка для валюты: ВП (валовая прибыль) от ДОПов не учитывается пока (см. gpUncertain на ДОП строках)
+        const noteEl = document.getElementById('v2HeroNote');
+        if (noteEl) {
+          const hasDopInTotal = v2State.includeOrigins.has('dop') && rows.some(r => r.origin === 'dop');
+          noteEl.innerHTML = (unit !== 'qty' && hasDopInTotal) ? '* итог не учитывает ВП от доп. объёма (валовка ДОПов считается отдельно — нет цен в DATA, на доработке)' : '';
+        }
         const target = unit === 'qty'
           ? ((TARGETS[state.month] || {}).qty || 0)
           : ((TARGETS[state.month] || {}).gp || 0);
