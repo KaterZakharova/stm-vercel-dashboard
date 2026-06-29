@@ -3126,6 +3126,8 @@
         const candidates = dopQueueRows.filter(r => {
           if (r.in_plan) return false;
           if (existingSkus && existingSkus.has(r.sku)) return false;
+          // Артикулы начинающиеся с "raw" — это сырьё, не готовая продукция, исключаем.
+          if (r.sku && /^raw/i.test(r.sku)) return false;
           const ym = r.ship_month;
           if (!ym) return false;
           const mm = ym.slice(5, 7);
