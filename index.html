@@ -3124,7 +3124,9 @@
           if (!cur || monthIdx(r.month) > monthIdx(cur.month)) dataBySku.set(r.sku, r);
         });
         const candidates = dopQueueRows.filter(r => {
-          if (r.in_plan) return false;
+          // Фильтр in_plan УБРАН — он означает «в плане ХОТЯ БЫ в одном месяце» и режет
+          // SKU из Май/Август-плана, которые приходят как повторный заказ на Юль (не дубль).
+          // Дубли отсекаем через existingSkus (= DATA[monthName].sku ∪ carry.sku).
           if (existingSkus && existingSkus.has(r.sku)) return false;
           // Артикулы начинающиеся с "raw" — это сырьё, не готовая продукция, исключаем.
           if (r.sku && /^raw/i.test(r.sku)) return false;
@@ -3487,7 +3489,6 @@
             return MONTH_FROM_YM[ym.slice(5,7)] === state.month;
           });
           const filteredOut = rawDopForMonth.filter(r => {
-            if (r.in_plan) return true;
             if (/^raw/i.test(r.sku||'')) return true;
             if (carrySkus.has(r.sku)) return true;
             return false;
@@ -3501,7 +3502,7 @@
             filteredReasons: filteredOut.map(r=>({
               sku: r.sku,
               qty: r.qty,
-              reason: r.in_plan ? 'in_plan=true' : /^raw/i.test(r.sku||'') ? 'raw' : carrySkus.has(r.sku) ? 'overlap(base/carry)' : '?'
+              reason: /^raw/i.test(r.sku||'') ? 'raw' : carrySkus.has(r.sku) ? 'overlap(base/carry)' : '?'
             })),
             kept: dop.length,
             keptQty: dopQty,
