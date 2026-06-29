@@ -310,6 +310,9 @@
     #v2Kpis .kpi-mini-bar { height: 4px; border-radius: 2px; background: #e2e8f0; overflow: hidden; margin-top: 1px; }
     #v2Kpis .kpi-mini-bar span { display: block; height: 100%; border-radius: 2px; }
 
+    /* Бейдж «ДОП» рядом с SKU — синий, для строк origin='dop' (из /s3-plan dop-queue) */
+    .v2-dop-badge { display: inline-block; margin-left: 6px; padding: 1px 6px; font-size: 10px; font-weight: 700; color: #1e40af; background: #dbeafe; border: 1px solid #93c5fd; border-radius: 4px; vertical-align: middle; letter-spacing: 0.3px; cursor: help; }
+
     /* Loss summary — внутри карточки, компактные строки */
     #v2LossSummary .ls-section { padding: 0; background: none; border: none; margin: 0; }
     #v2LossSummary .ls-section + .ls-section { border-top: 1px solid #f1f5f9; padding-top: 10px; margin-top: 10px; }
@@ -2962,7 +2965,76 @@
       // ─── Model: один SKU = одна строка, стадии разложены ─────
       function v2BuildRows() {
         const baseRows = DATA.filter(r => r.month === state.month);
-        return baseRows.map(r => buildV2Row(r));
+        const built = baseRows.map(r => buildV2Row(r));
+        // Доп очередь — виртуальные строки для SKU, которых нет в DATA текущего месяца.
+        const dopVirtual = v2BuildDopRows(state.month, new Set(built.map(b => b.sku)));
+        return built.concat(dopVirtual);
+      }
+      // Строит виртуальные v2-строки из dop-queue (in_plan=false, ship_month=месяц).
+      // Цены и менеджер берутся из DATA по любому месяцу того же SKU (самая свежая запись).
+      // Скипаем SKU которые уже есть в baseRows (чтобы не дублировать с обычным планом).
+      function v2BuildDopRows(monthName, existingSkus) {
+        if (!dopQueueLoaded || !dopQueueRows.length) return [];
+        const stmSkus = new Set(DATA.map(r => r.sku));
+        // самая свежая запись по SKU из DATA — для подтяга цен/менеджера
+        const dataBySku = new Map();
+        const monthIdx = m => MONTH_ORDER.indexOf(m);
+        DATA.forEach(r => {
+          const cur = dataBySku.get(r.sku);
+          if (!cur || monthIdx(r.month) > monthIdx(cur.month)) dataBySku.set(r.sku, r);
+        });
+        // фильтр строк: in_plan=false + ship_month матчит monthName + SKU из STM-классификатора
+        const candidates = dopQueueRows.filter(r => {
+          if (r.in_plan) return false;
+          if (!stmSkus.has(r.sku)) return false;
+          if (existingSkus && existingSkus.has(r.sku)) return false;
+          const ym = r.ship_month;
+          if (!ym) return false;
+          const mm = ym.slice(5, 7);
+          return MONTH_FROM_YM[mm] === monthName;
+        });
+        // группа по sku — qty суммируется, orderRefs/clients/comments склеиваются
+        const grouped = new Map();
+        candidates.forEach(r => {
+          const acc = grouped.get(r.sku) || {
+            sku: r.sku, name: r.nomenclature, qty: 0,
+            orderRefs: new Set(), clients: new Set(), comments: new Set(),
+          };
+          acc.qty += Number(r.qty || 0);
+          if (r.toll_order_number) acc.orderRefs.add(r.toll_order_number);
+          if (r.contractor_name) acc.clients.add(r.contractor_name);
+          if (r.comment) acc.comments.add(r.comment);
+          grouped.set(r.sku, acc);
+        });
+        const out = [];
+        grouped.forEach(g => {
+          const d = dataBySku.get(g.sku);
+          // Подделываем raw-объект — buildV2Row дальше распакует.
+          const raw = {
+            sku: g.sku,
+            name: g.name || (d ? d.name : g.sku),
+            manager: d ? (d.manager || '') : '',
+            counterparty: g.clients.size ? [...g.clients].join('; ') : (d ? (d.counterparty || '') : ''),
+            order: [...g.orderRefs].join('; '),
+            month: monthName,
+            planQty: g.qty,
+            shippedQty: 0,
+            stockStm: 0, stockPgp: 0,
+            factoryPrice: d ? Number(d.factoryPrice || 0) : 0,
+            clientPrice:  d ? Number(d.clientPrice  || 0) : 0,
+            actualClientPrice: 0,
+            actualRevenue: 0, actualGp: 0,
+            plannedRevenue: g.qty * Number(d ? d.clientPrice || 0 : 0),
+            plannedGp:      g.qty * Math.max(0, (d ? d.clientPrice||0 : 0) - (d ? d.factoryPrice||0 : 0)),
+            _origin: 'dop',
+            _dopComment: [...g.comments].join('; '),
+          };
+          const v2 = buildV2Row(raw);
+          v2.origin = 'dop';
+          v2.dopComment = raw._dopComment;
+          out.push(v2);
+        });
+        return out;
       }
       function buildV2Row(r) {
         const meta = v2Meta(r);
@@ -3189,17 +3261,24 @@
            </span>`;
         // Сегментный bar: Факт / Склад / К вып. / Хвост в пропорциях от total
         const total = set.total || 1;
+        // Сумма ДОП внутри produce — для подсветки в tooltip и легенде
+        const dopRows = rows.filter(r => r.origin === 'dop');
+        const dopCount = dopRows.length;
+        const dopSum = unit === 'revenue' ? dopRows.reduce((a,r)=>a+r.revProduce,0)
+                     : unit === 'qty'     ? dopRows.reduce((a,r)=>a+r.toProduce,0)
+                                          : dopRows.reduce((a,r)=>a+r.moneyProduce,0);
+        const dopHint = dopCount ? ` (вкл. ДОП ${dopCount} SKU · ${fmt(dopSum)})` : '';
         const segs = [
-          { key:'shipped', label:'Факт',    value:set.fact,    color:'#16a34a' },
-          { key:'stock',   label:'Склад',   value:set.stock,   color:'#2563eb' },
-          { key:'produce', label:'К вып.',  value:set.produce, color:'#d97706' },
-          { key:'tail',    label:'Хвост',   value:set.tail,    color:'#ca8a04' },
+          { key:'shipped', label:'Факт',    value:set.fact,    color:'#16a34a', extra:'' },
+          { key:'stock',   label:'Склад',   value:set.stock,   color:'#2563eb', extra:'' },
+          { key:'produce', label:'К вып.',  value:set.produce, color:'#d97706', extra:dopHint },
+          { key:'tail',    label:'Хвост',   value:set.tail,    color:'#ca8a04', extra:'' },
         ];
         document.getElementById('v2HeroBar').innerHTML = segs.map(s =>
-          `<div class="seg seg-${s.key}" style="width:${Math.max(0, s.value/total*100)}%" title="${s.label}: ${fmt(s.value)}"></div>`
+          `<div class="seg seg-${s.key}" style="width:${Math.max(0, s.value/total*100)}%" title="${s.label}: ${fmt(s.value)}${s.extra}"></div>`
         ).join('');
         document.getElementById('v2HeroBarLegend').innerHTML = segs.map(s =>
-          `<span><span class="lg-dot" style="background:${s.color}"></span>${s.label} <strong>${fmt(s.value)}</strong></span>`
+          `<span title="${s.label}: ${fmt(s.value)}${s.extra}"><span class="lg-dot" style="background:${s.color}"></span>${s.label} <strong>${fmt(s.value)}</strong>${s.key==='produce' && dopCount ? ` <span class="v2-dop-badge" style="margin-left:4px">ДОП ${dopCount}</span>` : ''}</span>`
         ).join('') +
           (set.moved > 0 ? `<span style="color:#94a3b8"><span class="lg-dot" style="background:#cbd5e1"></span>Перенос <strong>${fmt(set.moved)}</strong></span>` : '') +
           (set.lost > 0 ? `<span style="color:#dc2626"><span class="lg-dot" style="background:#dc2626"></span>Снято −<strong>${fmt(set.lost)}</strong></span>` : '');
@@ -3419,7 +3498,13 @@
         const detailVisible = v2State.showAllReasons || v2State.expandedDetailSkus.has(r.sku);
         const free = Math.max(0, r.plan - r.shipped - r.stockReady);
         const cellFor = c => {
-          if (c.key === 'sku')         return `<td class="sku-cell"><strong>${escapeHtml(r.sku)}</strong>${r.flagCostHole?' <span title="нет цены фабрики в 1С — маржа считается как 20% от выручки, проверь" style="color:#dc2626">⚠</span>':r.flagMarginSuspicious?' <span title="маржа >65%" style="color:#ca8a04">⚠</span>':''}</td>`;
+          if (c.key === 'sku') {
+            const dopBadge = r.origin === 'dop'
+              ? ` <span class="v2-dop-badge" title="ДОП из /s3-plan: заказ ${escapeHtml(r.raw.order||'—')}${r.dopComment?' · '+escapeHtml(r.dopComment):''}">ДОП</span>`
+              : '';
+            const warn = r.flagCostHole?' <span title="нет цены фабрики в 1С — маржа считается как 20% от выручки, проверь" style="color:#dc2626">⚠</span>':r.flagMarginSuspicious?' <span title="маржа >65%" style="color:#ca8a04">⚠</span>':'';
+            return `<td class="sku-cell"><strong>${escapeHtml(r.sku)}</strong>${warn}${dopBadge}</td>`;
+          }
           if (c.key === 'name')        return `<td class="v2-name-cell">${escapeHtml(r.name||'')}</td>`;
           if (c.key === 'order')       return `<td><small style="color:#64748b">${escapeHtml(r.order||'')}</small></td>`;
           if (c.key === 'manager')     return `<td><small>${escapeHtml(r.manager||'')}</small></td>`;
