@@ -435,6 +435,33 @@
     .v2-filter-row input:focus { border-color: #0e7c66; outline: none; }
     .v2-filter-row .clear-filter-cell { text-align: center; padding: 4px; }
     .v2-filter-row .clear-filter-cell button { font-size: 10px; padding: 2px 6px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 4px; cursor: pointer; color: #64748b; }
+    /* Excel-like фильтр кнопка ▾ и popup со списком чекбоксов */
+    .v2-filter-cell { position: relative; display: flex; align-items: center; gap: 3px; }
+    .v2-filter-cell input { flex: 1; min-width: 0; }
+    .v2-filter-cell .v2-filter-btn { padding: 3px 5px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 3px; cursor: pointer; font-size: 10px; color: #475569; line-height: 1; flex: none; }
+    .v2-filter-cell .v2-filter-btn:hover { background: #e0f2ee; border-color: #0e7c66; color: #0e7c66; }
+    .v2-filter-cell .v2-filter-btn.active { background: #0e7c66; border-color: #0e7c66; color: #fff; }
+    .v2-filter-popup { position: absolute; top: 100%; left: 0; z-index: 1000; min-width: 240px; max-width: 360px; background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; box-shadow: 0 6px 16px rgba(0,0,0,0.12); padding: 8px; margin-top: 4px; font-family: inherit; }
+    .v2-filter-popup-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .v2-filter-popup-head strong { font-size: 12px; color: #0f172a; }
+    .v2-filter-popup-head button.close { background: transparent; border: none; cursor: pointer; color: #94a3b8; font-size: 16px; line-height: 1; padding: 0 4px; }
+    .v2-filter-popup-search { width: 100%; padding: 5px 8px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 12px; box-sizing: border-box; margin-bottom: 6px; }
+    .v2-filter-popup-search:focus { border-color: #0e7c66; outline: none; }
+    .v2-filter-popup-actions { display: flex; gap: 6px; margin-bottom: 6px; }
+    .v2-filter-popup-actions button { font-size: 11px; padding: 3px 8px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 3px; cursor: pointer; color: #475569; }
+    .v2-filter-popup-actions button:hover { background: #e0f2ee; color: #0e7c66; border-color: #0e7c66; }
+    .v2-filter-popup-list { max-height: 280px; overflow-y: auto; border: 1px solid #f1f5f9; border-radius: 4px; padding: 4px 0; background: #fafafa; }
+    .v2-filter-popup-list label { display: flex; align-items: center; gap: 6px; padding: 3px 8px; font-size: 12px; cursor: pointer; user-select: none; }
+    .v2-filter-popup-list label:hover { background: #f1f5f9; }
+    .v2-filter-popup-list label input { margin: 0; }
+    .v2-filter-popup-list label .val-count { color: #94a3b8; font-size: 10px; margin-left: auto; }
+    .v2-filter-popup-list .empty { padding: 10px; text-align: center; color: #94a3b8; font-size: 11px; }
+    .v2-filter-popup-footer { display: flex; gap: 6px; margin-top: 8px; }
+    .v2-filter-popup-footer button { flex: 1; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600; }
+    .v2-filter-popup-footer .apply { background: #0e7c66; color: #fff; border: 1px solid #0e7c66; }
+    .v2-filter-popup-footer .apply:hover { background: #064d3f; border-color: #064d3f; }
+    .v2-filter-popup-footer .clear { background: #fff; color: #475569; border: 1px solid #cbd5e1; }
+    .v2-filter-popup-footer .clear:hover { background: #f1f5f9; }
     .v2-table td.sku-cell { white-space: nowrap; }
     .v2-table th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; background: #f8fafc; font-weight: 500; }
     .v2-table th.num, .v2-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
@@ -3056,6 +3083,10 @@
         managersOpen: false,
         heroUnit: localStorage.getItem('stmV2HeroUnit') || 'margin',     // margin | revenue | qty
         filters: {},                                                     // per-column substring/numeric
+        // Excel-like multi-select фильтр: { colKey: ['значение1','значение2'] }. Пустой массив => фильтр снят.
+        selectFilters: (() => {
+          try { const s = localStorage.getItem('stmV2SelectFilters'); return s ? JSON.parse(s) : {}; } catch { return {}; }
+        })(),
         lossCatFilter: null,                                             // null | string — клик по причине в сводке
         showAllReasons: localStorage.getItem('stmV2ShowAllReasons') === '1',  // глобальный показ деталей переноса/снятия
         expandedDetailSkus: new Set(),                                   // SKU с развёрнутой формой при глобально-свернутых
@@ -3778,6 +3809,139 @@
         }
         return String(v ?? '').toLowerCase().includes(val.toLowerCase());
       }
+      // Excel-like multi-select: возвращает "label" значения для строки в данной колонке.
+      // Должен совпадать с тем, как отображается в ячейке таблицы (но без HTML).
+      function v2SelectFilterValue(rowItem, key) {
+        if (key === 'status')      return STATUS_LABELS[rowItem.status] || '(пусто)';
+        if (key === 'sku')         return rowItem.sku || '(пусто)';
+        if (key === 'name')        return rowItem.name || '(пусто)';
+        if (key === 'order')       return rowItem.order || '(пусто)';
+        if (key === 'manager')     return rowItem.manager || '(пусто)';
+        if (key === 'comment')     return rowItem.comment || '(без комментария)';
+        if (key === 'shipDateFact')return (rowItem.raw && rowItem.raw.shipDate) || rowItem.shipDate || '(пусто)';
+        if (key === 'shipDatePlan')return (rowItem.raw ? (getShipDate(rowItem.raw) || '(пусто)') : '(пусто)');
+        if (key === 'marginPct') {
+          if (rowItem.marginPct == null) return '(нет данных)';
+          // Округление до целого процента — иначе 50+ уникальных значений
+          return `${Math.round(rowItem.marginPct * 100)}%`;
+        }
+        const v = rowItem[key];
+        if (typeof v === 'number') {
+          // Числовые колонки (план, штуки, валовка) — оставляем целое число для группировки
+          return Math.round(v).toString();
+        }
+        return String(v ?? '(пусто)');
+      }
+      // Применяет multi-select фильтр поверх обычного match.
+      function v2PassesSelectFilter(rowItem, key) {
+        const sel = v2State.selectFilters[key];
+        if (!Array.isArray(sel) || sel.length === 0) return true;
+        const val = v2SelectFilterValue(rowItem, key);
+        return sel.includes(val);
+      }
+      // Открывает popup с уникальными значениями для колонки.
+      // `rows` — НЕотфильтрованный исходный список (чтобы можно было раскрыть фильтр обратно).
+      function v2OpenFilterPopup(colKey, anchorBtn, rows) {
+        v2CloseFilterPopups();
+        const col = V2_COLUMNS.find(c => c.key === colKey);
+        if (!col) return;
+        // Считаем уникальные значения + кол-во вхождений
+        const counts = new Map();
+        rows.forEach(r => {
+          const val = v2SelectFilterValue(r, colKey);
+          counts.set(val, (counts.get(val) || 0) + 1);
+        });
+        const allVals = [...counts.keys()].sort((a, b) => {
+          // Числовая сортировка если оба похожи на числа (с %)
+          const na = parseFloat(String(a).replace('%','').replace(/\s/g,''));
+          const nb = parseFloat(String(b).replace('%','').replace(/\s/g,''));
+          if (!isNaN(na) && !isNaN(nb)) return na - nb;
+          return String(a).localeCompare(String(b), 'ru');
+        });
+        const currentSel = v2State.selectFilters[colKey];
+        const isFiltered = Array.isArray(currentSel) && currentSel.length > 0;
+        // Начальное состояние — копия текущей выборки (или все значения если фильтр пуст)
+        const chosen = new Set(isFiltered ? currentSel : allVals);
+        const pop = document.createElement('div');
+        pop.className = 'v2-filter-popup';
+        pop.dataset.popup = colKey;
+        const renderList = (search = '') => {
+          const filtered = search ? allVals.filter(v => String(v).toLowerCase().includes(search.toLowerCase())) : allVals;
+          if (!filtered.length) return '<div class="empty">Нет совпадений</div>';
+          return filtered.map(v => {
+            const checked = chosen.has(v) ? 'checked' : '';
+            return `<label><input type="checkbox" data-vf-val="${escapeHtml(v)}" ${checked}><span>${escapeHtml(v)}</span><span class="val-count">${counts.get(v)}</span></label>`;
+          }).join('');
+        };
+        pop.innerHTML = `
+          <div class="v2-filter-popup-head"><strong>Фильтр: ${escapeHtml(col.label)}</strong><button type="button" class="close" aria-label="Закрыть">×</button></div>
+          <input type="text" class="v2-filter-popup-search" placeholder="Поиск…">
+          <div class="v2-filter-popup-actions">
+            <button type="button" data-vf-action="all">Выбрать всё</button>
+            <button type="button" data-vf-action="none">Снять всё</button>
+          </div>
+          <div class="v2-filter-popup-list">${renderList()}</div>
+          <div class="v2-filter-popup-footer">
+            <button type="button" class="clear" data-vf-action="reset">Сбросить</button>
+            <button type="button" class="apply" data-vf-action="apply">Применить</button>
+          </div>`;
+        document.body.appendChild(pop);
+        // позиционирование
+        const rect = anchorBtn.getBoundingClientRect();
+        pop.style.position = 'absolute';
+        pop.style.top = (window.scrollY + rect.bottom + 2) + 'px';
+        pop.style.left = (window.scrollX + Math.max(8, rect.left - 20)) + 'px';
+        // Search
+        const searchEl = pop.querySelector('.v2-filter-popup-search');
+        const listEl = pop.querySelector('.v2-filter-popup-list');
+        searchEl.addEventListener('input', () => {
+          listEl.innerHTML = renderList(searchEl.value);
+        });
+        // Чекбоксы
+        listEl.addEventListener('change', e => {
+          const cb = e.target.closest('input[type="checkbox"]');
+          if (!cb) return;
+          const v = cb.dataset.vfVal;
+          if (cb.checked) chosen.add(v); else chosen.delete(v);
+        });
+        // Actions
+        pop.addEventListener('click', e => {
+          const a = e.target.closest('[data-vf-action]');
+          if (!a) {
+            if (e.target.classList.contains('close')) v2CloseFilterPopups();
+            return;
+          }
+          const action = a.dataset.vfAction;
+          if (action === 'all') {
+            allVals.forEach(v => chosen.add(v));
+            listEl.innerHTML = renderList(searchEl.value);
+          } else if (action === 'none') {
+            chosen.clear();
+            listEl.innerHTML = renderList(searchEl.value);
+          } else if (action === 'reset') {
+            delete v2State.selectFilters[colKey];
+            v2PersistSelectFilters();
+            v2CloseFilterPopups();
+            v2Render();
+          } else if (action === 'apply') {
+            // Если выбрано всё — это эквивалентно «нет фильтра»
+            if (chosen.size === 0 || chosen.size === allVals.length) {
+              delete v2State.selectFilters[colKey];
+            } else {
+              v2State.selectFilters[colKey] = [...chosen];
+            }
+            v2PersistSelectFilters();
+            v2CloseFilterPopups();
+            v2Render();
+          }
+        });
+      }
+      function v2CloseFilterPopups() {
+        document.querySelectorAll('.v2-filter-popup').forEach(p => p.remove());
+      }
+      function v2PersistSelectFilters() {
+        try { localStorage.setItem('stmV2SelectFilters', JSON.stringify(v2State.selectFilters)); } catch {}
+      }
       function v2RenderTable(rows, fc) {
         const cols = V2_COLUMNS.filter(c => v2Visible.has(c.key));
         let filtered = v2State.statusFilter === 'all' ? rows : rows.filter(r => r.status === v2State.statusFilter);
@@ -3791,13 +3955,23 @@
         if (activeFilters.length) {
           filtered = filtered.filter(r => activeFilters.every(([k, v]) => v2MatchFilter(r, k, v)));
         }
+        // Excel-like multi-select фильтры
+        const activeSelectKeys = Object.keys(v2State.selectFilters).filter(k => Array.isArray(v2State.selectFilters[k]) && v2State.selectFilters[k].length > 0 && cols.some(c => c.key === k));
+        if (activeSelectKeys.length) {
+          filtered = filtered.filter(r => activeSelectKeys.every(k => v2PassesSelectFilter(r, k)));
+        }
+        // Сохраняем pre-select-filter список для popup'ов (чтобы юзер мог расширить выбор обратно)
+        v2State._rowsBeforeSelectFilter = rows;
         // colgroup — управляет ширинами при table-layout:fixed
         document.getElementById('v2TableColgroup').innerHTML = cols.map(c =>
           `<col data-col="${c.key}" style="width:${v2ColWidths[c.key] || V2_DEFAULT_WIDTHS[c.key] || 100}px">`
         ).join('');
-        const filterRow = `<tr class="v2-filter-row">${cols.map(c =>
-          `<th><input type="text" data-v2-col-filter="${c.key}" value="${escapeHtml(v2State.filters[c.key]||'')}" placeholder="${c.num?'>500':'фильтр'}"></th>`
-        ).join('')}</tr>`;
+        const filterRow = `<tr class="v2-filter-row">${cols.map(c => {
+          const sel = v2State.selectFilters[c.key];
+          const selActive = Array.isArray(sel) && sel.length > 0;
+          const btnTitle = selActive ? `Фильтр активен: ${sel.length} знач.` : 'Фильтр по значениям (как в Excel)';
+          return `<th><div class="v2-filter-cell"><input type="text" data-v2-col-filter="${c.key}" value="${escapeHtml(v2State.filters[c.key]||'')}" placeholder="${c.num?'>500':'фильтр'}"><button type="button" class="v2-filter-btn${selActive?' active':''}" data-v2-filter-popup="${c.key}" title="${escapeHtml(btnTitle)}">▾</button></div></th>`;
+        }).join('')}</tr>`;
         document.getElementById('v2TableHead').innerHTML =
           '<tr>' + cols.map(c => `<th class="${c.num?'num':''}" data-col="${c.key}">${escapeHtml(c.label)}<span class="col-resize" data-col="${c.key}" title="Тяни, чтобы изменить ширину"></span></th>`).join('') + '</tr>' +
           filterRow;
@@ -4248,6 +4422,36 @@
         // re-render только tbody чтобы не сбрасывать фокус
         v2RenderTablePartial();
       });
+      // Кнопка ▾ Excel-style фильтр
+      document.getElementById('v2TableHead').addEventListener('click', e => {
+        const btn = e.target.closest('[data-v2-filter-popup]');
+        if (!btn) return;
+        e.stopPropagation();
+        const key = btn.dataset.v2FilterPopup;
+        // Если popup уже открыт для этой колонки — закрыть
+        if (document.querySelector(`.v2-filter-popup[data-popup="${CSS.escape(key)}"]`)) {
+          v2CloseFilterPopups(); return;
+        }
+        // Источник уникальных значений — НЕотфильтрованные исходные строки (чтобы можно было раскрыть фильтр обратно).
+        // Учитываем statusFilter и lossCatFilter, но НЕ per-column/select-фильтры.
+        const allRows = v2State._rowsBeforeSelectFilter || v2BuildRows();
+        let rowsForUnique = v2State.statusFilter === 'all' ? allRows : allRows.filter(r => r.status === v2State.statusFilter);
+        if (v2State.lossCatFilter) {
+          const wantUnfilled = v2State.lossCatFilter === '— без категории —';
+          rowsForUnique = rowsForUnique.filter(r => (r.status === 'risk' || r.status === 'moved')
+            && (wantUnfilled ? !(r.reasonCategory||'').trim() : (r.reasonCategory||'').trim() === v2State.lossCatFilter));
+        }
+        v2OpenFilterPopup(key, btn, rowsForUnique);
+      });
+      // Закрыть popup при клике вне
+      document.addEventListener('click', e => {
+        if (e.target.closest('.v2-filter-popup') || e.target.closest('[data-v2-filter-popup]')) return;
+        v2CloseFilterPopups();
+      });
+      // Закрыть popup при Escape
+      document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') v2CloseFilterPopups();
+      });
       function v2RenderTablePartial() {
         // лёгкая частичная перерисовка — пересчитывает rows и обновляет tbody/tfoot
         const rows = v2BuildRows();
@@ -4264,6 +4468,9 @@
         }
         const activeFilters = Object.entries(v2State.filters).filter(([k,v]) => v && cols.some(c => c.key === k));
         if (activeFilters.length) filtered = filtered.filter(r => activeFilters.every(([k, v]) => v2MatchFilter(r, k, v)));
+        const activeSelectKeys = Object.keys(v2State.selectFilters).filter(k => Array.isArray(v2State.selectFilters[k]) && v2State.selectFilters[k].length > 0 && cols.some(c => c.key === k));
+        if (activeSelectKeys.length) filtered = filtered.filter(r => activeSelectKeys.every(k => v2PassesSelectFilter(r, k)));
+        v2State._rowsBeforeSelectFilter = rows;
         document.getElementById('v2TableBody').innerHTML = filtered.length
           ? filtered.map(r => v2RowHtml(r, cols)).join('')
           : `<tr><td colspan="${cols.length}" style="text-align:center;color:#94a3b8;padding:20px">Нет строк под фильтр</td></tr>`;
@@ -4316,6 +4523,8 @@
         let filtered = v2State.statusFilter === 'all' ? rows : rows.filter(r => r.status === v2State.statusFilter);
         const activeFilters = Object.entries(v2State.filters).filter(([k,v]) => v && cols.some(c => c.key === k));
         if (activeFilters.length) filtered = filtered.filter(r => activeFilters.every(([k, v]) => v2MatchFilter(r, k, v)));
+        const activeSelectKeys = Object.keys(v2State.selectFilters).filter(k => Array.isArray(v2State.selectFilters[k]) && v2State.selectFilters[k].length > 0 && cols.some(c => c.key === k));
+        if (activeSelectKeys.length) filtered = filtered.filter(r => activeSelectKeys.every(k => v2PassesSelectFilter(r, k)));
         const headers = cols.map(c => c.label);
         const data = filtered.map(r => cols.map(c => {
           if (c.key === 'status') return STATUS_LABELS[r.status] || '';
