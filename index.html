@@ -350,7 +350,7 @@
     /* Бейдж «Перенос» — фиолетовый, для строк origin='carry' (status=moved из прошлого месяца) */
     .v2-carry-badge { display: inline-block; margin-left: 6px; padding: 2px 8px; font-size: 11px; font-weight: 800; color: #fff; background: #7c3aed; border: 1px solid #6d28d9; border-radius: 4px; vertical-align: middle; letter-spacing: 0.4px; cursor: help; text-shadow: 0 1px 1px rgba(0,0,0,0.10); }
     /* Тег переноса под SKU отдельной строкой — не наезжает на колонку Наименование */
-    .v2-carry-tag { display: inline-block; margin-top: 4px; padding: 1px 7px; font-size: 10px; font-weight: 700; color: #6b21a8; background: #f3e8ff; border: 1px solid #c4b5fd; border-radius: 3px; letter-spacing: 0.2px; white-space: nowrap; }
+    .v2-carry-tag { display: block; margin-top: 4px; padding: 1px 6px; font-size: 9px; font-weight: 700; color: #6b21a8; background: #f3e8ff; border: 1px solid #c4b5fd; border-radius: 3px; letter-spacing: 0.2px; max-width: 100%; box-sizing: border-box; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.4; }
 
     /* Блок «Документация» — свёрнут по умолчанию, разворачивается по клику */
     .v2-docs-block { margin: 8px 0 14px; border: 1px solid #cbd5e1; border-radius: 8px; background: #f8fafc; }
@@ -464,7 +464,7 @@
     .v2-filter-popup-footer .apply:hover { background: #064d3f; border-color: #064d3f; }
     .v2-filter-popup-footer .clear { background: #fff; color: #475569; border: 1px solid #cbd5e1; }
     .v2-filter-popup-footer .clear:hover { background: #f1f5f9; }
-    .v2-table td.sku-cell { white-space: nowrap; }
+    .v2-table td.sku-cell { white-space: normal; vertical-align: top; padding-top: 7px; padding-bottom: 7px; }
     .v2-table th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; background: #f8fafc; font-weight: 500; }
     .v2-table th.num, .v2-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
     .v2-table tr:hover td { background: #fafbfc; }
@@ -4069,7 +4069,7 @@
             // Случай 2 (флаг на base-row): r.carryFromMonth установлен — SKU в плане + ещё перенос из прошлого.
             const carrySrc = (r.origin === 'carry') ? r.carryFrom : r.carryFromMonth;
             const carryBadge = carrySrc
-              ? `<div class="v2-carry-tag" title="${r.origin==='carry'?'Перенос из':'Дополнительно перенос из'} ${escapeHtml(carrySrc||'?')}">↪ Перенос из ${escapeHtml(carrySrc||'')}</div>`
+              ? `<div class="v2-carry-tag" title="${r.origin==='carry'?'Перенос из':'Доп. перенос из'} ${escapeHtml(carrySrc||'?')}">↪ ${escapeHtml(carrySrc||'')}</div>`
               : '';
             const warn = r.flagCostHole?' <span title="нет цены фабрики в 1С — маржа считается как 20% от выручки, проверь" style="color:#dc2626">⚠</span>':r.flagMarginSuspicious?' <span title="маржа >65%" style="color:#ca8a04">⚠</span>':'';
             return `<td class="sku-cell"><strong>${escapeHtml(r.sku)}</strong>${warn}${carryBadge}</td>`;
