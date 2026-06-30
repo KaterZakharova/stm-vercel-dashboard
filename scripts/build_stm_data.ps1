@@ -8,8 +8,12 @@ $KeysPath      = "C:\Users\eklementeva\.codex\skills\odata-proxy\keys.env"
 $DataDir       = Join-Path $ProjectDir "data"
 $MatchedCsv    = Join-Path $DataDir "stm_matched_orders.csv"
 $ClassifierCsv = Join-Path $DataDir "1c_classifier_probe.csv"
-# Источники плана: ЦБ-00000218 — Май; ЦБ-00000220 — Июнь/Июль/Август (создан 29.05.2026)
-$PlanDocNumbers = @("ЦБ-00000218", "ЦБ-00000220")
+# Источники плана:
+#   ЦБ-00000218 — Май  (06.05.2026)
+#   ЦБ-00000220 — Июнь/Июль/Август (29.05.2026)
+#   ЦБ-00000223 — Июль/Август (30.06.2026, переподписан планёром — заменяет 220 на эти месяцы)
+# При коллизии (SKU+месяц в нескольких доках) выигрывает документ с более поздней Date.
+$PlanDocNumbers = @("ЦБ-00000218", "ЦБ-00000220", "ЦБ-00000223")
 
 $MayStart  = "2026-05-01T00:00:00"
 $JuneStart = "2026-06-01T00:00:00"
@@ -283,22 +287,36 @@ function Get-NomCounterparty($nomRefKey) {
 }
 
 # ─── step 1: production plan ─────────────────────────────────────────────────
+# Логика: читаем все док-и плана, для каждого (SKU, месяц) выигрывает документ с
+# самой поздней Date (последний планёр). НЕ суммируем — иначе при перевыпуске
+# плана штуки удвоятся.
 Write-Host "=== Шаг 1: план производства ($($PlanDocNumbers -join ', ')) ===" -ForegroundColor Cyan
 $planByMonth = New-MonthHash
+# Источник плана для каждой ячейки (month, sku) — храним для UI и для last-wins логики
+$planSourceByMonth = New-MonthHash  # planSourceByMonth[mc][skuNorm] = pscustomobject{Num, Date}
+# Собираем загруженные документы списком, сортируем по Date
+$loadedPlans = New-Object System.Collections.Generic.List[object]
 foreach ($planNum in $PlanDocNumbers) {
-    $safe = Escape-OData $planNum
-    # ищем по подстроке (Number eq иногда падает с AUTOORDER ошибкой), затем дочитываем по Ref_Key
     $tail = ($planNum -replace '[^\d]', '')
     $f = [uri]::EscapeDataString("substringof('$tail',Number) and DeletionMark eq false")
-    $listResp = Invoke-OData "Document_ПланПроизводства" "`$filter=$f&`$select=Ref_Key,Number" 180
+    $listResp = Invoke-OData "Document_ПланПроизводства" "`$filter=$f&`$select=Ref_Key,Number,Date" 180
     $match = @($listResp.value) | Where-Object { $_.Number -eq $planNum } | Select-Object -First 1
     if (-not $match) {
         Write-Warning "Документ ПланПроизводства '$planNum' не найден — пропускаю"
         continue
     }
-    # читаем сам документ с табличной частью Продукция через entity-key URL
     $planDoc = Invoke-RestMethod -Method Get -Uri "$($OData.Url)/odata/Document_ПланПроизводства(guid'$($match.Ref_Key)')?`$format=json" -Headers $ODataHeaders -TimeoutSec 180
+    $docDate = try { [datetime]$match.Date } catch { [datetime]"1900-01-01" }
+    $loadedPlans.Add([pscustomobject]@{ Num = $planNum; Date = $docDate; Doc = $planDoc })
+    Write-Host "  Загружен план $planNum (Date=$($docDate.ToString('dd.MM.yyyy'))), строк Продукция: $(@($planDoc.Продукция).Count)"
+}
+# Обходим документы в порядке возрастания Date — последний выигрывает по (sku, month)
+foreach ($lp in ($loadedPlans | Sort-Object Date)) {
+    $planNum = $lp.Num
+    $docDate = $lp.Date
+    $planDoc = $lp.Doc
     $added = @{}; foreach ($mc in $MonthCodes) { $added[$mc] = 0 }
+    $replaced = @{}; foreach ($mc in $MonthCodes) { $replaced[$mc] = 0 }
     foreach ($line in @($planDoc.Продукция)) {
         if ($line.Отменено -eq $true) { continue }
         $qty = To-Num $line.Количество
@@ -309,20 +327,47 @@ foreach ($planNum in $PlanDocNumbers) {
         $rd = if ($line.ДатаВыпуска) { try { [datetime]$line.ДатаВыпуска } catch { $null } } else { $null }
         $monthCode = if ($rd -and $rd.Year -gt 1900) { $rd.ToString("yyyy-MM") } else { "" }
         if ($monthCode -notin $MonthCodes) { continue }
-        if (-not $planByMonth[$monthCode].ContainsKey($skuNorm)) {
+        $existing = $planByMonth[$monthCode][$skuNorm]
+        if ($existing) {
+            # Уже было — заменяем (мы идём по возрастанию Date, значит этот док свежее)
+            $existing.PlanQty = $qty
+            $existing.NomRef = [string]$n.Ref_Key
+            $replaced[$monthCode] += 1
+        } else {
             $planByMonth[$monthCode][$skuNorm] = [pscustomobject]@{
                 Sku = [string]$n.Артикул; SkuNorm = $skuNorm
-                Name = [string]$n.Description; PlanQty = 0.0; NomRef = [string]$n.Ref_Key
+                Name = [string]$n.Description; PlanQty = $qty; NomRef = [string]$n.Ref_Key
             }
+            $added[$monthCode] += 1
         }
-        $planByMonth[$monthCode][$skuNorm].PlanQty += $qty
-        $added[$monthCode] += 1
+        $planSourceByMonth[$monthCode][$skuNorm] = [pscustomobject]@{ Num = $planNum; Date = $docDate }
     }
-    $parts = foreach ($mc in $MonthCodes) { "+$($added[$mc]) $mc" }
-    Write-Host "  $planNum : $($parts -join ', ')"
+    $parts = foreach ($mc in $MonthCodes) {
+        $a = $added[$mc]; $r = $replaced[$mc]
+        if ($a -gt 0 -or $r -gt 0) { "+${a}/${r}↺ $mc" } else { $null }
+    }
+    $parts = @($parts | Where-Object { $_ })
+    if ($parts.Count -gt 0) { Write-Host "  $planNum : $($parts -join ', ')" }
 }
 $totals = foreach ($mc in $MonthCodes) { "$mc=$($planByMonth[$mc].Count) SKU" }
 Write-Host "  Итого: $($totals -join '; ')"
+# Сводка источников плана по месяцу: какие документы дали данные за каждый месяц
+$planDocsByMonth = @{}
+foreach ($mc in $MonthCodes) {
+    $docs = @{}
+    foreach ($skuNorm in $planSourceByMonth[$mc].Keys) {
+        $src = $planSourceByMonth[$mc][$skuNorm]
+        if (-not $docs.ContainsKey($src.Num)) {
+            $docs[$src.Num] = [pscustomobject]@{ Num = $src.Num; Date = $src.Date.ToString("yyyy-MM-dd"); Count = 0 }
+        }
+        $docs[$src.Num].Count += 1
+    }
+    $planDocsByMonth[$mc] = @($docs.Values | Sort-Object Count -Descending)
+    if ($planDocsByMonth[$mc].Count -gt 0) {
+        $summary = ($planDocsByMonth[$mc] | ForEach-Object { "$($_.Num) ($($_.Count) SKU, $($_.Date))" }) -join '; '
+        Write-Host "  План ${mc}: $summary"
+    }
+}
 
 # ─── step 2: actual release (Выпуск продукции) ───────────────────────────────
 Write-Host "=== Шаг 2: фактический выпуск (ВыпускПродукции) ===" -ForegroundColor Cyan
@@ -1272,6 +1317,15 @@ $jsonStr       = ($dataRows.ToArray()       | ConvertTo-Json -Compress -Depth 5)
 $jsonPotential = ($potentialRows.ToArray()  | ConvertTo-Json -Compress -Depth 5)
 $jsonServices  = ($servicesAll.ToArray()    | ConvertTo-Json -Compress -Depth 5)
 if (-not $jsonServices) { $jsonServices = "[]" }
+# Источники плана по месяцу — для отображения в шапке UI («План: ЦБ-...»)
+$monthLabelByCode = @{ "2026-05"="Май"; "2026-06"="Июнь"; "2026-07"="Июль"; "2026-08"="Август" }
+$planDocsByMonthLabel = @{}
+foreach ($mc in $MonthCodes) {
+    $lbl = $monthLabelByCode[$mc]
+    if ($lbl) { $planDocsByMonthLabel[$lbl] = $planDocsByMonth[$mc] }
+}
+$jsonPlanDocs  = ($planDocsByMonthLabel | ConvertTo-Json -Compress -Depth 4)
+if (-not $jsonPlanDocs) { $jsonPlanDocs = "{}" }
 $html = Get-Content -LiteralPath $IndexPath -Raw -Encoding UTF8
 if ($html -notmatch '(?s)const DATA = \[.*?\];') { throw "Паттерн 'const DATA = [...]' не найден в index.html" }
 $newHtml = $html -replace '(?s)const DATA = \[.*?\];', "const DATA = $jsonStr;"
@@ -1280,6 +1334,12 @@ if ($potentialRows.Count -gt 0 -and $newHtml -match '(?s)const MANUAL_POTENTIAL 
 }
 if ($newHtml -match '(?s)const SERVICES = \[.*?\];') {
     $newHtml = $newHtml -replace '(?s)const SERVICES = \[.*?\];', "const SERVICES = $jsonServices;"
+}
+# Инжектим PLAN_DOCS — создаём константу если её ещё нет (рядом с SERVICES)
+if ($newHtml -match '(?s)const PLAN_DOCS = \{.*?\};') {
+    $newHtml = $newHtml -replace '(?s)const PLAN_DOCS = \{.*?\};', "const PLAN_DOCS = $jsonPlanDocs;"
+} elseif ($newHtml -match '(?s)const SERVICES = \[.*?\];') {
+    $newHtml = $newHtml -replace '(const SERVICES = \[.*?\];)', "`$1`n    const PLAN_DOCS = $jsonPlanDocs;"
 }
 if ($newHtml -ceq $html) {
     Write-Host "Данные не изменились, файл не перезаписан | $(Get-Date -Format 'dd.MM.yyyy HH:mm')" -ForegroundColor Yellow

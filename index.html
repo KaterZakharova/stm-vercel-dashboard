@@ -49,6 +49,12 @@
     .refresh-meta { font-size:12px; color:#64748b; }
     .refresh-meta.is-running { color:var(--blue); font-weight:600; }
     .refresh-meta.is-error { color:var(--red); }
+    .v1-meta-strip { display: flex; gap: 14px; margin-top: 8px; align-items: center; flex-wrap: wrap; font-size: 12px; }
+    .v1-plan-source { color: #0e7c66; font-weight: 600; }
+    .v1-plan-source:empty { display: none; }
+    .v1-plan-source code { background: #ecfdf5; padding: 1px 6px; border-radius: 3px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #064d3f; font-weight: 700; }
+    .v1-dop-link { color: #1d4ed8; text-decoration: none; padding: 3px 10px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; font-weight: 600; transition: background 0.12s; }
+    .v1-dop-link:hover { background: #dbeafe; border-color: #93c5fd; }
     .refresh-meta.is-done { color:var(--green); font-weight:600; }
     .report-view { display: grid; gap: 18px; }
     .report-view[hidden] { display: none; }
@@ -569,6 +575,10 @@
           </button>
           <span id="refreshMeta" class="refresh-meta">проверяю статус…</span>
         </div>
+        <div class="v1-meta-strip" id="v1MetaStrip">
+          <span id="v1PlanSource" class="v1-plan-source"></span>
+          <a href="https://stm-v2.gsscosmetics.com/s3-plan/dop-queue" target="_blank" rel="noopener" class="v1-dop-link" title="Очередь ДОП — заказы вне основного плана">📦 Доп объёмы (очередь ДОП) →</a>
+        </div>
       </div>
       <div class="top-controls">
         <div class="month-toggle report-toggle" aria-label="Выбор отчета">
@@ -853,7 +863,6 @@
       <div class="v2-toolbar">
         <button type="button" class="link-button" id="v2ToggleReasonsBtn" title="Показать/скрыть причины переноса и снятия для всех строк">▾ Причины</button>
         <button type="button" class="link-button" id="v2DocsBtn" title="Справочники: причины переноса/снятия">📋 Документация</button>
-        <button type="button" class="link-button" id="v2ImportV1Btn" title="Перетянуть снятые галки из v1 в статусы v2">⇧ Импорт из v1</button>
         <button type="button" class="link-button" id="v2ExcelBtn" title="Скачать CSV с текущими фильтрами и видимыми колонками">⬇ Excel</button>
         <div class="column-panel-wrap">
           <button type="button" class="link-button" id="v2ColumnsButton">Колонки ▾</button>
@@ -2484,6 +2493,7 @@
     }
 
     function render() {
+      renderV1PlanSource();
       document.getElementById('mainReport').hidden = state.view !== 'main';
       document.getElementById('potentialReport').hidden = state.view !== 'potential';
       if (state.view === 'potential') {
@@ -2612,10 +2622,25 @@
       </tr>`;
     }
 
+    function renderV1PlanSource() {
+      const el = document.getElementById('v1PlanSource');
+      if (!el) return;
+      const docs = (typeof PLAN_DOCS !== 'undefined' && PLAN_DOCS && PLAN_DOCS[state.month]) ? PLAN_DOCS[state.month] : [];
+      if (!docs.length) { el.innerHTML = ''; return; }
+      if (docs.length === 1) {
+        const d = docs[0];
+        const dateRu = d.Date ? d.Date.split('-').reverse().join('.') : '';
+        el.innerHTML = `Источник плана: <code>${escapeHtml(d.Num)}</code>${dateRu ? ` от ${dateRu}` : ''} · ${d.Count} SKU`;
+      } else {
+        const parts = docs.map(d => `<code>${escapeHtml(d.Num)}</code> (${d.Count} SKU)`).join(' + ');
+        el.innerHTML = `Источник плана: ${parts}`;
+      }
+    }
     document.querySelectorAll('[data-month]').forEach(button => {
       button.addEventListener('click', () => {
         state.month = button.dataset.month;
         document.querySelectorAll('[data-month]').forEach(item => item.classList.toggle('active', item === button));
+        renderV1PlanSource();
         render();
       });
     });
@@ -3387,6 +3412,8 @@
         { key:'grossMargin', label:'Валовка ₽',    defaultVisible:true,  num:true },
         { key:'revenue',     label:'Выручка ₽',    defaultVisible:false, num:true },
         { key:'marginPct',   label:'Маржа %',      defaultVisible:false, num:true },
+        { key:'shipDateFact',label:'Отгрузка ФАКТ',defaultVisible:true  },
+        { key:'shipDatePlan',label:'Отгрузка ПЛАН',defaultVisible:true  },
         { key:'status',      label:'Статус',       defaultVisible:true },
         { key:'comment',     label:'Комментарий',  defaultVisible:true },
       ];
@@ -3395,6 +3422,7 @@
         sku: 75, order: 100, manager: 105,
         plan: 65, shipped: 65, stockReady: 65, toProduce: 65, movedQty: 70, tailQty: 65,
         grossMargin: 90, revenue: 90, marginPct: 65,
+        shipDateFact: 105, shipDatePlan: 130,
         status: 100,
         name: 220, comment: 220,
       };
@@ -3832,7 +3860,22 @@
             return `<td class="num ${strikeMoney}">${rub(r.grossMargin)}</td>`;
           }
           if (c.key === 'revenue')     return `<td class="num">${rub(r.revenue)}</td>`;
-          if (c.key === 'marginPct')   return `<td class="num">${r.marginPct!=null?pct(r.marginPct):'—'}</td>`;
+          if (c.key === 'marginPct') {
+            if (r.marginPct == null) return `<td class="num">—</td>`;
+            const negStyle = r.marginPct < 0 ? ' style="color:#dc2626;font-weight:800"' : '';
+            return `<td class="num"${negStyle}>${pct(r.marginPct)}</td>`;
+          }
+          if (c.key === 'shipDateFact') {
+            // Фактическая дата отгрузки — из DATA.shipDate (приходит из 1С). Чёрный, неэдитируемая.
+            const fact = (r.raw && r.raw.shipDate) || r.shipDate || '';
+            return `<td class="v2-date-fact" style="color:#0f172a;font-size:12px">${escapeHtml(fact || '—')}</td>`;
+          }
+          if (c.key === 'shipDatePlan') {
+            // Плановая дата отгрузки — из shared meta (редактируется юзером). Зелёный, <input type="date">.
+            const planVal = r.raw ? getShipDate(r.raw) : '';
+            const monthVal = (r.raw && r.raw.month) || state.month;
+            return `<td class="v2-date-plan"><input type="date" class="v2-plan-date-input" data-v2-plandate-sku="${escapeHtml(r.sku)}" data-v2-plandate-month="${escapeHtml(monthVal)}" value="${escapeHtml(planVal)}" style="color:#0e7c66;font-weight:600;border:1px solid #99d3c4;border-radius:4px;padding:2px 5px;font-size:12px;width:100%;background:#ecfdf5"></td>`;
+          }
           if (c.key === 'status') {
             const opts = STATUS_ORDER.map(s => `<option value="${s}"${s===r.status?' selected':''}>${STATUS_LABELS[s]}</option>`).join('');
             const extra = r.movedQty>0 && r.shipped>0 ? `<span class="v2-status-extra">+ перенос ${fmtQty.format(r.movedQty)}</span>` :
@@ -4058,6 +4101,15 @@
           if (!row) return;
           setComment(row, com.value);
         }
+        // Плановая дата отгрузки — пишем в общую shared meta (то же поле, что v1)
+        const planDate = e.target.closest('[data-v2-plandate-sku]');
+        if (planDate) {
+          const sku = planDate.dataset.v2PlandateSku;
+          const month = planDate.dataset.v2PlandateMonth || state.month;
+          const row = DATA.find(r => r.month === month && r.sku === sku);
+          if (!row) return;
+          setShipDate(row, planDate.value || '');
+        }
       });
       // ─── Автосохранение полей detail-формы (debounce 700мс) ───
       // Меняешь категорию/количество/дату/причину — сразу пишется в Postgres
@@ -4269,7 +4321,9 @@
           if (c.key === 'status') return STATUS_LABELS[r.status] || '';
           if (['plan','shipped','stockReady','toProduce','movedQty','tailQty'].includes(c.key)) return r[c.key] || 0;
           if (c.key === 'grossMargin' || c.key === 'revenue') return Math.round(r[c.key] || 0);
-          if (c.key === 'marginPct') return r.marginPct != null ? (r.marginPct * 100).toFixed(1) : '';
+          if (c.key === 'marginPct') return r.marginPct != null ? (r.marginPct * 100).toFixed(1).replace('.', ',') + '%' : '';
+          if (c.key === 'shipDateFact') return (r.raw && r.raw.shipDate) || r.shipDate || '';
+          if (c.key === 'shipDatePlan') return r.raw ? (getShipDate(r.raw) || '') : '';
           return r[c.key] || '';
         }));
         downloadCSV(`STM_v2_${state.month}_${new Date().toISOString().slice(0,10)}.csv`, headers, data);
@@ -4438,18 +4492,7 @@
         v2State.statusFilter = 'all';
         v2Render();
       });
-      document.getElementById('v2ImportV1Btn').addEventListener('click', async (e) => {
-        const btn = e.target;
-        if (!confirm('Перетянуть снятые галки из v1 в статусы v2? Уже размеченные строки v2 не трогаются.')) return;
-        btn.disabled = true; const o = btn.textContent; btn.textContent = '⇧ импортирую…';
-        try {
-          const r = await v2ImportFromV1();
-          renderImportReport(r);
-          v2Render();
-        } finally {
-          btn.disabled = false; btn.textContent = o;
-        }
-      });
+      // (кнопка «Импорт из v1» удалена 30.06.2026, обработчик не вешаем)
 
       // URL-навигация: ?v2=1&view=v2&v2view=table|kanban|funnel — открывает сразу v2 на нужном виде
       const urlParams = new URLSearchParams(location.search);
