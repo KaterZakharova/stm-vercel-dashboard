@@ -349,6 +349,8 @@
     .v2-dop-badge { display: inline-block; margin-left: 6px; padding: 2px 8px; font-size: 11px; font-weight: 800; color: #fff; background: #2563eb; border: 1px solid #1d4ed8; border-radius: 4px; vertical-align: middle; letter-spacing: 0.4px; cursor: help; text-shadow: 0 1px 1px rgba(0,0,0,0.10); }
     /* Бейдж «Перенос» — фиолетовый, для строк origin='carry' (status=moved из прошлого месяца) */
     .v2-carry-badge { display: inline-block; margin-left: 6px; padding: 2px 8px; font-size: 11px; font-weight: 800; color: #fff; background: #7c3aed; border: 1px solid #6d28d9; border-radius: 4px; vertical-align: middle; letter-spacing: 0.4px; cursor: help; text-shadow: 0 1px 1px rgba(0,0,0,0.10); }
+    /* Тег переноса под SKU отдельной строкой — не наезжает на колонку Наименование */
+    .v2-carry-tag { display: inline-block; margin-top: 4px; padding: 1px 7px; font-size: 10px; font-weight: 700; color: #6b21a8; background: #f3e8ff; border: 1px solid #c4b5fd; border-radius: 3px; letter-spacing: 0.2px; white-space: nowrap; }
 
     /* Блок «Документация» — свёрнут по умолчанию, разворачивается по клику */
     .v2-docs-block { margin: 8px 0 14px; border: 1px solid #cbd5e1; border-radius: 8px; background: #f8fafc; }
@@ -2672,6 +2674,7 @@
         if (typeof v2State !== 'undefined') {
           v2State.filters = {};
           v2State.selectFilters = {};
+          v2State.carryOnly = false;
           try { localStorage.removeItem('stmV2SelectFilters'); } catch {}
         }
         renderV1PlanSource();
@@ -3085,6 +3088,7 @@
       const v2State = {
         view: 'table',                                                   // table | kanban | funnel
         statusFilter: 'all',                                             // 'all' | one of STATUS_ORDER
+        carryOnly: false,                                                // чип «↪ Переносы» — фильтр по строкам с переносом
         funnelRealizable: Number(localStorage.getItem('stmV2FunnelSlider') ?? 60),
         funnelTailIncluded: localStorage.getItem('stmV2FunnelTail') === '1',
         managersOpen: false,
@@ -3132,6 +3136,11 @@
         const baseRows = DATA.filter(r => r.month === state.month);
         const builtRaw = baseRows.map(r => buildV2Row(r));
         builtRaw.forEach(b => { b.origin = 'base'; });  // отметим, что это plan-строка
+        // НЕ ДУБЛЕЙ: для SKU которые УЖЕ в плане текущего месяца, но ОДНОВРЕМЕННО помечены
+        // переносом из предыдущего → ставим только ФЛАГ carryFromMonth на base-строку.
+        // SKU которых в плане нет — добавляем как carryVirtual (отдельные строки).
+        const baseByKey = new Map(builtRaw.map(b => [b.sku, b]));
+        v2MarkCarryOnBase(state.month, baseByKey);
         const seen = new Set(builtRaw.map(b => b.sku));
         const carryVirtual = v2BuildCarryRows(state.month, seen);
         carryVirtual.forEach(c => seen.add(c.sku));
@@ -3142,6 +3151,31 @@
         if (inc.has('carry')) carryVirtual.forEach(r => out.push(r));
         if (inc.has('dop'))   dopVirtual.forEach(r => out.push(r));
         return out;
+      }
+      // Помечает base-строки флагом `carryFromMonth = 'Июнь'` если SKU фигурирует как
+      // moved в прошлом месяце с переносом на текущий. Дубль НЕ создаётся.
+      function v2MarkCarryOnBase(monthName, baseByKey) {
+        const targetYm = (() => {
+          const monthNum = { 'Май':'05','Июнь':'06','Июль':'07','Август':'08' }[monthName];
+          return monthNum ? `2026-${monthNum}` : null;
+        })();
+        if (!targetYm) return;
+        const NEXT_MONTH = { 'Май':'Июнь', 'Июнь':'Июль', 'Июль':'Август' };
+        Object.keys(sharedMeta).forEach(k => {
+          const m = sharedMeta[k];
+          if (!m || typeof m !== 'object') return;
+          if (m.status !== 'moved') return;
+          const [srcMonth, sku] = k.split('::');
+          if (!sku || srcMonth === monthName) return;
+          const md = m.moved_date || '';
+          const dateMatches = md && md.slice(0,7) === targetYm;
+          const implicitMatch = !md && NEXT_MONTH[srcMonth] === monthName;
+          if (!dateMatches && !implicitMatch) return;
+          const base = baseByKey.get(sku);
+          if (!base) return;  // нет в плане текущего → carryVirtual создаст отдельную
+          base.carryFromMonth = srcMonth;
+          base.carryMovedQty = Number(m.moved_qty || 0);
+        });
       }
       // Carry-over из прошлых месяцев: meta.status='moved' AND (moved_date в текущем месяце ИЛИ дата пустая + текущий = следующий за исходным).
       // ВАЖНО: цифры (штуки и валовка) КОПИРУЮТСЯ из исходного месяца как есть, без пересчёта.
@@ -3786,10 +3820,16 @@
           b.classList.toggle('active', b.dataset.v2View === v2State.view));
       }
       function v2RenderStatusChips(rows) {
-        const counts = { all: rows.length };
-        STATUS_ORDER.forEach(s => counts[s] = rows.filter(r => r.status === s).length);
-        const chips = [`<button class="${v2State.statusFilter==='all'?'active':''}" data-v2-status="all">Все <small>${counts.all}</small></button>`]
+        // В чипах считаем по строкам которые реально показываются в таблице (без ДОПов).
+        const tableRows = rows.filter(r => r.origin !== 'dop');
+        const counts = { all: tableRows.length };
+        STATUS_ORDER.forEach(s => counts[s] = tableRows.filter(r => r.status === s).length);
+        const carryCount = tableRows.filter(r => r.origin === 'carry' || r.carryFromMonth).length;
+        const chips = [`<button class="${v2State.statusFilter==='all' && !v2State.carryOnly ?'active':''}" data-v2-status="all">Все <small>${counts.all}</small></button>`]
           .concat(STATUS_ORDER.map(s => `<button class="${v2State.statusFilter===s?'active':''}" data-v2-status="${s}">${STATUS_LABELS[s]} <small>${counts[s]}</small></button>`));
+        if (carryCount > 0) {
+          chips.push(`<button class="${v2State.carryOnly?'active':''}" data-v2-carry-chip="1" style="background:${v2State.carryOnly?'#7c3aed':'#f3e8ff'};color:${v2State.carryOnly?'#fff':'#6b21a8'};border-color:${v2State.carryOnly?'#6d28d9':'#c4b5fd'};font-weight:700" title="Только строки с переносом из предыдущего месяца">↪ Переносы <small>${carryCount}</small></button>`);
+        }
         document.getElementById('v2StatusChips').innerHTML = chips.join('');
       }
 
@@ -3954,6 +3994,7 @@
         // ДОПы в таблице не показываем — для них есть отдельный инструмент /s3-plan/dop-queue.
         // В hero и hero-чипах ДОПы по-прежнему учитываются (см. v2BuildRows + includeOrigins).
         let filtered = rows.filter(r => r.origin !== 'dop');
+        if (v2State.carryOnly) filtered = filtered.filter(r => r.origin === 'carry' || r.carryFromMonth);
         filtered = v2State.statusFilter === 'all' ? filtered : filtered.filter(r => r.status === v2State.statusFilter);
         if (v2State.lossCatFilter) {
           const wantUnfilled = v2State.lossCatFilter === '— без категории —';
@@ -4021,9 +4062,12 @@
         const free = Math.max(0, r.plan - r.shipped - r.stockReady);
         const cellFor = c => {
           if (c.key === 'sku') {
-            // Перенос — компактный бейдж справа от SKU (короткий, чтобы не наезжал на name). ДОПы в таблице не показываются (смотри в /s3-plan/dop-queue).
-            const carryBadge = r.origin === 'carry'
-              ? ` <span class="v2-carry-badge" title="Перенос из ${escapeHtml(r.carryFrom||'?')}">↪ ${escapeHtml(r.carryFrom||'')}</span>`
+            // Бейдж переноса — ОТДЕЛЬНОЙ СТРОКОЙ ПОД SKU (display:block), чтобы не наезжал на name.
+            // Случай 1 (виртуальная carry-row): r.origin==='carry', SKU отсутствовал в плане месяца.
+            // Случай 2 (флаг на base-row): r.carryFromMonth установлен — SKU в плане + ещё перенос из прошлого.
+            const carrySrc = (r.origin === 'carry') ? r.carryFrom : r.carryFromMonth;
+            const carryBadge = carrySrc
+              ? `<div class="v2-carry-tag" title="${r.origin==='carry'?'Перенос из':'Дополнительно перенос из'} ${escapeHtml(carrySrc||'?')}">↪ Перенос из ${escapeHtml(carrySrc||'')}</div>`
               : '';
             const warn = r.flagCostHole?' <span title="нет цены фабрики в 1С — маржа считается как 20% от выручки, проверь" style="color:#dc2626">⚠</span>':r.flagMarginSuspicious?' <span title="маржа >65%" style="color:#ca8a04">⚠</span>':'';
             return `<td class="sku-cell"><strong>${escapeHtml(r.sku)}</strong>${warn}${carryBadge}</td>`;
@@ -4230,8 +4274,17 @@
         v2State.view = b.dataset.v2View; v2Render();
       });
       document.getElementById('v2StatusChips').addEventListener('click', e => {
+        const carryBtn = e.target.closest('[data-v2-carry-chip]');
+        if (carryBtn) {
+          v2State.carryOnly = !v2State.carryOnly;
+          if (v2State.carryOnly) v2State.statusFilter = 'all';
+          v2Render();
+          return;
+        }
         const b = e.target.closest('[data-v2-status]'); if (!b) return;
-        v2State.statusFilter = b.dataset.v2Status; v2Render();
+        v2State.statusFilter = b.dataset.v2Status;
+        v2State.carryOnly = false;
+        v2Render();
       });
       document.getElementById('v2ManagersToggle').addEventListener('click', () => {
         v2State.managersOpen = !v2State.managersOpen; v2Render();
@@ -4354,6 +4407,7 @@
           v2State.selectFilters = {};
           v2State.statusFilter = 'all';
           v2State.lossCatFilter = null;
+          v2State.carryOnly = false;
           try { localStorage.removeItem('stmV2SelectFilters'); } catch {}
           v2Render();
           return;
@@ -4480,6 +4534,7 @@
         const cols = V2_COLUMNS.filter(c => v2Visible.has(c.key));
         // ДОПы в таблице не показываем — они в отдельном инструменте /s3-plan/dop-queue
         let filtered = rows.filter(r => r.origin !== 'dop');
+        if (v2State.carryOnly) filtered = filtered.filter(r => r.origin === 'carry' || r.carryFromMonth);
         filtered = v2State.statusFilter === 'all' ? filtered : filtered.filter(r => r.status === v2State.statusFilter);
         if (v2State.lossCatFilter) {
           const wantUnfilled = v2State.lossCatFilter === '— без категории —';
