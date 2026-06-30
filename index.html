@@ -3944,7 +3944,10 @@
       }
       function v2RenderTable(rows, fc) {
         const cols = V2_COLUMNS.filter(c => v2Visible.has(c.key));
-        let filtered = v2State.statusFilter === 'all' ? rows : rows.filter(r => r.status === v2State.statusFilter);
+        // ДОПы в таблице не показываем — для них есть отдельный инструмент /s3-plan/dop-queue.
+        // В hero и hero-чипах ДОПы по-прежнему учитываются (см. v2BuildRows + includeOrigins).
+        let filtered = rows.filter(r => r.origin !== 'dop');
+        filtered = v2State.statusFilter === 'all' ? filtered : filtered.filter(r => r.status === v2State.statusFilter);
         if (v2State.lossCatFilter) {
           const wantUnfilled = v2State.lossCatFilter === '— без категории —';
           filtered = filtered.filter(r => (r.status === 'risk' || r.status === 'moved')
@@ -3960,8 +3963,8 @@
         if (activeSelectKeys.length) {
           filtered = filtered.filter(r => activeSelectKeys.every(k => v2PassesSelectFilter(r, k)));
         }
-        // Сохраняем pre-select-filter список для popup'ов (чтобы юзер мог расширить выбор обратно)
-        v2State._rowsBeforeSelectFilter = rows;
+        // Сохраняем pre-select-filter список для popup'ов (чтобы юзер мог расширить выбор обратно). Без ДОПов.
+        v2State._rowsBeforeSelectFilter = rows.filter(r => r.origin !== 'dop');
         // colgroup — управляет ширинами при table-layout:fixed
         document.getElementById('v2TableColgroup').innerHTML = cols.map(c =>
           `<col data-col="${c.key}" style="width:${v2ColWidths[c.key] || V2_DEFAULT_WIDTHS[c.key] || 100}px">`
@@ -4011,14 +4014,12 @@
         const free = Math.max(0, r.plan - r.shipped - r.stockReady);
         const cellFor = c => {
           if (c.key === 'sku') {
-            const dopBadge = r.origin === 'dop'
-              ? ` <span class="v2-dop-badge" title="ДОП из /s3-plan: заказ ${escapeHtml(r.raw.order||'—')}${r.dopComment?' · '+escapeHtml(r.dopComment):''}">ДОП</span>`
-              : '';
+            // Перенос — компактный бейдж справа от SKU (короткий, чтобы не наезжал на name). ДОПы в таблице не показываются (смотри в /s3-plan/dop-queue).
             const carryBadge = r.origin === 'carry'
-              ? ` <span class="v2-carry-badge" title="Перенос из ${escapeHtml(r.carryFrom||'?')}">Перенос ${escapeHtml(r.carryFrom||'')}</span>`
+              ? ` <span class="v2-carry-badge" title="Перенос из ${escapeHtml(r.carryFrom||'?')}">↪ ${escapeHtml(r.carryFrom||'')}</span>`
               : '';
             const warn = r.flagCostHole?' <span title="нет цены фабрики в 1С — маржа считается как 20% от выручки, проверь" style="color:#dc2626">⚠</span>':r.flagMarginSuspicious?' <span title="маржа >65%" style="color:#ca8a04">⚠</span>':'';
-            return `<td class="sku-cell"><strong>${escapeHtml(r.sku)}</strong>${warn}${dopBadge}${carryBadge}</td>`;
+            return `<td class="sku-cell"><strong>${escapeHtml(r.sku)}</strong>${warn}${carryBadge}</td>`;
           }
           if (c.key === 'name')        return `<td class="v2-name-cell">${escapeHtml(r.name||'')}</td>`;
           if (c.key === 'order')       return `<td><small style="color:#64748b">${escapeHtml(r.order||'')}</small></td>`;
@@ -4460,7 +4461,9 @@
         v2RenderStatusChips(rows);
         // вместо полного v2RenderTable — обновим только body/foot
         const cols = V2_COLUMNS.filter(c => v2Visible.has(c.key));
-        let filtered = v2State.statusFilter === 'all' ? rows : rows.filter(r => r.status === v2State.statusFilter);
+        // ДОПы в таблице не показываем — они в отдельном инструменте /s3-plan/dop-queue
+        let filtered = rows.filter(r => r.origin !== 'dop');
+        filtered = v2State.statusFilter === 'all' ? filtered : filtered.filter(r => r.status === v2State.statusFilter);
         if (v2State.lossCatFilter) {
           const wantUnfilled = v2State.lossCatFilter === '— без категории —';
           filtered = filtered.filter(r => (r.status === 'risk' || r.status === 'moved')
@@ -4470,7 +4473,7 @@
         if (activeFilters.length) filtered = filtered.filter(r => activeFilters.every(([k, v]) => v2MatchFilter(r, k, v)));
         const activeSelectKeys = Object.keys(v2State.selectFilters).filter(k => Array.isArray(v2State.selectFilters[k]) && v2State.selectFilters[k].length > 0 && cols.some(c => c.key === k));
         if (activeSelectKeys.length) filtered = filtered.filter(r => activeSelectKeys.every(k => v2PassesSelectFilter(r, k)));
-        v2State._rowsBeforeSelectFilter = rows;
+        v2State._rowsBeforeSelectFilter = rows.filter(r => r.origin !== 'dop');
         document.getElementById('v2TableBody').innerHTML = filtered.length
           ? filtered.map(r => v2RowHtml(r, cols)).join('')
           : `<tr><td colspan="${cols.length}" style="text-align:center;color:#94a3b8;padding:20px">Нет строк под фильтр</td></tr>`;
@@ -4519,7 +4522,7 @@
       // Excel export для v2
       function v2ExportExcel() {
         const cols = V2_COLUMNS.filter(c => v2Visible.has(c.key));
-        const rows = v2BuildRows();
+        const rows = v2BuildRows().filter(r => r.origin !== 'dop');
         let filtered = v2State.statusFilter === 'all' ? rows : rows.filter(r => r.status === v2State.statusFilter);
         const activeFilters = Object.entries(v2State.filters).filter(([k,v]) => v && cols.some(c => c.key === k));
         if (activeFilters.length) filtered = filtered.filter(r => activeFilters.every(([k, v]) => v2MatchFilter(r, k, v)));
