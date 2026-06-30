@@ -2667,6 +2667,13 @@
       button.addEventListener('click', () => {
         state.month = button.dataset.month;
         document.querySelectorAll('[data-month]').forEach(item => item.classList.toggle('active', item === button));
+        // Сбрасываем все pers-фильтры v2 при смене месяца — конкретные значения (марки %, штуки)
+        // в другом месяце могут не совпадать и привести к «пустой» таблице.
+        if (typeof v2State !== 'undefined') {
+          v2State.filters = {};
+          v2State.selectFilters = {};
+          try { localStorage.removeItem('stmV2SelectFilters'); } catch {}
+        }
         renderV1PlanSource();
         render();
       });
@@ -3980,7 +3987,7 @@
           filterRow;
         document.getElementById('v2TableBody').innerHTML = filtered.length
           ? filtered.map(r => v2RowHtml(r, cols)).join('')
-          : `<tr><td colspan="${cols.length}" style="text-align:center;color:#94a3b8;padding:20px">Нет строк</td></tr>`;
+          : `<tr><td colspan="${cols.length}" style="text-align:center;color:#94a3b8;padding:20px">Нет строк под текущие фильтры. <button type="button" id="v2ResetFiltersBtn" style="margin-left:10px;padding:4px 12px;background:#dc2626;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:600">Сбросить все фильтры</button></td></tr>`;
         // footer totals
         const tot = filtered.reduce((a, r) => ({
           plan: a.plan + r.plan, shipped: a.shipped + r.shipped, stockReady: a.stockReady + r.stockReady,
@@ -4341,6 +4348,16 @@
 
       // Кнопка «Применить» в detail-row (для moved / tail). Обрабатываем сразу до bubble в другие listeners.
       document.getElementById('v2TableBody').addEventListener('click', async e => {
+        // Кнопка «Сбросить все фильтры» внутри empty-state
+        if (e.target.id === 'v2ResetFiltersBtn') {
+          v2State.filters = {};
+          v2State.selectFilters = {};
+          v2State.statusFilter = 'all';
+          v2State.lossCatFilter = null;
+          try { localStorage.removeItem('stmV2SelectFilters'); } catch {}
+          v2Render();
+          return;
+        }
         const btn = e.target.closest('[data-action]');
         if (!btn) return;
         e.preventDefault();
