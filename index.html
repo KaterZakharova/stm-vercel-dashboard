@@ -2675,7 +2675,7 @@
           v2State.filters = {};
           v2State.selectFilters = {};
           v2State.carryOnly = false;
-          try { localStorage.removeItem('stmV2SelectFilters'); } catch {}
+          try { localStorage.removeItem('stmV2SelectFilters'); localStorage.removeItem('stmV2SelectFilters_v2'); } catch {}
         }
         renderV1PlanSource();
         render();
@@ -3095,8 +3095,10 @@
         heroUnit: localStorage.getItem('stmV2HeroUnit') || 'margin',     // margin | revenue | qty
         filters: {},                                                     // per-column substring/numeric
         // Excel-like multi-select фильтр: { colKey: ['значение1','значение2'] }. Пустой массив => фильтр снят.
+        // Bumped key (_v2) чтобы старые персистентные фильтры (которые могли блокировать таблицу) очистились.
         selectFilters: (() => {
-          try { const s = localStorage.getItem('stmV2SelectFilters'); return s ? JSON.parse(s) : {}; } catch { return {}; }
+          try { localStorage.removeItem('stmV2SelectFilters'); } catch {}  // одноразовая очистка старого ключа
+          try { const s = localStorage.getItem('stmV2SelectFilters_v2'); return s ? JSON.parse(s) : {}; } catch { return {}; }
         })(),
         lossCatFilter: null,                                             // null | string — клик по причине в сводке
         showAllReasons: localStorage.getItem('stmV2ShowAllReasons') === '1',  // глобальный показ деталей переноса/снятия
@@ -3987,7 +3989,7 @@
         document.querySelectorAll('.v2-filter-popup').forEach(p => p.remove());
       }
       function v2PersistSelectFilters() {
-        try { localStorage.setItem('stmV2SelectFilters', JSON.stringify(v2State.selectFilters)); } catch {}
+        try { localStorage.setItem('stmV2SelectFilters_v2', JSON.stringify(v2State.selectFilters)); } catch {}
       }
       function v2RenderTable(rows, fc) {
         const cols = V2_COLUMNS.filter(c => v2Visible.has(c.key));
@@ -4408,7 +4410,7 @@
           v2State.statusFilter = 'all';
           v2State.lossCatFilter = null;
           v2State.carryOnly = false;
-          try { localStorage.removeItem('stmV2SelectFilters'); } catch {}
+          try { localStorage.removeItem('stmV2SelectFilters_v2'); } catch {}
           v2Render();
           return;
         }
