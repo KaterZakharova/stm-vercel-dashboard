@@ -343,6 +343,23 @@
     .v2-card-head .head-aux { text-transform: none; font-weight: 700; color: #0e7c66; font-size: 12px; letter-spacing: 0.3px; }
     .v2-card-body { padding: 12px 22px 14px; }
     .v2-card-loss .v2-card-head { color: #dc2626; }
+    /* Акцент на ФАКТ (screen 35): бирюзовая рамка + подложка карточки */
+    #v2KpisCard { border: 1.5px solid #0e7c66; box-shadow: 0 2px 10px rgba(14,124,102,0.08); background: linear-gradient(180deg, #ecfdf5 0%, #fff 40%); }
+    #v2KpisCard .v2-card-head { background: #ecfdf5; border-bottom: 1px solid #a7f3d0; padding: 12px 18px; }
+    #v2KpisCard #v2KpisHead { font-size: 12px; letter-spacing: 0.8px; color: #065f46; font-weight: 800; }
+    #v2KpisCard #v2KpisMargin { font-size: 13px; color: #0e7c66; font-weight: 800; }
+    #v2KpisCard .v2-card-body { padding: 16px 22px 18px; }
+    #v2Kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    /* Большие суммы KPI внутри ФАКТа */
+    #v2Kpis .kpi { border-right: 1px dashed #d1fae5; padding-right: 16px; background: transparent; box-shadow: none; border: none; border-right: 1px dashed #d1fae5; min-height: 0; padding: 0; padding-right: 16px; }
+    #v2Kpis .kpi:last-child { border-right: none; }
+    #v2Kpis .value { font-size: 26px; font-weight: 800; color: #0f172a; letter-spacing: -0.5px; }
+    #v2Kpis .label { color: #065f46; text-transform: uppercase; font-size: 10px; letter-spacing: 0.8px; font-weight: 800; }
+    #v2Kpis .kpi-pct { font-size: 12px; font-weight: 800; }
+    #v2Kpis .kpi-target { font-size: 11px; color: #64748b; }
+    #v2Kpis .kpi-mini-bar { height: 4px; margin-top: 6px; background: #d1fae5; border-radius: 2px; overflow: hidden; }
+    #v2Kpis .kpi-mini-bar span { display: block; height: 100%; }
+    #v2Kpis .kpi-top { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; flex-wrap: wrap; }
 
     /* KPI: компактно, чтобы 3 метрики помещались в высоту правой карточки */
     #v2Kpis { display: flex; flex-direction: column; gap: 10px; padding: 14px 22px 14px 32px; background: none; justify-content: center; flex: 1; }
@@ -430,6 +447,21 @@
     .v2-view-switcher button.active { background: #0e7c66; color: #fff; box-shadow: 0 2px 8px rgba(14,124,102,0.35); }
 
     .v2-toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+    /* ═══ Услуги S3 КП (под таблицей) ═══ */
+    .v2-services-section { margin-top: 24px; padding: 16px; background: #fafcfb; border: 1px solid #d9e4dc; border-radius: 10px; }
+    .v2-services-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+    .v2-services-head h3 { margin: 0; font-size: 15px; font-weight: 700; color: #0e7c66; letter-spacing: 0.3px; }
+    .v2-services-summary { font-size: 12px; color: #475569; }
+    .v2-services-summary .services-gp-big { font-weight: 800; color: #0e7c66; }
+    .v2-services-table { width: 100%; border-collapse: collapse; font-size: 12px; background: #fff; }
+    .v2-services-table th { background: #ecfdf5; padding: 8px 10px; text-align: left; font-weight: 700; color: #065f46; border-bottom: 1px solid #d1fae5; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .v2-services-table th.num { text-align: right; }
+    .v2-services-table td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; color: #0f172a; }
+    .v2-services-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .v2-services-table tfoot .totals td { background: #f0fdf4; font-weight: 800; border-top: 2px solid #0e7c66; }
+    .v2-services-table .pct-ok { color: #16a34a; font-weight: 700; }
+    .v2-services-table .pct-warn { color: #d97706; font-weight: 700; }
+    .v2-services-table .pct-bad { color: #dc2626; font-weight: 700; }
     .v2-status-chips { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
     .v2-status-chips button { padding: 5px 11px; border: 1px solid #cbd5e1; background:#fff; border-radius: 999px; cursor: pointer; font-size: 12px; color:#334155; font-family: inherit; }
     .v2-status-chips button:hover { background: #f1f5f9; }
@@ -987,6 +1019,33 @@
           <span><span class="legend-swatch suspicious"></span> маржа &gt; 65% — проверь себестоимость</span>
           <span><span class="legend-swatch costhole"></span> выручка = валовка — себестоимость не посчиталась</span>
         </div>
+
+        <!-- ═══════════════════ Услуги S3 КП ═══════════════════ -->
+        <section class="v2-services-section" id="v2ServicesSection" hidden>
+          <div class="v2-services-head">
+            <h3>Услуги S3 КП · <span id="v2ServicesMonth"></span></h3>
+            <span id="v2ServicesSummary" class="v2-services-summary"></span>
+          </div>
+          <div class="scroll">
+            <table class="v2-services-table">
+              <thead>
+                <tr>
+                  <th>Дата</th>
+                  <th>Наименование</th>
+                  <th>Артикул</th>
+                  <th>Клиент</th>
+                  <th>Менеджер</th>
+                  <th class="num">Кол-во</th>
+                  <th class="num">Выручка</th>
+                  <th class="num">Валовка</th>
+                  <th class="num">Маржа %</th>
+                </tr>
+              </thead>
+              <tbody id="v2ServicesTbody"></tbody>
+              <tfoot id="v2ServicesTfoot"></tfoot>
+            </table>
+          </div>
+        </section>
       </section>
 
       <!-- Канбан -->
@@ -3604,9 +3663,50 @@
         if (v2State.view === 'table') v2RenderTable(rows, fc);
         else if (v2State.view === 'kanban') v2RenderKanban(rows);
         else if (v2State.view === 'funnel') v2RenderFunnel(rows, fc);
+        v2RenderServices();
         document.getElementById('v2TablePane').hidden  = v2State.view !== 'table';
         document.getElementById('v2KanbanPane').hidden = v2State.view !== 'kanban';
         document.getElementById('v2FunnelPane').hidden = v2State.view !== 'funnel';
+      }
+
+      function v2RenderServices() {
+        const section = document.getElementById('v2ServicesSection');
+        if (!section) return;
+        const monthLabel = document.getElementById('v2ServicesMonth');
+        if (monthLabel) monthLabel.textContent = state.month;
+        const monthServices = (typeof SERVICES !== 'undefined' && Array.isArray(SERVICES))
+          ? SERVICES.filter(s => s.month === state.month)
+          : [];
+        if (!monthServices.length) { section.hidden = true; return; }
+        section.hidden = false;
+        const totalQty = monthServices.reduce((a, s) => a + Number(s.qty || 0), 0);
+        const totalRev = monthServices.reduce((a, s) => a + Number(s.revenue || 0), 0);
+        const totalGp  = monthServices.reduce((a, s) => a + Number(s.gp || 0), 0);
+        const margin   = totalRev ? totalGp / totalRev : 0;
+        document.getElementById('v2ServicesSummary').innerHTML =
+          `${monthServices.length} услуг · кол-во ${fmtQty.format(totalQty)} · выручка ${rub(totalRev)} · валовка <span class="services-gp-big">${rub(totalGp)}</span> · маржа ${pct(margin)}`;
+        document.getElementById('v2ServicesTbody').innerHTML = monthServices.map(s => {
+          const m = Number(s.revenue) ? Number(s.gp) / Number(s.revenue) : 0;
+          const mClass = m >= 0.30 ? 'pct-ok' : m >= 0.15 ? 'pct-warn' : 'pct-bad';
+          return `<tr>
+            <td>${escapeHtml(s.shipDate || '')}</td>
+            <td>${escapeHtml(s.name || '')}</td>
+            <td>${escapeHtml(s.code || '')}</td>
+            <td>${escapeHtml(s.client || '')}</td>
+            <td>${escapeHtml(s.manager || '')}</td>
+            <td class="num">${fmtQty.format(Number(s.qty || 0))}</td>
+            <td class="num">${rub(Number(s.revenue || 0))}</td>
+            <td class="num">${rub(Number(s.gp || 0))}</td>
+            <td class="num ${mClass}">${pct(m)}</td>
+          </tr>`;
+        }).join('');
+        document.getElementById('v2ServicesTfoot').innerHTML = `<tr class="totals">
+          <td colspan="5">Итого</td>
+          <td class="num">${fmtQty.format(totalQty)}</td>
+          <td class="num">${rub(totalRev)}</td>
+          <td class="num">${rub(totalGp)}</td>
+          <td class="num">${pct(margin)}</td>
+        </tr>`;
       }
 
       function v2RenderHero(rows, fc) {
