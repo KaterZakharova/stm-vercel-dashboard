@@ -3717,12 +3717,15 @@
         document.getElementById('v2FunnelPane').hidden = v2State.view !== 'funnel';
       }
 
-      // ═══ Настройки: планы по марже ═══
-      const V2_SETTINGS_KEY = 'stmV2Settings_v1';
-      function v2LoadSettings() {
+      // ═══ Настройки: планы по марже — общие для всех через /api/stm-settings ═══
+      const V2_SETTINGS_KEY = 'stmV2Settings_v1';     // локальный кэш/offline фолбэк
+      const V2_SETTINGS_API = '/api/stm-settings';
+      let v2SettingsCache = {};
+      function v2LoadSettingsLocal() {
         try { return JSON.parse(localStorage.getItem(V2_SETTINGS_KEY) || '{}') || {}; } catch { return {}; }
       }
-      function v2SaveSettings(s) {
+      function v2LoadSettings() { return v2SettingsCache; }
+      function v2SaveSettingsLocal(s) {
         try { localStorage.setItem(V2_SETTINGS_KEY, JSON.stringify(s)); } catch {}
       }
       // Применяет overrides из настроек к глобальным TARGETS и MANAGER_GOALS
@@ -3748,7 +3751,39 @@
           }
         });
       }
-      v2ApplySettings();  // сразу при инициализации
+      // Первичная инициализация: локальный кэш → чтобы UI сразу что-то показал.
+      v2SettingsCache = v2LoadSettingsLocal();
+      v2ApplySettings();
+      // Затем — фоновая подгрузка с сервера, перезаписывает кэш если что.
+      (async () => {
+        try {
+          const r = await fetch(V2_SETTINGS_API, { cache: 'no-store' });
+          if (!r.ok) return;
+          const data = await r.json();
+          const remote = {};
+          (data.items || []).forEach(it => {
+            remote[it.month] = { gp: it.gp || 0, qty: it.qty || 0, managers: it.managers || {} };
+          });
+          v2SettingsCache = remote;
+          v2SaveSettingsLocal(remote);
+          v2ApplySettings();
+          if (state.view === 'v2') v2Render();
+        } catch (e) { console.warn('v2 settings load failed', e); }
+      })();
+      async function v2PutSettings(month, cfg) {
+        try {
+          const body = { month, gp: cfg.gp || 0, qty: cfg.qty || 0, managers: cfg.managers || {} };
+          const r = await fetch(V2_SETTINGS_API, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+          if (!r.ok) { console.warn('v2 settings PUT', r.status, await r.text()); return false; }
+          return true;
+        } catch (e) { console.warn('v2 settings PUT failed', e); return false; }
+      }
+      async function v2DeleteSettings(month) {
+        try {
+          const r = await fetch(`${V2_SETTINGS_API}?month=${encodeURIComponent(month)}`, { method:'DELETE' });
+          return r.ok;
+        } catch (e) { console.warn('v2 settings DELETE failed', e); return false; }
+      }
 
       function v2RenderSettings() {
         const monthEl = document.getElementById('v2SettingsMonth');
@@ -5105,8 +5140,9 @@
       });
       // (кнопка «Импорт из v1» удалена 30.06.2026, обработчик не вешаем)
 
-      // ═══ Настройки: сохранение целей по марже ═══
-      document.getElementById('v2SettingsSave').addEventListener('click', () => {
+      // ═══ Настройки: сохранение целей по марже (общая база через API) ═══
+      document.getElementById('v2SettingsSave').addEventListener('click', async () => {
+        const msg = document.getElementById('v2SettingsMsg');
         const s = v2LoadSettings();
         if (!s[state.month]) s[state.month] = {};
         const gp  = Number(document.getElementById('v2SettingsTargetGp').value  || 0);
@@ -5119,18 +5155,29 @@
           const val  = Number(inp.value || 0);
           if (name) s[state.month].managers[name] = val;
         });
-        v2SaveSettings(s);
+        v2SettingsCache = s;
+        v2SaveSettingsLocal(s);
         v2ApplySettings();
-        document.getElementById('v2SettingsMsg').textContent = '✓ Сохранено';
-        setTimeout(() => { const m = document.getElementById('v2SettingsMsg'); if (m) m.textContent = ''; }, 2500);
         v2Render();
+        msg.textContent = '⏳ Сохраняем на сервер…';
+        msg.style.color = '#64748b';
+        const ok = await v2PutSettings(state.month, s[state.month]);
+        if (ok) {
+          msg.textContent = '✓ Сохранено (видно всем)';
+          msg.style.color = '#16a34a';
+        } else {
+          msg.textContent = '⚠ Сервер не ответил — сохранено локально';
+          msg.style.color = '#d97706';
+        }
+        setTimeout(() => { if (msg) msg.textContent = ''; }, 3500);
       });
-      document.getElementById('v2SettingsReset').addEventListener('click', () => {
-        if (!confirm(`Сбросить настройки для месяца ${state.month}?`)) return;
+      document.getElementById('v2SettingsReset').addEventListener('click', async () => {
+        if (!confirm(`Сбросить настройки для месяца ${state.month}?\n\nОни удалятся у ВСЕХ пользователей.`)) return;
         const s = v2LoadSettings();
         delete s[state.month];
-        v2SaveSettings(s);
-        // Восстанавливаем дефолты из констант через reload — иначе TARGETS остался с overrides
+        v2SettingsCache = s;
+        v2SaveSettingsLocal(s);
+        await v2DeleteSettings(state.month);
         location.reload();
       });
 
