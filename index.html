@@ -294,19 +294,20 @@
     .v2-hero { display:flex; gap:24px; align-items:flex-start; margin: 16px 0 20px; padding: 16px 20px; background:#fff; border-radius:10px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); position: relative; }
 
     /* slim hero — карточный дизайн (см. Screenshot_11): source-bar (3 цвета) + большие чип-карточки с qty и семафором вал/выр/шт */
-    /* ═══ ПРОГНОЗ block (screen 35 style) ═══ */
-    .v2-hero-slim { padding: 14px 20px 14px 20px; margin: 12px 0 12px; border: 1px solid #d9e4dc; box-shadow: 0 1px 3px rgba(0,0,0,0.04); background: #fff; border-radius: 12px; display: flex; flex-direction: column; gap: 8px; }
+    /* ═══ ПРОГНОЗ block (скрин 14: минималистичная, компактная) ═══ */
+    .v2-hero-slim { padding: 14px 18px; margin: 12px 0; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(0,0,0,0.03); background: #fff; border-radius: 10px; display: flex; flex-direction: column; gap: 6px; }
     .v2-hero-slim .v2-hero-note { font-size: 12px; font-weight: 700; color: #dc2626; }
     .v2-hero-slim .v2-hero-note:empty { display: none; }
-    .v2-hero-slim .v2-hero-title { font-size: 11px; color: #94a3b8; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+    .v2-hero-slim .v2-hero-title { font-size: 10px; color: #94a3b8; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; }
     .v2-hero-slim .v2-hero-title:empty { display: none; }
-    .v2-hero-slim .v2-hero-row { display: grid; grid-template-columns: minmax(200px, auto) 1fr auto; gap: 20px; align-items: center; }
-    .v2-hero-slim .v2-hero-amount { font-size: 40px; line-height: 1; font-weight: 800; color: #0f172a; letter-spacing: -1px; }
-    .v2-hero-slim .v2-hero-amount small { font-size: 16px; color: #64748b; font-weight: 600; margin-left: 4px; }
-    .v2-hero-slim .v2-hero-sub { font-size: 12px; color: #94a3b8; margin-top: 4px; }
-    .v2-hero-slim .v2-hero-bar-wrap { display: flex; flex-direction: column; gap: 6px; }
-    .v2-hero-slim .v2-hero-goal { font-size: 12px; color: #64748b; text-align: right; }
-    .v2-hero-slim .v2-hero-bar { height: 8px; border-radius: 4px; overflow: hidden; display: flex; background: #e5e7eb; }
+    .v2-hero-slim .v2-hero-row { display: grid; grid-template-columns: minmax(180px, 1fr) 2fr auto; gap: 20px; align-items: center; }
+    .v2-hero-slim .v2-hero-amount-block { display: flex; flex-direction: column; }
+    .v2-hero-slim .v2-hero-amount { font-size: 30px; line-height: 1.1; font-weight: 700; color: #0f172a; letter-spacing: -0.5px; }
+    .v2-hero-slim .v2-hero-amount small { font-size: 14px; color: #64748b; font-weight: 500; margin-left: 3px; }
+    .v2-hero-slim .v2-hero-sub { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+    .v2-hero-slim .v2-hero-bar-wrap { display: flex; flex-direction: row; gap: 10px; align-items: center; }
+    .v2-hero-slim .v2-hero-goal { font-size: 11px; color: #94a3b8; text-align: right; white-space: nowrap; order: 2; }
+    .v2-hero-slim .v2-hero-bar { flex: 1; height: 6px; border-radius: 3px; overflow: hidden; display: flex; background: #e5e7eb; order: 1; min-width: 100px; }
     .v2-hero-slim .v2-hero-bar .seg { height: 100%; }
     .v2-hero-slim .v2-hero-bar .seg-base  { background: #16a34a; }
     .v2-hero-slim .v2-hero-bar .seg-carry { background: #a855f7; }
@@ -315,53 +316,48 @@
     .v2-hero-slim .v2-hero-right { display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
     .v2-hero-slim .v2-hero-aux-unit { display: flex; justify-content: flex-end; }
     /* Compact chips (скрин 14: План 415 822, ДОПы 107 338) */
-    .v2-hero-slim .v2-hero-include { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-    .v2-hero-slim .v2-hero-include button { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid #e2e8f0; border-radius: 999px; background: #fff; cursor: pointer; font-family: inherit; font-size: 12px; color: #475569; transition: all 0.12s; }
-    .v2-hero-slim .v2-hero-include button:hover { border-color: #94a3b8; }
-    .v2-hero-slim .v2-hero-include button .dot { width: 8px; height: 8px; border-radius: 50%; background: #cbd5e1; flex: none; }
-    .v2-hero-slim .v2-hero-include button .lbl { font-weight: 600; color: #475569; }
-    .v2-hero-slim .v2-hero-include button .val { font-weight: 800; color: #0f172a; }
-    .v2-hero-slim .v2-hero-include button .check { color: #cbd5e1; font-weight: 800; margin-left: 2px; }
-    .v2-hero-slim .v2-hero-include button.on.base  { background: #ecfdf5; border-color: #16a34a; color: #065f46; }
+    /* Chips: минималистичные пилюли (скрин 14): серо-белые с чёрным жирным числом */
+    .v2-hero-slim .v2-hero-include { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+    .v2-hero-slim .v2-hero-include button { display: inline-flex; align-items: center; gap: 5px; padding: 5px 11px; border: 1px solid #e2e8f0; border-radius: 999px; background: #fff; cursor: pointer; font-family: inherit; font-size: 11px; color: #64748b; transition: all 0.12s; }
+    .v2-hero-slim .v2-hero-include button:hover { border-color: #94a3b8; background: #f8fafc; }
+    .v2-hero-slim .v2-hero-include button .dot { width: 6px; height: 6px; border-radius: 50%; background: #cbd5e1; flex: none; }
+    .v2-hero-slim .v2-hero-include button .lbl { font-weight: 600; color: #475569; font-size: 11px; }
+    .v2-hero-slim .v2-hero-include button .val { font-weight: 700; color: #0f172a; font-size: 12px; }
+    .v2-hero-slim .v2-hero-include button .check { display: none; }
+    .v2-hero-slim .v2-hero-include button.on.base  { background: #f0fdf4; border-color: #86efac; }
     .v2-hero-slim .v2-hero-include button.on.base  .dot { background: #16a34a; }
-    .v2-hero-slim .v2-hero-include button.on.base  .lbl { color: #065f46; }
-    .v2-hero-slim .v2-hero-include button.on.base  .check { color: #16a34a; }
-    .v2-hero-slim .v2-hero-include button.on.carry { background: #f5f3ff; border-color: #a855f7; color: #6b21a8; }
-    .v2-hero-slim .v2-hero-include button.on.carry .dot { background: #a855f7; }
-    .v2-hero-slim .v2-hero-include button.on.carry .lbl { color: #6b21a8; }
-    .v2-hero-slim .v2-hero-include button.on.carry .check { color: #a855f7; }
-    .v2-hero-slim .v2-hero-include button.on.dop   { background: #eff6ff; border-color: #3b82f6; color: #1d4ed8; }
+    .v2-hero-slim .v2-hero-include button.on.dop   { background: #eff6ff; border-color: #93c5fd; }
     .v2-hero-slim .v2-hero-include button.on.dop   .dot { background: #3b82f6; }
-    .v2-hero-slim .v2-hero-include button.on.dop   .lbl { color: #1d4ed8; }
-    .v2-hero-slim .v2-hero-include button.on.dop   .check { color: #3b82f6; }
     .v2-hero-slim .v2-hero-bar-legend { display: none; }  /* легенда не нужна — chips выше сами и есть легенда */
     .v2-hero-slim .v2-hero-section-label { display: none; }  /* «Учитывать» лейбл убираем ради компактности */
 
     /* двухколоночная сетка для KPI + Loss — каждая карточка своей высоты под контент */
-    .v2-top-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 14px 0; align-items: stretch; }
-    @media (max-width: 1100px) { .v2-top-grid { grid-template-columns: 1fr; } }
+    .v2-top-grid { display: flex; flex-direction: column; gap: 12px; margin: 12px 0; }
     .v2-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); display: flex; flex-direction: column; }
     .v2-card-head { padding: 10px 16px; border-bottom: 1px solid #f1f5f9; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #475569; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
     .v2-card-head .head-aux { text-transform: none; font-weight: 700; color: #0e7c66; font-size: 12px; letter-spacing: 0.3px; }
     .v2-card-body { padding: 12px 22px 14px; }
-    .v2-card-loss .v2-card-head { color: #dc2626; }
-    /* Акцент на ФАКТ (screen 35): бирюзовая рамка + подложка карточки */
-    #v2KpisCard { border: 1.5px solid #0e7c66; box-shadow: 0 2px 10px rgba(14,124,102,0.08); background: linear-gradient(180deg, #ecfdf5 0%, #fff 40%); }
-    #v2KpisCard .v2-card-head { background: #ecfdf5; border-bottom: 1px solid #a7f3d0; padding: 12px 18px; }
-    #v2KpisCard #v2KpisHead { font-size: 12px; letter-spacing: 0.8px; color: #065f46; font-weight: 800; }
-    #v2KpisCard #v2KpisMargin { font-size: 13px; color: #0e7c66; font-weight: 800; }
-    #v2KpisCard .v2-card-body { padding: 16px 22px 18px; }
-    #v2Kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-    /* Большие суммы KPI внутри ФАКТа */
-    #v2Kpis .kpi { border-right: 1px dashed #d1fae5; padding-right: 16px; background: transparent; box-shadow: none; border: none; border-right: 1px dashed #d1fae5; min-height: 0; padding: 0; padding-right: 16px; }
-    #v2Kpis .kpi:last-child { border-right: none; }
-    #v2Kpis .value { font-size: 26px; font-weight: 800; color: #0f172a; letter-spacing: -0.5px; }
-    #v2Kpis .label { color: #065f46; text-transform: uppercase; font-size: 10px; letter-spacing: 0.8px; font-weight: 800; }
-    #v2Kpis .kpi-pct { font-size: 12px; font-weight: 800; }
-    #v2Kpis .kpi-target { font-size: 11px; color: #64748b; }
-    #v2Kpis .kpi-mini-bar { height: 4px; margin-top: 6px; background: #d1fae5; border-radius: 2px; overflow: hidden; }
-    #v2Kpis .kpi-mini-bar span { display: block; height: 100%; }
-    #v2Kpis .kpi-top { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; flex-wrap: wrap; }
+    .v2-card-loss .v2-card-head { color: #94a3b8; background: #fff; border-bottom: 1px solid #f1f5f9; padding: 12px 20px; text-transform: uppercase; letter-spacing: 0.8px; font-weight: 700; font-size: 11px; }
+    .v2-card-loss { border: 1px solid #e2e8f0; background: #fff; border-radius: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
+    .v2-card-loss .v2-card-body { padding: 14px 20px 16px; color: #94a3b8; font-size: 12px; }
+    /* Акцент на ФАКТ (скрин 14): мятная карточка с header bar + огромные числа */
+    #v2KpisCard { border: 1px solid #a7f3d0; background: #f0fdf4; box-shadow: 0 1px 3px rgba(14,124,102,0.06); border-radius: 12px; overflow: hidden; }
+    #v2KpisCard .v2-card-head { background: #ecfdf5; border-bottom: 1px solid #bbf7d0; padding: 14px 20px; }
+    #v2KpisCard #v2KpisHead { font-size: 12px; letter-spacing: 1px; color: #0e7c66; font-weight: 800; text-transform: uppercase; }
+    #v2KpisCard #v2KpisMargin { font-size: 12px; color: #64748b; font-weight: 700; text-transform: none; letter-spacing: 0.3px; }
+    #v2KpisCard .v2-card-body { padding: 22px 24px 20px; background: #fff; }
+    #v2Kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+    /* KPI-колонка внутри ФАКТа */
+    #v2Kpis .kpi { background: transparent; box-shadow: none; border: none; min-height: 0; padding: 0; }
+    #v2Kpis .kpi:not(:last-child) { border-right: 1px solid #f1f5f9; padding-right: 20px; }
+    #v2Kpis .label { color: #0e7c66; text-transform: uppercase; font-size: 10px; letter-spacing: 1px; font-weight: 800; }
+    #v2Kpis .kpi-pct { font-size: 11px; font-weight: 700; color: #64748b; }
+    #v2Kpis .kpi-target { display: none; }  /* target выводим отдельно, ниже value */
+    #v2Kpis .value { font-size: 34px; line-height: 1; font-weight: 800; color: #0f172a; letter-spacing: -1px; margin: 8px 0 4px; }
+    #v2Kpis .kpi-mini-bar { height: 4px; margin-top: 10px; background: #ecfdf5; border-radius: 2px; overflow: hidden; }
+    #v2Kpis .kpi-mini-bar span { display: block; height: 100%; background: #16a34a !important; }
+    #v2Kpis .kpi-top { display: flex; align-items: baseline; gap: 8px; margin-bottom: 0; flex-wrap: wrap; }
+    #v2Kpis .kpi-under { font-size: 11px; color: #94a3b8; font-weight: 500; }
 
     /* KPI: компактно, чтобы 3 метрики помещались в высоту правой карточки */
     #v2Kpis { display: flex; flex-direction: column; gap: 10px; padding: 14px 22px 14px 32px; background: none; justify-content: center; flex: 1; }
@@ -4057,10 +4053,10 @@
           return `<div class="kpi">
             <div class="kpi-top">
               <span class="label">${escapeHtml(label)}</span>
-              <span class="kpi-pct" style="color:${colorFor(p)}">${total?pct(p):'—'}</span>
-              <span class="kpi-target">${escapeHtml(targetText)}</span>
+              <span class="kpi-pct" style="color:${colorFor(p)}">${total?pct(p):''}</span>
             </div>
             <div class="value">${valueText}</div>
+            <div class="kpi-under">${targetText}</div>
             <div class="kpi-mini-bar"><span style="width:${Math.max(0,p*100)}%;background:${barColor||colorFor(p)}"></span></div>
           </div>`;
         };
