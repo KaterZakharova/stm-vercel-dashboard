@@ -3715,13 +3715,14 @@
       function v2OriginCounts() {
         const baseRowsAll = DATA.filter(r => r.month === state.month);
         const baseSkus = new Set(baseRowsAll.map(r => r.sku));
-        // baseQty — реальные штуки из плана + потенциал (склад/К вып./хвост) для бар-визуализации
-        // Берём через buildV2Row → суммируем shipped+stockReady+toProduce+tailQty (без movedQty, без risk)
+        // baseQty — чистая сумма planQty из документа плана (ЦБ-00000223 и т.п.).
+        // Раньше добавляли ещё stockReady (склад) → chip раздувался на десятки тысяч,
+        // хотя план в 1С этого не отражает.
         let baseQty = 0;
         baseRowsAll.forEach(r => {
           const v2 = buildV2Row(r);
-          if (v2.status === 'risk' || v2.status === 'moved') return;
-          baseQty += (v2.shipped || 0) + (v2.stockReady || 0) + (v2.toProduce || 0) + (v2.tailQty || 0);
+          if (v2.status === 'risk') return;   // снято — не в плане
+          baseQty += Number(r.planQty || 0);
         });
         const carry = v2BuildCarryRows(state.month, baseSkus);
         const carrySkus = new Set([...baseSkus, ...carry.map(c => c.sku)]);
