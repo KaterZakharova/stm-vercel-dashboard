@@ -3271,7 +3271,8 @@
         // Применяем фильтр includeOrigins.
         const out = [];
         if (inc.has('base'))  builtRaw.forEach(r => out.push(r));
-        if (inc.has('carry')) carryVirtual.forEach(r => out.push(r));
+        // Переносы всегда добавляются (без chip-переключателя) — с фиолетовой ↪ пометкой в таблице.
+        carryVirtual.forEach(r => out.push(r));
         if (inc.has('dop'))   dopVirtual.forEach(r => out.push(r));
         return out;
       }
@@ -3771,25 +3772,22 @@
           return f + s + p * rate + t;
         };
         const sumOrigin = (o) => rows.filter(r => r.origin === o).reduce((a, r) => a + pickRow(r), 0);
-        let baseSum  = sumOrigin('base');
-        const carrySum = sumOrigin('carry');
-        const dopSum   = sumOrigin('dop');
+        let baseSum  = sumOrigin('base') + sumOrigin('carry');  // переносы вливаются в план
+        const dopSum = sumOrigin('dop');
         // Услуги добавляем к base (они идут в fc.A.fact / fc.R.fact)
         if (unit === 'margin')  baseSum += (fc.services?.gp      || 0);
         if (unit === 'revenue') baseSum += (fc.services?.revenue || 0);
-        const sumAll = baseSum + carrySum + dopSum || 1;
+        const sumAll = baseSum + dopSum || 1;
 
-        // 3-цветный source-bar
+        // Bar: 2 сегмента (План · ДОПы), переносы уже влиты в План
         const segs = [
-          { key:'base',  label:'План',     value: baseSum  },
-          { key:'carry', label:'Переносы', value: carrySum },
-          { key:'dop',   label:'ДОПы',     value: dopSum   },
+          { key:'base', label:'План (вкл. переносы)', value: baseSum },
+          { key:'dop',  label:'ДОПы',                  value: dopSum },
         ];
         document.getElementById('v2HeroBar').innerHTML = segs.map(s =>
           `<div class="seg seg-${s.key}" style="width:${Math.max(0, s.value/sumAll*100)}%" title="${s.label}: ${fmt(s.value)}"></div>`
         ).join('');
-        // Легенда: цветная плашка + название + сумма
-        const legColor = { base:'#16a34a', carry:'#a855f7', dop:'#3b82f6' };
+        const legColor = { base:'#16a34a', dop:'#3b82f6' };
         document.getElementById('v2HeroBarLegend').innerHTML = segs.map(s =>
           `<span><span class="lg-dot" style="background:${legColor[s.key]}"></span>${s.label} <strong>${fmt(s.value)}</strong></span>`
         ).join('');
@@ -3807,8 +3805,9 @@
         const dopLabelTxt = dopQueueLoaded ? 'ДОПы' : 'ДОПы (нет SSO)';
         document.getElementById('v2HeroInclude').innerHTML =
           chip('base',  'base',  'План',     counts.baseQty) +
-          chip('carry', 'carry', 'Переносы', counts.carryQty) +
           chip('dop',   'dop',   dopLabelTxt, counts.dopQty);
+        // Переносы больше не отдельным chip'ом: они всегда добавляются в hero+таблицу
+        // как обычные строки с фиолетовой ↪ пометкой (v2BuildRows).
       }
       // Считает сколько потенциально доступно строк base / carry / dop для текущего месяца,
       // независимо от того что выбрано в includeOrigins.
