@@ -3779,10 +3779,13 @@
       }
       function v2RenderKpis(rows, fc) {
         const target = (TARGETS[state.month] || {}).gp || 0;
-        const planQtyTot = rows.reduce((a, r) => a + r.plan, 0);
+        // План шт — только base-строки (из документа плана 1С). Virtual carry и dop добавляются к
+        // «потенциалу», но не к плановой цифре.
+        const baseRowsKpi = rows.filter(r => r.origin === 'base');
+        const planQtyTot = baseRowsKpi.reduce((a, r) => a + r.plan, 0);
         const factQty = rows.reduce((a, r) => a + r.shipped, 0);
-        // Выручка: plan = только товары, fact = товары + услуги (как в v1).
-        const planRev = rows.reduce((a, r) => a + (r.revenue || 0), 0) + (fc.services ? fc.services.revenue : 0);
+        // Выручка: plan = только товары base, fact = товары + услуги (как в v1).
+        const planRev = baseRowsKpi.reduce((a, r) => a + (r.revenue || 0), 0) + (fc.services ? fc.services.revenue : 0);
         const factRev = fc.R.fact;  // включает услуги (см. v2Forecast)
         const factGp = fc.factSum;  // тоже включает услуги
         const colorFor = p => p >= 0.7 ? '#16a34a' : p >= 0.4 ? '#d97706' : '#dc2626';
