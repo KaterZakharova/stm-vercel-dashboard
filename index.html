@@ -359,16 +359,7 @@
     #v2Kpis .kpi-top { display: flex; align-items: baseline; gap: 8px; margin-bottom: 0; flex-wrap: wrap; }
     #v2Kpis .kpi-under { font-size: 11px; color: #94a3b8; font-weight: 500; }
 
-    /* KPI: компактно, чтобы 3 метрики помещались в высоту правой карточки */
-    #v2Kpis { display: flex; flex-direction: column; gap: 10px; padding: 14px 22px 14px 32px; background: none; justify-content: center; flex: 1; }
-    #v2Kpis .kpi { display: flex; flex-direction: column; gap: 2px; padding: 0; background: none; box-shadow: none; border-radius: 0; border: none; min-height: 0; }
-    #v2Kpis .kpi .kpi-top { display: flex; gap: 8px; align-items: baseline; font-size: 11px; color: #64748b; }
-    #v2Kpis .kpi .label { font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
-    #v2Kpis .kpi-pct { font-size: 12px; font-weight: 700; }
-    #v2Kpis .kpi-target { font-size: 10px; color: #94a3b8; font-weight: 400; margin-left: auto; }
-    #v2Kpis .kpi .value { font-size: 18px; font-weight: 700; color: #0f172a; line-height: 1; }
-    #v2Kpis .kpi-mini-bar { height: 4px; border-radius: 2px; background: #e2e8f0; overflow: hidden; margin-top: 1px; }
-    #v2Kpis .kpi-mini-bar span { display: block; height: 100%; border-radius: 2px; }
+    /* Старый оверрайд удалён — CSS для #v2Kpis теперь только в разделе «Акцент на ФАКТ» выше. */
 
     /* Бейдж «ДОП» рядом с SKU — синий, для строк origin='dop' (из /s3-plan dop-queue) */
     .v2-dop-badge { display: inline-block; margin-left: 6px; padding: 2px 8px; font-size: 11px; font-weight: 800; color: #fff; background: #2563eb; border: 1px solid #1d4ed8; border-radius: 4px; vertical-align: middle; letter-spacing: 0.4px; cursor: help; text-shadow: 0 1px 1px rgba(0,0,0,0.10); }
