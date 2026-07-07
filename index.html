@@ -3240,10 +3240,35 @@
           return Object.assign(JSON.parse(JSON.stringify(V2_DICT_DEFAULTS)), d);
         } catch { return JSON.parse(JSON.stringify(V2_DICT_DEFAULTS)); }
       })();
-      function v2DictPersist() { try { localStorage.setItem(V2_DICT_KEY, JSON.stringify(v2Dict)); } catch {} }
+      // Локальный кэш + PUT на сервер: /api/stm-settings с month='__dict__', managers=словарь.
+      function v2DictSaveLocal() { try { localStorage.setItem(V2_DICT_KEY, JSON.stringify(v2Dict)); } catch {} }
+      async function v2DictPersist() {
+        v2DictSaveLocal();
+        try {
+          const body = { month: '__dict__', gp: 0, qty: 0, managers: { reasonsMoved: v2Dict.reasonsMoved || [], reasonsRisk: v2Dict.reasonsRisk || [] } };
+          const r = await fetch('/api/stm-settings', { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+          if (!r.ok) console.warn('v2Dict PUT', r.status, await r.text());
+        } catch (e) { console.warn('v2Dict PUT failed', e); }
+      }
       function v2DictReasons(status) {
         return status === 'risk' ? v2Dict.reasonsRisk : v2Dict.reasonsMoved;
       }
+      // Фоновая подгрузка справочника с сервера (перезаписывает локальный кэш).
+      (async () => {
+        try {
+          const r = await fetch('/api/stm-settings', { cache: 'no-store' });
+          if (!r.ok) return;
+          const data = await r.json();
+          const dictItem = (data.items || []).find(it => it.month === '__dict__');
+          if (dictItem && dictItem.managers) {
+            const remote = dictItem.managers;
+            if (Array.isArray(remote.reasonsMoved) && remote.reasonsMoved.length) v2Dict.reasonsMoved = remote.reasonsMoved;
+            if (Array.isArray(remote.reasonsRisk)  && remote.reasonsRisk.length)  v2Dict.reasonsRisk  = remote.reasonsRisk;
+            v2DictSaveLocal();
+            if (state.view === 'v2') v2Render();
+          }
+        } catch (e) { console.warn('v2Dict load failed', e); }
+      })();
 
       // ─── Config ─────────────────────────────────────────────
       const TAIL_CONFIG = { minShippedRatio: 0.90, maxTailRatio: 0.07, maxTailAbs: 800 };
@@ -3735,6 +3760,7 @@
         const s = v2LoadSettings();
         if (!s || typeof s !== 'object') return;
         Object.keys(s).forEach(month => {
+          if (month && month.startsWith('__')) return;  // служебные ключи (__dict__) не применяем к TARGETS
           const cfg = s[month] || {};
           if (typeof cfg.gp === 'number' && cfg.gp > 0) {
             if (!TARGETS[month]) TARGETS[month] = { gp: 0, qty: 0 };
@@ -3764,6 +3790,7 @@
           const data = await r.json();
           const remote = {};
           (data.items || []).forEach(it => {
+            if (it.month && it.month.startsWith('__')) return;  // служебные (__dict__) — не для TARGETS
             remote[it.month] = { gp: it.gp || 0, qty: it.qty || 0, managers: it.managers || {} };
           });
           v2SettingsCache = remote;
