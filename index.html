@@ -430,10 +430,21 @@
     .v2-view-switcher button.active { background: #0e7c66; color: #fff; box-shadow: 0 2px 8px rgba(14,124,102,0.35); }
 
     .v2-toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
-    .v2-status-chips { display: flex; gap: 6px; flex-wrap: wrap; }
-    .v2-status-chips button { padding: 5px 11px; border: 1px solid #cbd5e1; background:#fff; border-radius: 999px; cursor: pointer; font-size: 12px; color:#334155; }
+    .v2-status-chips { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+    .v2-status-chips button { padding: 5px 11px; border: 1px solid #cbd5e1; background:#fff; border-radius: 999px; cursor: pointer; font-size: 12px; color:#334155; font-family: inherit; }
     .v2-status-chips button:hover { background: #f1f5f9; }
     .v2-status-chips button.active { background:#0e7c66; color:#fff; border-color:#0e7c66; }
+    .v2-status-chips > .v2-source-filter { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .v2-status-chips > .v2-source-filter + button,
+    .v2-status-chips > .v2-source-filter ~ button { }
+    .v2-source-filter .v2-source-label { font-size: 11px; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-right: 4px; }
+    .v2-source-filter button { padding: 6px 13px; border: 1.5px solid #cbd5e1; border-radius: 999px; background:#fff; font-weight: 600; }
+    .v2-source-filter button.active.carry { background: #7c3aed; color: #fff; border-color: #6d28d9; }
+    .v2-source-filter button.active.new { background: #0e7c66; color: #fff; border-color: #0e7c66; }
+    .v2-source-filter button.active:not(.carry):not(.new) { background: #0e7c66; color: #fff; border-color: #0e7c66; }
+    /* Вторая строка: status chips */
+    .v2-status-chips > button { display: inline-flex; }
+    .v2-status-chips > .v2-status-row { display: flex; gap: 6px; flex-wrap: wrap; }
 
     .v2-pane { background: #fff; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); width: 100%; max-width: 100%; box-sizing: border-box; overflow: hidden; }
     .v2-pane .scroll { overflow: auto; resize: vertical; min-height: 320px; max-height: 90vh; max-width: 100%; }
@@ -2706,6 +2717,7 @@
           v2State.filters = {};
           v2State.selectFilters = {};
           v2State.carryOnly = false;
+          v2State.newOnly = false;
           try { localStorage.removeItem('stmV2SelectFilters'); localStorage.removeItem('stmV2SelectFilters_v2'); } catch {}
         }
         // Спрячем меню архива после выбора
@@ -3138,6 +3150,7 @@
         view: 'table',                                                   // table | kanban | funnel
         statusFilter: 'all',                                             // 'all' | one of STATUS_ORDER
         carryOnly: false,                                                // чип «↪ Переносы» — фильтр по строкам с переносом
+        newOnly: false,                                                  // чип «🆕 Новые» — только строки основного плана без carry-флага
         funnelRealizable: Number(localStorage.getItem('stmV2FunnelSlider') ?? 60),
         funnelTailIncluded: localStorage.getItem('stmV2FunnelTail') === '1',
         managersOpen: false,
@@ -3714,7 +3727,34 @@
         const carrySkus = new Set([...baseSkus, ...carry.map(c => c.sku)]);
         const dop = v2BuildDopRows(state.month, carrySkus);
         const dopQty = dop.reduce((a, r) => a + (r.toProduce || 0), 0);
-        const carryQty = carry.reduce((a, r) => a + (r.toProduce || 0), 0);
+        // Штуки переноса = virtual (SKU нет в плане) + FLAG (SKU есть в плане, но помечен перенос).
+        const carryVirtualQty = carry.reduce((a, r) => a + (r.toProduce || 0), 0);
+        // FLAG-переносы: считаем moved_qty из sharedMeta для SKU в базе, у которых carryFromMonth
+        let carryFlagQty = 0;
+        const targetYm = { 'Май':'2026-05','Июнь':'2026-06','Июль':'2026-07','Август':'2026-08' }[state.month];
+        const NEXT_MONTH = { 'Май':'Июнь', 'Июнь':'Июль', 'Июль':'Август' };
+        Object.keys(sharedMeta || {}).forEach(k => {
+          const m = sharedMeta[k];
+          if (!m || m.status !== 'moved') return;
+          const [srcMonth, sku] = k.split('::');
+          if (!sku || srcMonth === state.month) return;
+          const md = m.moved_date || '';
+          const dateMatches = md && md.slice(0,7) === targetYm;
+          const implicitMatch = !md && NEXT_MONTH[srcMonth] === state.month;
+          if (!dateMatches && !implicitMatch) return;
+          if (!baseSkus.has(sku)) return;  // virtual уже посчитан отдельно
+          // moved_qty из меты; если пусто — берём весь недовыпуск из v2-row прошлого месяца
+          let qty = Number(m.moved_qty || 0);
+          if (!qty) {
+            const src = DATA.find(r => r.month === srcMonth && r.sku === sku);
+            if (src) {
+              const sv = buildV2Row(src);
+              qty = sv.movedQty + sv.stockReady + sv.toProduce + sv.tailQty;
+            }
+          }
+          carryFlagQty += qty;
+        });
+        const carryQty = carryVirtualQty + carryFlagQty;
         // Дебаг для консоли — что было отфильтровано
         if (typeof window !== 'undefined') {
           const rawDopForMonth = dopQueueRows.filter(r => {
@@ -3883,12 +3923,32 @@
         const counts = { all: tableRows.length };
         STATUS_ORDER.forEach(s => counts[s] = tableRows.filter(r => r.status === s).length);
         const carryCount = tableRows.filter(r => r.origin === 'carry' || r.carryFromMonth).length;
-        const chips = [`<button class="${v2State.statusFilter==='all' && !v2State.carryOnly ?'active':''}" data-v2-status="all">Все <small>${counts.all}</small></button>`]
+        const newCount   = tableRows.filter(r => r.origin === 'base' && !r.carryFromMonth).length;
+        // Считаем суммы штук/валовки для carry vs new — покажем прямо в chip'ах
+        const sum = arr => arr.reduce((acc, r) => {
+          acc.qty += (r.plan || 0);
+          acc.gp  += (r.grossMargin || r.moneyProduce || 0);
+          return acc;
+        }, { qty: 0, gp: 0 });
+        const carrySum = sum(tableRows.filter(r => r.origin === 'carry' || r.carryFromMonth));
+        const newSum   = sum(tableRows.filter(r => r.origin === 'base' && !r.carryFromMonth));
+
+        const isSourceAll = !v2State.carryOnly && !v2State.newOnly;
+        const isFirstAll  = isSourceAll && v2State.statusFilter === 'all';
+
+        // Первая полоса — фильтр «Показать источник» (все / только переносы / только новые)
+        const sourceChips = `<div class="v2-source-filter">
+          <span class="v2-source-label">Показать:</span>
+          <button class="${isSourceAll?'active':''}" data-v2-source="all" title="Показать все строки">Все <small>${counts.all}</small></button>
+          <button class="${v2State.newOnly?'active new':''}" data-v2-source="new" title="Только строки основного плана (без переносов)">🆕 Новые <small>${newCount}${newSum.qty ? ` · ${fmtQty.format(newSum.qty)} шт` : ''}</small></button>
+          ${carryCount > 0 ? `<button class="${v2State.carryOnly?'active carry':''}" data-v2-source="carry" title="Только переносы из предыдущего месяца">↪ Переносы <small>${carryCount}${carrySum.qty ? ` · ${fmtQty.format(carrySum.qty)} шт` : ''}${carrySum.gp ? ` · ${rub(carrySum.gp)}` : ''}</small></button>` : ''}
+        </div>`;
+
+        // Вторая полоса — фильтр по статусу (Отгружен/На складе/…)
+        const chips = [`<button class="${isFirstAll?'active':''}" data-v2-status="all">Все статусы <small>${counts.all}</small></button>`]
           .concat(STATUS_ORDER.map(s => `<button class="${v2State.statusFilter===s?'active':''}" data-v2-status="${s}">${STATUS_LABELS[s]} <small>${counts[s]}</small></button>`));
-        if (carryCount > 0) {
-          chips.push(`<button class="${v2State.carryOnly?'active':''}" data-v2-carry-chip="1" style="background:${v2State.carryOnly?'#7c3aed':'#f3e8ff'};color:${v2State.carryOnly?'#fff':'#6b21a8'};border-color:${v2State.carryOnly?'#6d28d9':'#c4b5fd'};font-weight:700" title="Только строки с переносом из предыдущего месяца">↪ Переносы <small>${carryCount}</small></button>`);
-        }
-        document.getElementById('v2StatusChips').innerHTML = chips.join('');
+
+        document.getElementById('v2StatusChips').innerHTML = sourceChips + `<div class="v2-status-row">${chips.join('')}</div>`;
       }
 
       // ─── per-column filters ─────────────────────────────────
@@ -4053,6 +4113,7 @@
         // В hero и hero-чипах ДОПы по-прежнему учитываются (см. v2BuildRows + includeOrigins).
         let filtered = rows.filter(r => r.origin !== 'dop');
         if (v2State.carryOnly) filtered = filtered.filter(r => r.origin === 'carry' || r.carryFromMonth);
+        if (v2State.newOnly)   filtered = filtered.filter(r => r.origin === 'base' && !r.carryFromMonth);
         filtered = v2State.statusFilter === 'all' ? filtered : filtered.filter(r => r.status === v2State.statusFilter);
         if (v2State.lossCatFilter) {
           const wantUnfilled = v2State.lossCatFilter === '— без категории —';
@@ -4332,16 +4393,27 @@
         v2State.view = b.dataset.v2View; v2Render();
       });
       document.getElementById('v2StatusChips').addEventListener('click', e => {
+        // Source filter: all / new / carry
+        const src = e.target.closest('[data-v2-source]');
+        if (src) {
+          const val = src.dataset.v2Source;
+          v2State.carryOnly = (val === 'carry');
+          v2State.newOnly   = (val === 'new');
+          v2State.statusFilter = 'all';
+          v2Render();
+          return;
+        }
         const carryBtn = e.target.closest('[data-v2-carry-chip]');
         if (carryBtn) {
           v2State.carryOnly = !v2State.carryOnly;
-          if (v2State.carryOnly) v2State.statusFilter = 'all';
+          if (v2State.carryOnly) { v2State.statusFilter = 'all'; v2State.newOnly = false; }
           v2Render();
           return;
         }
         const b = e.target.closest('[data-v2-status]'); if (!b) return;
         v2State.statusFilter = b.dataset.v2Status;
         v2State.carryOnly = false;
+        v2State.newOnly = false;
         v2Render();
       });
       document.getElementById('v2ManagersToggle').addEventListener('click', () => {
@@ -4593,6 +4665,7 @@
         // ДОПы в таблице не показываем — они в отдельном инструменте /s3-plan/dop-queue
         let filtered = rows.filter(r => r.origin !== 'dop');
         if (v2State.carryOnly) filtered = filtered.filter(r => r.origin === 'carry' || r.carryFromMonth);
+        if (v2State.newOnly)   filtered = filtered.filter(r => r.origin === 'base' && !r.carryFromMonth);
         filtered = v2State.statusFilter === 'all' ? filtered : filtered.filter(r => r.status === v2State.statusFilter);
         if (v2State.lossCatFilter) {
           const wantUnfilled = v2State.lossCatFilter === '— без категории —';
