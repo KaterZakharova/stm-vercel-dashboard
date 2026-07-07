@@ -312,7 +312,9 @@
     .v2-hero-slim .v2-hero-bar .seg-carry { background: #a855f7; }
     .v2-hero-slim .v2-hero-bar .seg-dop   { background: #3b82f6; }
     .v2-hero-slim .v2-hero-aux { display: flex; gap: 8px; align-items: center; }
-    /* Compact chips (screen 35: План 415 822, Переносы 31 500, ДОПы 107 338) */
+    .v2-hero-slim .v2-hero-right { display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
+    .v2-hero-slim .v2-hero-aux-unit { display: flex; justify-content: flex-end; }
+    /* Compact chips (скрин 14: План 415 822, ДОПы 107 338) */
     .v2-hero-slim .v2-hero-include { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
     .v2-hero-slim .v2-hero-include button { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid #e2e8f0; border-radius: 999px; background: #fff; cursor: pointer; font-family: inherit; font-size: 12px; color: #475569; transition: all 0.12s; }
     .v2-hero-slim .v2-hero-include button:hover { border-color: #94a3b8; }
@@ -922,12 +924,12 @@
           </div>
         </div>
       </details>
-      <!-- ПРОГНОЗ block (screen 35) -->
+      <!-- ПРОГНОЗ block (скрин 14) -->
       <div class="v2-hero v2-hero-slim">
         <div class="v2-hero-note" id="v2HeroNote"></div>
         <div class="v2-hero-title" id="v2HeroTitle"></div>
         <div class="v2-hero-row">
-          <div>
+          <div class="v2-hero-amount-block">
             <div class="v2-hero-amount" id="v2HeroAmount">— ₽</div>
             <div class="v2-hero-sub" id="v2HeroSub"></div>
           </div>
@@ -935,13 +937,13 @@
             <div class="v2-hero-goal" id="v2HeroGoal"></div>
             <div class="v2-hero-bar" id="v2HeroBar"></div>
           </div>
-          <div class="v2-hero-aux">
+          <div class="v2-hero-right">
             <div class="v2-hero-include" id="v2HeroInclude"></div>
+            <div class="v2-hero-aux-unit" id="v2HeroAux"></div>
           </div>
         </div>
         <div class="v2-hero-bar-legend" id="v2HeroBarLegend"></div>
         <div class="v2-hero-section-label">Учитывать</div>
-        <div class="v2-hero-aux-unit" id="v2HeroAux" style="display:flex;justify-content:flex-end"></div>
       </div>
 
       <!-- Менеджеры — компактная свёрнутая полоса + раскрытие -->
