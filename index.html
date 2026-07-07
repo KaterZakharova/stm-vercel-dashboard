@@ -3743,16 +3743,9 @@
           const implicitMatch = !md && NEXT_MONTH[srcMonth] === state.month;
           if (!dateMatches && !implicitMatch) return;
           if (!baseSkus.has(sku)) return;  // virtual уже посчитан отдельно
-          // moved_qty из меты; если пусто — берём весь недовыпуск из v2-row прошлого месяца
-          let qty = Number(m.moved_qty || 0);
-          if (!qty) {
-            const src = DATA.find(r => r.month === srcMonth && r.sku === sku);
-            if (src) {
-              const sv = buildV2Row(src);
-              qty = sv.movedQty + sv.stockReady + sv.toProduce + sv.tailQty;
-            }
-          }
-          carryFlagQty += qty;
+          // FLAG-carry: строго moved_qty из меты. Если юзер не указал — не считаем (0).
+          // Не подставляем «весь недовыпуск» — это раздувало счётчик в разы.
+          carryFlagQty += Number(m.moved_qty || 0);
         });
         const carryQty = carryVirtualQty + carryFlagQty;
         // Дебаг для консоли — что было отфильтровано
