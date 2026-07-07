@@ -38,6 +38,17 @@
     .month-toggle button { border: 0; background: transparent; color: #334155; padding: 9px 16px; border-radius: 6px; cursor: pointer; min-width: 82px; }
     .month-toggle button.active { background: var(--panel); color: var(--blue); box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12); font-weight: 700; }
     .report-toggle button { min-width: 112px; }
+    .report-toggle button[data-view="v2"] { background: #0e7c66; color: #fff; }
+    .report-toggle button[data-view="v2"].active { background: #0e7c66; color: #fff; box-shadow: 0 1px 6px rgba(14,124,102,0.35); }
+    .report-toggle button[data-view="v2"]:not(.active) { background: #14b8a6; color: #fff; opacity: 0.9; }
+    .month-archive-wrap { position: relative; display: inline-block; }
+    .month-archive-btn { border: 1px dashed #94a3b8; background: #f8fafc; color: #334155; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; }
+    .month-archive-btn:hover { border-color: #64748b; background: #f1f5f9; }
+    .month-archive-btn.has-active { border-color: var(--blue); color: var(--blue); background: #eff6ff; font-weight: 700; }
+    .month-archive-menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 20; background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 8px 24px rgba(15,23,42,0.15); padding: 6px; min-width: 160px; display: flex; flex-direction: column; gap: 2px; }
+    .month-archive-menu button { border: 0; background: transparent; text-align: left; padding: 8px 12px; border-radius: 6px; cursor: pointer; color: #334155; font-size: 13px; }
+    .month-archive-menu button:hover { background: #f1f5f9; }
+    .month-archive-menu button.active { background: #eff6ff; color: var(--blue); font-weight: 700; }
     .refresh-controls { display:flex; align-items:center; gap:10px; margin-top:10px; flex-wrap:wrap; }
     .refresh-btn { display:inline-flex; align-items:center; gap:8px; padding:8px 14px; border:1px solid #cbd5e1; background:#fff; color:#334155; border-radius:8px; cursor:pointer; font-size:13px; font-weight:600; transition:border-color .15s, background .15s, transform .1s; }
     .refresh-btn:hover { border-color:var(--blue); color:var(--blue); background:#f8fafc; }
@@ -283,54 +294,53 @@
     .v2-hero { display:flex; gap:24px; align-items:flex-start; margin: 16px 0 20px; padding: 16px 20px; background:#fff; border-radius:10px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); position: relative; }
 
     /* slim hero — карточный дизайн (см. Screenshot_11): source-bar (3 цвета) + большие чип-карточки с qty и семафором вал/выр/шт */
-    .v2-hero-slim { display: grid; grid-template-columns: 1fr auto; grid-template-areas: "note note" "title aux" "amt aux" "sub sub" "bar bar" "leg leg" "sec sec" "inc inc"; column-gap: 18px; row-gap: 6px; padding: 20px 26px; margin: 14px 0 14px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.04); background: #fff; border-radius: 12px; }
-    .v2-hero-slim .v2-hero-note { grid-area: note; font-size: 12px; font-weight: 700; color: #dc2626; min-height: 0; }
+    /* ═══ ПРОГНОЗ block (screen 35 style) ═══ */
+    .v2-hero-slim { padding: 14px 20px 14px 20px; margin: 12px 0 12px; border: 1px solid #d9e4dc; box-shadow: 0 1px 3px rgba(0,0,0,0.04); background: #fff; border-radius: 12px; display: flex; flex-direction: column; gap: 8px; }
+    .v2-hero-slim .v2-hero-note { font-size: 12px; font-weight: 700; color: #dc2626; }
     .v2-hero-slim .v2-hero-note:empty { display: none; }
-    .v2-hero-slim .v2-hero-title { grid-area: title; font-size: 12px; color: #94a3b8; font-weight: 600; letter-spacing: 0.3px; }
+    .v2-hero-slim .v2-hero-title { font-size: 11px; color: #94a3b8; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
     .v2-hero-slim .v2-hero-title:empty { display: none; }
-    .v2-hero-slim .v2-hero-amount { grid-area: amt; font-size: 44px; line-height: 1; font-weight: 800; color: #0f172a; letter-spacing: -1px; margin-top: 4px; }
-    .v2-hero-slim .v2-hero-amount small { font-size: 18px; color: #64748b; font-weight: 600; margin-left: 4px; }
-    .v2-hero-slim .v2-hero-sub { grid-area: sub; font-size: 12px; color: #94a3b8; }
-    .v2-hero-slim .v2-hero-aux { grid-area: aux; align-self: start; justify-self: end; font-size: 14px; color: #0f172a; font-weight: 600; }
-    .v2-hero-slim .v2-hero-bar { grid-area: bar; height: 10px; border-radius: 5px; overflow: hidden; display: flex; background: #f1f5f9; margin-top: 10px; }
+    .v2-hero-slim .v2-hero-row { display: grid; grid-template-columns: minmax(200px, auto) 1fr auto; gap: 20px; align-items: center; }
+    .v2-hero-slim .v2-hero-amount { font-size: 40px; line-height: 1; font-weight: 800; color: #0f172a; letter-spacing: -1px; }
+    .v2-hero-slim .v2-hero-amount small { font-size: 16px; color: #64748b; font-weight: 600; margin-left: 4px; }
+    .v2-hero-slim .v2-hero-sub { font-size: 12px; color: #94a3b8; margin-top: 4px; }
+    .v2-hero-slim .v2-hero-bar-wrap { display: flex; flex-direction: column; gap: 6px; }
+    .v2-hero-slim .v2-hero-goal { font-size: 12px; color: #64748b; text-align: right; }
+    .v2-hero-slim .v2-hero-bar { height: 8px; border-radius: 4px; overflow: hidden; display: flex; background: #e5e7eb; }
     .v2-hero-slim .v2-hero-bar .seg { height: 100%; }
     .v2-hero-slim .v2-hero-bar .seg-base  { background: #16a34a; }
     .v2-hero-slim .v2-hero-bar .seg-carry { background: #a855f7; }
     .v2-hero-slim .v2-hero-bar .seg-dop   { background: #3b82f6; }
-    .v2-hero-slim .v2-hero-bar-legend { grid-area: leg; display: flex; gap: 18px; font-size: 12px; color: #475569; flex-wrap: wrap; align-items: center; margin-top: 2px; }
-    .v2-hero-slim .v2-hero-bar-legend .lg-dot { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
-    .v2-hero-slim .v2-hero-bar-legend strong { color: #0f172a; font-weight: 700; margin-left: 4px; }
-    .v2-hero-slim .v2-hero-section-label { grid-area: sec; font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 1.2px; margin-top: 14px; }
-    .v2-hero-slim .v2-hero-include { grid-area: inc; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-    .v2-hero-slim .v2-hero-include button { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border: 1.5px solid #e2e8f0; border-radius: 12px; background: #fff; cursor: pointer; text-align: left; transition: all 0.15s; font-family: inherit; }
-    .v2-hero-slim .v2-hero-include button:hover { border-color: #94a3b8; transform: translateY(-1px); box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
-    .v2-hero-slim .v2-hero-include button.on.base  { background: #ecfdf5; border-color: #16a34a; }
-    .v2-hero-slim .v2-hero-include button.on.carry { background: #f5f3ff; border-color: #a855f7; }
-    .v2-hero-slim .v2-hero-include button.on.dop   { background: #eff6ff; border-color: #3b82f6; }
-    .v2-hero-slim .v2-hero-include .card-head { display:flex; align-items:center; gap:8px; font-weight:700; font-size:13px; color:#0f172a; }
-    .v2-hero-slim .v2-hero-include .card-head .dot { width:10px; height:10px; border-radius:3px; background:#cbd5e1; flex: none; }
-    .v2-hero-slim .v2-hero-include button.on.base  .card-head .dot { background:#16a34a; }
-    .v2-hero-slim .v2-hero-include button.on.carry .card-head .dot { background:#a855f7; }
-    .v2-hero-slim .v2-hero-include button.on.dop   .card-head .dot { background:#3b82f6; }
-    .v2-hero-slim .v2-hero-include .card-head .check { margin-left:auto; font-size:14px; color:#cbd5e1; font-weight: 800; }
-    .v2-hero-slim .v2-hero-include button.on.base  .card-head .check { color:#16a34a; }
-    .v2-hero-slim .v2-hero-include button.on.carry .card-head .check { color:#a855f7; }
-    .v2-hero-slim .v2-hero-include button.on.dop   .card-head .check { color:#3b82f6; }
-    .v2-hero-slim .v2-hero-include .card-value { font-size: 22px; font-weight: 800; color: #0f172a; line-height: 1; }
-    .v2-hero-slim .v2-hero-include .card-value small { font-size: 12px; font-weight: 600; color: #64748b; margin-left: 4px; }
-    .v2-hero-slim .v2-hero-include .card-units { font-size: 11px; color: #94a3b8; display: flex; gap: 8px; align-items: center; letter-spacing: 0.3px; }
-    .v2-hero-slim .v2-hero-include .card-units .u-dots { display: inline-flex; gap: 3px; }
-    .v2-hero-slim .v2-hero-include .card-units .u-dot { width: 6px; height: 6px; border-radius: 50%; background: #e2e8f0; display: inline-block; }
-    .v2-hero-slim .v2-hero-include button.on.base  .card-units .u-dot.lit { background: #16a34a; }
-    .v2-hero-slim .v2-hero-include button.on.carry .card-units .u-dot.lit { background: #a855f7; }
-    .v2-hero-slim .v2-hero-include button.on.dop   .card-units .u-dot.lit { background: #3b82f6; }
-    .v2-hero-slim .v2-hero-include .card-units .u-warn { color: #d97706; font-weight: 700; margin-left: auto; }
+    .v2-hero-slim .v2-hero-aux { display: flex; gap: 8px; align-items: center; }
+    /* Compact chips (screen 35: План 415 822, Переносы 31 500, ДОПы 107 338) */
+    .v2-hero-slim .v2-hero-include { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    .v2-hero-slim .v2-hero-include button { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid #e2e8f0; border-radius: 999px; background: #fff; cursor: pointer; font-family: inherit; font-size: 12px; color: #475569; transition: all 0.12s; }
+    .v2-hero-slim .v2-hero-include button:hover { border-color: #94a3b8; }
+    .v2-hero-slim .v2-hero-include button .dot { width: 8px; height: 8px; border-radius: 50%; background: #cbd5e1; flex: none; }
+    .v2-hero-slim .v2-hero-include button .lbl { font-weight: 600; color: #475569; }
+    .v2-hero-slim .v2-hero-include button .val { font-weight: 800; color: #0f172a; }
+    .v2-hero-slim .v2-hero-include button .check { color: #cbd5e1; font-weight: 800; margin-left: 2px; }
+    .v2-hero-slim .v2-hero-include button.on.base  { background: #ecfdf5; border-color: #16a34a; color: #065f46; }
+    .v2-hero-slim .v2-hero-include button.on.base  .dot { background: #16a34a; }
+    .v2-hero-slim .v2-hero-include button.on.base  .lbl { color: #065f46; }
+    .v2-hero-slim .v2-hero-include button.on.base  .check { color: #16a34a; }
+    .v2-hero-slim .v2-hero-include button.on.carry { background: #f5f3ff; border-color: #a855f7; color: #6b21a8; }
+    .v2-hero-slim .v2-hero-include button.on.carry .dot { background: #a855f7; }
+    .v2-hero-slim .v2-hero-include button.on.carry .lbl { color: #6b21a8; }
+    .v2-hero-slim .v2-hero-include button.on.carry .check { color: #a855f7; }
+    .v2-hero-slim .v2-hero-include button.on.dop   { background: #eff6ff; border-color: #3b82f6; color: #1d4ed8; }
+    .v2-hero-slim .v2-hero-include button.on.dop   .dot { background: #3b82f6; }
+    .v2-hero-slim .v2-hero-include button.on.dop   .lbl { color: #1d4ed8; }
+    .v2-hero-slim .v2-hero-include button.on.dop   .check { color: #3b82f6; }
+    .v2-hero-slim .v2-hero-bar-legend { display: none; }  /* легенда не нужна — chips выше сами и есть легенда */
+    .v2-hero-slim .v2-hero-section-label { display: none; }  /* «Учитывать» лейбл убираем ради компактности */
 
     /* двухколоночная сетка для KPI + Loss — каждая карточка своей высоты под контент */
     .v2-top-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 14px 0; align-items: stretch; }
     @media (max-width: 1100px) { .v2-top-grid { grid-template-columns: 1fr; } }
     .v2-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); display: flex; flex-direction: column; }
-    .v2-card-head { padding: 10px 16px; border-bottom: 1px solid #f1f5f9; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #475569; font-weight: 600; }
+    .v2-card-head { padding: 10px 16px; border-bottom: 1px solid #f1f5f9; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #475569; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+    .v2-card-head .head-aux { text-transform: none; font-weight: 700; color: #0e7c66; font-size: 12px; letter-spacing: 0.3px; }
     .v2-card-body { padding: 12px 22px 14px; }
     .v2-card-loss .v2-card-head { color: #dc2626; }
 
@@ -611,15 +621,19 @@
       </div>
       <div class="top-controls">
         <div class="month-toggle report-toggle" aria-label="Выбор отчета">
-          <button data-view="main" class="active">План-факт</button>
-          <button data-view="potential">Потенциал</button>
-          <button data-view="v2" id="v2Tab" hidden>Новая версия <span class="badge blue" style="margin-left:4px;font-size:9px;padding:1px 4px">бета</span></button>
+          <button data-view="v2" id="v2Tab" class="active">СТМ · Планирование</button>
+          <button data-view="main">План-факт (v1)</button>
         </div>
         <div class="month-toggle" aria-label="Выбор месяца">
-          <button data-month="Июнь" class="active">Июнь</button>
-          <button data-month="Июль">Июль</button>
+          <button data-month="Июль" class="active">Июль</button>
           <button data-month="Август">Август</button>
-          <button data-month="Май">Май</button>
+          <span class="month-archive-wrap">
+            <button type="button" class="month-archive-btn" id="monthArchiveBtn" aria-haspopup="true" aria-expanded="false" title="Прошлые месяцы">Архив ▾</button>
+            <div class="month-archive-menu" id="monthArchiveMenu" hidden>
+              <button data-month="Июнь">Июнь</button>
+              <button data-month="Май">Май</button>
+            </div>
+          </span>
         </div>
       </div>
     </div>
@@ -847,17 +861,26 @@
           </div>
         </div>
       </details>
-      <!-- Slim hero: title + сумма + source-bar + 3 карточки-чипа (см. Screenshot_11) -->
+      <!-- ПРОГНОЗ block (screen 35) -->
       <div class="v2-hero v2-hero-slim">
         <div class="v2-hero-note" id="v2HeroNote"></div>
         <div class="v2-hero-title" id="v2HeroTitle"></div>
-        <div class="v2-hero-amount" id="v2HeroAmount">— ₽</div>
-        <div class="v2-hero-sub" id="v2HeroSub"></div>
-        <div class="v2-hero-aux" id="v2HeroAux"></div>
-        <div class="v2-hero-bar" id="v2HeroBar"></div>
+        <div class="v2-hero-row">
+          <div>
+            <div class="v2-hero-amount" id="v2HeroAmount">— ₽</div>
+            <div class="v2-hero-sub" id="v2HeroSub"></div>
+          </div>
+          <div class="v2-hero-bar-wrap">
+            <div class="v2-hero-goal" id="v2HeroGoal"></div>
+            <div class="v2-hero-bar" id="v2HeroBar"></div>
+          </div>
+          <div class="v2-hero-aux">
+            <div class="v2-hero-include" id="v2HeroInclude"></div>
+          </div>
+        </div>
         <div class="v2-hero-bar-legend" id="v2HeroBarLegend"></div>
         <div class="v2-hero-section-label">Учитывать</div>
-        <div class="v2-hero-include" id="v2HeroInclude"></div>
+        <div class="v2-hero-aux-unit" id="v2HeroAux" style="display:flex;justify-content:flex-end"></div>
       </div>
 
       <!-- Менеджеры — компактная свёрнутая полоса + раскрытие -->
@@ -872,7 +895,10 @@
       <!-- Две карточки в ряд: показатели месяца | снято и перенос -->
       <div class="v2-top-grid">
         <section class="v2-card" id="v2KpisCard">
-          <div class="v2-card-head">Показатели месяца · ФАКТ</div>
+          <div class="v2-card-head">
+            <span id="v2KpisHead">ФАКТ месяца · <span id="v2KpisMonth"></span></span>
+            <span class="head-aux" id="v2KpisMargin"></span>
+          </div>
           <div class="v2-card-body" id="v2Kpis"></div>
         </section>
         <section class="v2-card v2-card-loss" id="v2LossCard">
@@ -1012,7 +1038,7 @@
     };
     const SERVICES = [{"month":"Май","shipDate":"04.05.2026","name":"Услуги по сертификации","code":"","client":"ФОРТЕ ООО (S3)","manager":"Шаркова Кристина Игоревна","qty":1,"revenue":61475.41,"cost":0,"gp":61475.41},{"month":"Май","shipDate":"05.05.2026","name":"Изготовление образца косметической продукции","code":"","client":"ФИНТРЕЙДИНГ ООО (S3)","manager":"Темрина Наталья","qty":3,"revenue":2459.02,"cost":0,"gp":2459.02},{"month":"Май","shipDate":"05.05.2026","name":"Изготовление образца косметической продукции","code":"","client":"ЭКТ ООО (S3)","manager":"Ягнакова Надежда","qty":80,"revenue":6557.38,"cost":0,"gp":6557.38},{"month":"Май","shipDate":"05.05.2026","name":"Изготовление образца косметической продукции","code":"","client":"Дзигуненко Артем Александрович ИП (S3)","manager":"Шаркова Кристина Игоревна","qty":3,"revenue":1229.51,"cost":0,"gp":1229.51},{"month":"Май","shipDate":"22.05.2026","name":"Услуги по сертификации","code":"","client":"ДЕЛЬФИН ЦЕНТР ООО (S3)","manager":"Лигостаева Елена Александровна","qty":1,"revenue":36885.25,"cost":0,"gp":36885.25},{"month":"Май","shipDate":"26.05.2026","name":"Услуги по сертификации","code":"","client":"ДТМС ООО (S3)","manager":"Ягнакова Надежда","qty":1,"revenue":54144,"cost":0,"gp":54144},{"month":"Май","shipDate":"26.05.2026","name":"Услуги по сертификации","code":"","client":"ДТМС ООО (S3)","manager":"Ягнакова Надежда","qty":1,"revenue":20491.8,"cost":0,"gp":20491.8},{"month":"Июнь","shipDate":"02.06.2026","name":"Услуги по комплектации","code":"","client":"ЮВЕЛИТ АО (S3)","manager":"Покровская Наталия","qty":22,"revenue":431704.92,"cost":0,"gp":431704.92},{"month":"Июнь","shipDate":"02.06.2026","name":"Разработка рецептуры","code":"","client":"ИНТЕГРАААЛ ООО (S3)","manager":"Темрина Наталья","qty":1,"revenue":61475.41,"cost":0,"gp":61475.41},{"month":"Июнь","shipDate":"04.06.2026","name":"Услуги по сертификации","code":"","client":"Алексеюк Алла Анатольевна ИП (S3)","manager":"Темрина Наталья","qty":1,"revenue":20901.64,"cost":0,"gp":20901.64},{"month":"Июнь","shipDate":"17.06.2026","name":"Услуги по сертификации","code":"","client":"Горелов Никита Александрович ИП (S3)","manager":"Темрина Наталья","qty":1,"revenue":20491.8,"cost":0,"gp":20491.8},{"month":"Июнь","shipDate":"23.06.2026","name":"Услуги по комплектации","code":"","client":"ИК ДЖИ ЭЙ ГРУПП ООО (S3)","manager":"Решетникова Валерия","qty":1,"revenue":81967.21,"cost":0,"gp":81967.21},{"month":"Июнь","shipDate":"24.06.2026","name":"Услуги по сертификации","code":"","client":"ДУАЛИТИ ООО (S3)","manager":"Лигостаева Елена Александровна","qty":3,"revenue":61475.41,"cost":0,"gp":61475.41},{"month":"Июнь","shipDate":"24.06.2026","name":"Услуги по сортировке материалов давальца","code":"","client":"ЭЙВА ООО (S3)","manager":"Ягнакова Надежда","qty":1,"revenue":3278.69,"cost":0,"gp":3278.69},{"month":"Июнь","shipDate":"29.06.2026","name":"Услуги по сертификации","code":"","client":"ИНГЕОКОМ ДИСТРИБЬЮШЕН ПАРТНЕРС АО (S3)","manager":"Темрина Наталья","qty":3,"revenue":77868.86,"cost":0,"gp":77868.86},{"month":"Июнь","shipDate":"29.06.2026","name":"Изготовление образца косметической продукции","code":"","client":"ИНГЕОКОМ ДИСТРИБЬЮШЕН ПАРТНЕРС АО (S3)","manager":"Шаркова Кристина Игоревна","qty":5,"revenue":4098.36,"cost":0,"gp":4098.36},{"month":"Июнь","shipDate":"29.06.2026","name":"Услуги по комплектации","code":"","client":"ИНГЕОКОМ ДИСТРИБЬЮШЕН ПАРТНЕРС АО (S3)","manager":"Темрина Наталья","qty":2824,"revenue":2013.84,"cost":0,"gp":2013.84},{"month":"Июнь","shipDate":"29.06.2026","name":"Услуги по сертификации","code":"","client":"ЮВЕЛИТ АО (S3)","manager":"Прохоренко Дарья","qty":1,"revenue":98360.66,"cost":0,"gp":98360.66},{"month":"Июнь","shipDate":"29.06.2026","name":"Услуги по сертификации","code":"","client":"ЮВЕЛИТ АО (S3)","manager":"Прохоренко Дарья","qty":1,"revenue":28688.52,"cost":0,"gp":28688.52},{"month":"Июнь","shipDate":"29.06.2026","name":"Консультационные услуги","code":"","client":"ЮВЕЛИТ АО (S3)","manager":"Покровская Наталия","qty":1,"revenue":295081.97,"cost":0,"gp":295081.97},{"month":"Июль","shipDate":"01.07.2026","name":"Услуги по комплектации","code":"","client":"Корнеева Ева Валерьевна ИП (S3)","manager":"Калядзина Мария","qty":4645,"revenue":36550.82,"cost":0,"gp":36550.82}];
     const PLAN_DOCS = {"Август":[{"Num":"ЦБ-00000223","Date":"2026-06-30","Count":3}],"Июль":[{"Num":"ЦБ-00000223","Date":"2026-06-30","Count":40}],"Июнь":[{"Num":"ЦБ-00000220","Date":"2026-05-29","Count":74}],"Май":[{"Num":"ЦБ-00000218","Date":"2026-05-06","Count":72}]};
-    const state = { view: 'main', month: 'Июнь', search: '', manager: '', newness: '', priceSource: '', status: '', quality: '', managerPlanOnly: false };
+    const state = { view: 'v2', month: 'Июль', search: '', manager: '', newness: '', priceSource: '', status: '', quality: '', managerPlanOnly: false };
     const UNCHECKED_STORAGE_KEY = 'stmUnchecked_v1';
     const COMMENTS_STORAGE_KEY  = 'stmRowComments_v1';
     const FORECAST_COVERED_KEY  = 'stmForecastCovered_v1';
@@ -2524,12 +2550,8 @@
     function render() {
       renderV1PlanSource();
       document.getElementById('mainReport').hidden = state.view !== 'main';
-      document.getElementById('potentialReport').hidden = state.view !== 'potential';
-      if (state.view === 'potential') {
-        renderPotential();
-        applyColumnResizers();
-        return;
-      }
+      const potReport = document.getElementById('potentialReport');
+      if (potReport) potReport.hidden = true;
       refreshOptions();
       const rows = filteredRows();
       const qualityRows = baseFilteredRows().filter(row => matchesTableFilters(row));
@@ -2665,6 +2687,15 @@
         el.innerHTML = `Источник плана: ${parts}`;
       }
     }
+    function syncArchiveButton() {
+      const btn = document.getElementById('monthArchiveBtn');
+      const menu = document.getElementById('monthArchiveMenu');
+      if (!btn || !menu) return;
+      const archiveMonths = Array.from(menu.querySelectorAll('[data-month]')).map(b => b.dataset.month);
+      const active = archiveMonths.includes(state.month);
+      btn.classList.toggle('has-active', active);
+      btn.textContent = active ? `Архив: ${state.month} ▾` : 'Архив ▾';
+    }
     document.querySelectorAll('[data-month]').forEach(button => {
       button.addEventListener('click', () => {
         state.month = button.dataset.month;
@@ -2677,10 +2708,30 @@
           v2State.carryOnly = false;
           try { localStorage.removeItem('stmV2SelectFilters'); localStorage.removeItem('stmV2SelectFilters_v2'); } catch {}
         }
+        // Спрячем меню архива после выбора
+        const archMenu = document.getElementById('monthArchiveMenu');
+        if (archMenu) archMenu.hidden = true;
+        const archBtn = document.getElementById('monthArchiveBtn');
+        if (archBtn) archBtn.setAttribute('aria-expanded', 'false');
+        syncArchiveButton();
         renderV1PlanSource();
         render();
       });
     });
+    // Toggle меню Архива
+    document.addEventListener('click', (e) => {
+      const btn = document.getElementById('monthArchiveBtn');
+      const menu = document.getElementById('monthArchiveMenu');
+      if (!btn || !menu) return;
+      if (e.target === btn) {
+        e.stopPropagation();
+        menu.hidden = !menu.hidden;
+        btn.setAttribute('aria-expanded', menu.hidden ? 'false' : 'true');
+        return;
+      }
+      if (!menu.contains(e.target)) { menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); }
+    });
+    syncArchiveButton();
     document.querySelectorAll('[data-view]').forEach(button => {
       button.addEventListener('click', () => {
         state.view = button.dataset.view;
@@ -3030,12 +3081,10 @@
        и render. Активируется через ?v2=1 в URL. localStorage ключи: stmV2*.
        ══════════════════════════════════════════════════════════════════════════ */
     (function v2Module() {
-      const v2Enabled = new URLSearchParams(location.search).has('v2') || localStorage.getItem('stmV2Enabled') === '1';
+      // v2 теперь основная — всегда включена, вкладка показана
       const v2Tab = document.getElementById('v2Tab');
-      if (!v2Enabled) return;
       v2Tab.hidden = false;
-      // если в URL есть ?v2=1 — запомним, чтобы при следующих заходах было включено
-      if (new URLSearchParams(location.search).has('v2')) localStorage.setItem('stmV2Enabled', '1');
+      localStorage.setItem('stmV2Enabled', '1');
 
       // ─── Документация (справочники, редактируемые юзером) ──
       const V2_DICT_KEY = 'stmV2Dict';
@@ -3336,20 +3385,24 @@
           : (wantsMoved ? Math.max(0, free - tailQty) : 0);
         const toProduce = Math.max(0, free - tailQty - movedQty);
 
-        // unit margin — факт если есть, иначе план, иначе cp-fp.
-        // Когда factoryPrice=0 в 1С — это «дыра в себестоимости», и формула cp-fp=cp
-        // даст 100% маржу. Вместо этого фолбэк: 20% от выручки (договорённое допущение)
-        // + флаг costAssumed20 → ⚠ рядом, чтобы было видно «нужна проверка».
+        // unit margin — приоритет: (1) факт по отгруженным, (2) plannedGp из 1С (там уже
+        // сидит фактическая себестоимость), (3) cp-fp, (4) fallback 20% при полном отсутствии cost-данных.
+        // Раньше 20% срабатывал раньше plannedGp — терялось ~1.6M ВП на SKU без прайса ЦФ,
+        // хотя plannedGp в 1С по ним посчитан.
         const fpRaw = Number(r.factoryPrice || 0);
         const cpRaw = Number(r.actualClientPrice || r.clientPrice || 0);
-        const costAssumed20 = fpRaw <= 0 && cpRaw > 0;
+        const planGpRaw = Number(r.plannedGp || 0);
+        const actGpRaw  = Number(r.actualGp  || 0);
         const v = (() => {
-          if (costAssumed20) return cpRaw * 0.20;            // допущение: 20% маржа
-          if (shipped > 0 && r.actualGp) return r.actualGp / shipped;
-          if (plan > 0 && r.plannedGp) return r.plannedGp / plan;
-          if (cpRaw > 0) return Math.max(0, cpRaw - fpRaw);
+          if (shipped > 0 && actGpRaw) return actGpRaw / shipped;       // факт из 1С
+          if (plan > 0 && planGpRaw)   return planGpRaw / plan;         // план из 1С (даже без явной ЦФ)
+          if (cpRaw > 0 && fpRaw > 0)  return Math.max(0, cpRaw - fpRaw);
+          if (cpRaw > 0)               return cpRaw * 0.20;             // last-resort fallback 20%
           return 0;
         })();
+        // Флаг «дыры»: fp=0 И plannedGp тоже нет (нет ни цены, ни pre-computed ВП).
+        // Раньше флажок ставился при fp=0 всегда, даже если plannedGp был.
+        const costAssumed20 = fpRaw <= 0 && cpRaw > 0 && planGpRaw <= 0;
 
         // деньги по стадиям (валовка)
         const moneyShipped = Number(r.actualGp || 0) || (shipped * v);
@@ -3364,8 +3417,11 @@
         const revProduce = toProduce * cp;
         const revMoved   = movedQty * cp;
         const revTail    = tailQty * cp;
-        // при costAssumed20 пересчитываем grossMargin как plan*v (= revenue * 0.2)
-        const grossMargin  = costAssumed20 ? (plan * v) : (Number(r.actualGp || 0) || (plan * v));
+        // grossMargin: если 1С уже посчитал ВП по плану — используем его напрямую (иначе plan*v).
+        // Для costAssumed20 (нет ни ЦФ ни plannedGp) — считаем plan*v (=cp*0.2 на штуку).
+        const grossMargin  = costAssumed20
+          ? (plan * v)
+          : (Number(r.actualGp || 0) || Number(r.plannedGp || 0) || (plan * v));
         const revenue      = Number(r.actualRevenue || 0) || Number(r.plannedRevenue || 0) || (plan * cp);
         const marginPct    = revenue > 0 ? grossMargin / revenue : null;
 
@@ -3546,8 +3602,8 @@
         const fmt = unit === 'qty' ? (v => fmtQty.format(v||0) + ' шт') : (v => rub(v));
         const unitWord = unit === 'qty' ? 'штуки' : unit === 'revenue' ? 'выручка' : 'валовка';
 
-        // Заголовок «СТМ · прогноз · все SKU · {месяц}»
-        document.getElementById('v2HeroTitle').textContent = `СТМ · прогноз · все SKU · ${state.month}`;
+        // Заголовок «СТМ · прогноз · {месяц}»
+        document.getElementById('v2HeroTitle').textContent = `СТМ · прогноз · ${state.month}`;
 
         // Большое число
         const totalVal = set.total || 0;
@@ -3563,12 +3619,15 @@
           : ((TARGETS[state.month] || {}).gp || 0);
         const pctOfTarget = target ? Math.round(totalVal/target*100) : null;
         document.getElementById('v2HeroSub').innerHTML =
-          `прогноз · ${unitWord} · по выбранным источникам${pctOfTarget != null ? ` · <strong>${pctOfTarget}%</strong> цели` : ''}`;
+          `${unitWord} · ${pctOfTarget != null ? `<strong>${pctOfTarget}%</strong> цели` : ''}`;
 
-        // Unit switch + цель — в правом углу
-        const targetPart = target ? `<span style="font-size:11px;color:#64748b;font-weight:500;margin-right:10px">цель ${fmt(target)}</span>` : '';
+        // Цель — над баром
+        const goalEl = document.getElementById('v2HeroGoal');
+        if (goalEl) goalEl.innerHTML = target ? `цель ${fmt(target)}` : '';
+
+        // Unit switch — переключатель отдельной строкой снизу
         document.getElementById('v2HeroAux').innerHTML =
-          `${targetPart}<span class="v2-hero-unit-switch">
+          `<span class="v2-hero-unit-switch">
               <button data-hero-unit="margin"  ${unit==='margin'?'class="active"':''}>₽ валовка</button>
               <button data-hero-unit="revenue" ${unit==='revenue'?'class="active"':''}>₽ выручка</button>
               <button data-hero-unit="qty"     ${unit==='qty'?'class="active"':''}>шт</button>
@@ -3622,29 +3681,21 @@
           `<span><span class="lg-dot" style="background:${legColor[s.key]}"></span>${s.label} <strong>${fmt(s.value)}</strong></span>`
         ).join('');
 
-        // Карточки-чипы: всегда показывают штуки (источник универсален именно в qty)
+        // Компактные chips (screen 35): dot + label + шт-значение + галка
         const inc = v2State.includeOrigins;
         const counts = v2OriginCounts();
-        const dopWarn = inc.has('dop') && counts.dopQty > 0 && unit !== 'qty';
-        const dotsHtml = (vp, rev, qty) =>
-          `<span class="u-dots">
-             <span class="u-dot ${vp?'lit':''}"></span>
-             <span class="u-dot ${rev?'lit':''}"></span>
-             <span class="u-dot ${qty?'lit':''}"></span>
-           </span>`;
-        const card = (key, cls, label, qty, vp, rev, qtyOk, extra) => {
+        const chip = (key, cls, label, qty) => {
           const on = inc.has(key);
-          return `<button type="button" class="${on?'on '+cls:''}" data-include="${key}">
-            <div class="card-head"><span class="dot"></span>${label}<span class="check">${on?'✓':'○'}</span></div>
-            <div class="card-value">${fmtQty.format(qty||0)}<small>шт</small></div>
-            <div class="card-units">${dotsHtml(vp, rev, qtyOk)}<span>вал · выр · шт</span>${extra||''}</div>
+          const val = fmtQty.format(qty||0);
+          return `<button type="button" class="${on?'on '+cls:''}" data-include="${key}" title="Клик: включить/выключить в прогнозе">
+            <span class="dot"></span><span class="lbl">${label}</span><span class="val">${val}</span><span class="check">${on?'✓':'○'}</span>
           </button>`;
         };
         const dopLabelTxt = dopQueueLoaded ? 'ДОПы' : 'ДОПы (нет SSO)';
         document.getElementById('v2HeroInclude').innerHTML =
-          card('base',  'base',  'План',     counts.baseQty,  true, true, true, '') +
-          card('carry', 'carry', 'Переносы', counts.carryQty, true, true, true, '') +
-          card('dop',   'dop',   dopLabelTxt, counts.dopQty,  false, false, true, '<span class="u-warn">вал на доработке</span>');
+          chip('base',  'base',  'План',     counts.baseQty) +
+          chip('carry', 'carry', 'Переносы', counts.carryQty) +
+          chip('dop',   'dop',   dopLabelTxt, counts.dopQty);
       }
       // Считает сколько потенциально доступно строк base / carry / dop для текущего месяца,
       // независимо от того что выбрано в includeOrigins.
@@ -3714,11 +3765,16 @@
           </div>`;
         };
         const factMargin = factRev ? `маржа ${pct(factGp/factRev)}` : '';
+        // Заполняем «head-aux»: маржа в правом верхнем углу карточки
+        const kpisMonthEl = document.getElementById('v2KpisMonth');
+        if (kpisMonthEl) kpisMonthEl.textContent = state.month;
+        const kpisMarginEl = document.getElementById('v2KpisMargin');
+        if (kpisMarginEl) kpisMarginEl.textContent = factMargin || '';
         // Потенциал в штуках = факт + склад + к выпуску × слайдер + хвост (если включён)
         const potentialQty = fc.factQty + fc.stockQty + fc.produceQty + fc.tailQty;
         const potentialText = potentialQty > factQty ? ` · потенциал <strong>${fmtQty.format(potentialQty)} шт</strong>` : '';
         document.getElementById('v2Kpis').innerHTML =
-          row('Валовка управл.', `из ${rub(target)} цель${factMargin?' · '+factMargin:''}`, rub(factGp),  factGp, target,      '#0e7c66') +
+          row('Валовка управл.', `из ${rub(target)} цель`,                                  rub(factGp),  factGp, target,      '#0e7c66') +
           row('Штуки',           `из ${fmtQty.format(planQtyTot)} план${potentialText}`,    fmtQty.format(factQty), factQty, planQtyTot, '#2563eb') +
           row('Выручка без НДС', `из ${rub(planRev)} план`,                                 rub(factRev), factRev, planRev,    '#0e7c66');
       }
@@ -4649,7 +4705,7 @@
       window.render = function() {
         document.getElementById('v2Report').hidden = state.view !== 'v2';
         document.getElementById('mainReport').hidden  = state.view !== 'main';
-        document.getElementById('potentialReport').hidden = state.view !== 'potential';
+        const potR = document.getElementById('potentialReport'); if (potR) potR.hidden = true;
         if (state.view === 'v2') { v2Render(); return; }
         return origRender.apply(this, arguments);
       };
@@ -4790,7 +4846,7 @@
       if (state.view === 'v2') {
         document.getElementById('v2Report').hidden = false;
         document.getElementById('mainReport').hidden = true;
-        document.getElementById('potentialReport').hidden = true;
+        const potR2 = document.getElementById('potentialReport'); if (potR2) potR2.hidden = true;
         document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === 'v2'));
         v2Render();
       }
