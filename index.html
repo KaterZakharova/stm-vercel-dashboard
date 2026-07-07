@@ -447,6 +447,24 @@
     .v2-view-switcher button.active { background: #0e7c66; color: #fff; box-shadow: 0 2px 8px rgba(14,124,102,0.35); }
 
     .v2-toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+    /* ═══ Настройки (внизу v2, серый серый блок) ═══ */
+    .v2-settings-block { margin: 24px 0 12px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 10px; padding: 0; max-width: 720px; }
+    .v2-settings-block summary { cursor: pointer; padding: 12px 18px; font-size: 13px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; user-select: none; }
+    .v2-settings-block summary:hover { color: #0f172a; }
+    .v2-settings-block[open] summary { border-bottom: 1px solid #cbd5e1; color: #334155; }
+    .v2-settings-body { padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; }
+    .v2-settings-note { font-size: 11px; color: #64748b; line-height: 1.5; }
+    .v2-settings-row { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; }
+    .v2-settings-row label { font-size: 12px; color: #475569; font-weight: 600; }
+    .v2-settings-row input[type="number"] { padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; width: 160px; text-align: right; font-family: inherit; background: #fff; }
+    .v2-settings-row input:focus { outline: none; border-color: #64748b; background: #fff; }
+    .v2-settings-managers-head { font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin: 4px 0 8px; }
+    .v2-settings-actions { display: flex; align-items: center; gap: 10px; margin-top: 6px; padding-top: 12px; border-top: 1px dashed #cbd5e1; }
+    .v2-settings-save { background: #64748b; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 700; font-family: inherit; }
+    .v2-settings-save:hover { background: #475569; }
+    .v2-settings-reset { background: #fff; color: #64748b; border: 1px solid #cbd5e1; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 12px; font-family: inherit; }
+    .v2-settings-reset:hover { background: #e2e8f0; }
+    .v2-settings-msg { font-size: 11px; color: #16a34a; font-weight: 700; }
     /* ═══ Услуги S3 КП (под таблицей) ═══ */
     .v2-services-section { margin-top: 24px; padding: 16px; background: #fafcfb; border: 1px solid #d9e4dc; border-radius: 10px; }
     .v2-services-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
@@ -1071,6 +1089,34 @@
         <div class="v2-funnel" id="v2Funnel"></div>
         <div class="v2-funnel-detail" id="v2FunnelDetail"></div>
       </section>
+
+      <!-- ═══════════════════ Настройки (планы по марже) ═══════════════════ -->
+      <details class="v2-settings-block" id="v2SettingsBlock">
+        <summary>⚙ Настройки — план по валовке и цели менеджеров</summary>
+        <div class="v2-settings-body">
+          <div class="v2-settings-note">
+            Здесь можно поставить цели по валовке (управл.) на месяц.
+            Значения сохраняются в браузере (localStorage). Меняются раздельно на каждый месяц.
+          </div>
+          <div class="v2-settings-row">
+            <label>Общая цель месяца <span id="v2SettingsMonth"></span>, ВП ₽:</label>
+            <input type="number" id="v2SettingsTargetGp" step="10000" min="0" placeholder="14000000">
+          </div>
+          <div class="v2-settings-row">
+            <label>Общий план по штукам, шт:</label>
+            <input type="number" id="v2SettingsTargetQty" step="10000" min="0" placeholder="700000">
+          </div>
+          <div class="v2-settings-managers">
+            <div class="v2-settings-managers-head">Цели менеджеров, ВП ₽:</div>
+            <div id="v2SettingsManagerList"></div>
+          </div>
+          <div class="v2-settings-actions">
+            <button type="button" id="v2SettingsSave" class="v2-settings-save">Сохранить</button>
+            <button type="button" id="v2SettingsReset" class="v2-settings-reset">Сбросить месяц</button>
+            <span id="v2SettingsMsg" class="v2-settings-msg"></span>
+          </div>
+        </div>
+      </details>
     </section>
   </main>
 
@@ -3665,9 +3711,63 @@
         else if (v2State.view === 'kanban') v2RenderKanban(rows);
         else if (v2State.view === 'funnel') v2RenderFunnel(rows, fc);
         v2RenderServices();
+        v2RenderSettings();
         document.getElementById('v2TablePane').hidden  = v2State.view !== 'table';
         document.getElementById('v2KanbanPane').hidden = v2State.view !== 'kanban';
         document.getElementById('v2FunnelPane').hidden = v2State.view !== 'funnel';
+      }
+
+      // ═══ Настройки: планы по марже ═══
+      const V2_SETTINGS_KEY = 'stmV2Settings_v1';
+      function v2LoadSettings() {
+        try { return JSON.parse(localStorage.getItem(V2_SETTINGS_KEY) || '{}') || {}; } catch { return {}; }
+      }
+      function v2SaveSettings(s) {
+        try { localStorage.setItem(V2_SETTINGS_KEY, JSON.stringify(s)); } catch {}
+      }
+      // Применяет overrides из настроек к глобальным TARGETS и MANAGER_GOALS
+      function v2ApplySettings() {
+        const s = v2LoadSettings();
+        if (!s || typeof s !== 'object') return;
+        Object.keys(s).forEach(month => {
+          const cfg = s[month] || {};
+          if (typeof cfg.gp === 'number' && cfg.gp > 0) {
+            if (!TARGETS[month]) TARGETS[month] = { gp: 0, qty: 0 };
+            TARGETS[month].gp = cfg.gp;
+          }
+          if (typeof cfg.qty === 'number' && cfg.qty > 0) {
+            if (!TARGETS[month]) TARGETS[month] = { gp: 0, qty: 0 };
+            TARGETS[month].qty = cfg.qty;
+          }
+          if (cfg.managers && typeof cfg.managers === 'object') {
+            if (!MANAGER_GOALS[month]) MANAGER_GOALS[month] = {};
+            Object.keys(cfg.managers).forEach(name => {
+              const v = Number(cfg.managers[name] || 0);
+              if (v > 0) MANAGER_GOALS[month][name] = v;
+            });
+          }
+        });
+      }
+      v2ApplySettings();  // сразу при инициализации
+
+      function v2RenderSettings() {
+        const monthEl = document.getElementById('v2SettingsMonth');
+        if (!monthEl) return;
+        monthEl.textContent = state.month;
+        const target = TARGETS[state.month] || { gp: 0, qty: 0 };
+        document.getElementById('v2SettingsTargetGp').value = target.gp || '';
+        document.getElementById('v2SettingsTargetQty').value = target.qty || '';
+        const goals = MANAGER_GOALS[state.month] || {};
+        const managers = Object.keys(goals).length ? Object.keys(goals) : ['Темрина Наталья','Лигостаева Елена Александровна','Ягнакова Надежда'];
+        document.getElementById('v2SettingsManagerList').innerHTML = managers.map(name => {
+          const val = goals[name] || 0;
+          const shortName = name.split(' ').slice(0,2).join(' ');
+          return `<div class="v2-settings-row">
+            <label>${escapeHtml(shortName)}</label>
+            <input type="number" step="10000" min="0" data-v2-mgr-goal="${escapeHtml(name)}" value="${val || ''}" placeholder="0">
+          </div>`;
+        }).join('');
+        document.getElementById('v2SettingsMsg').textContent = '';
       }
 
       function v2RenderServices() {
@@ -5004,6 +5104,35 @@
         v2Render();
       });
       // (кнопка «Импорт из v1» удалена 30.06.2026, обработчик не вешаем)
+
+      // ═══ Настройки: сохранение целей по марже ═══
+      document.getElementById('v2SettingsSave').addEventListener('click', () => {
+        const s = v2LoadSettings();
+        if (!s[state.month]) s[state.month] = {};
+        const gp  = Number(document.getElementById('v2SettingsTargetGp').value  || 0);
+        const qty = Number(document.getElementById('v2SettingsTargetQty').value || 0);
+        s[state.month].gp  = gp || 0;
+        s[state.month].qty = qty || 0;
+        s[state.month].managers = {};
+        document.querySelectorAll('[data-v2-mgr-goal]').forEach(inp => {
+          const name = inp.dataset.v2MgrGoal;
+          const val  = Number(inp.value || 0);
+          if (name) s[state.month].managers[name] = val;
+        });
+        v2SaveSettings(s);
+        v2ApplySettings();
+        document.getElementById('v2SettingsMsg').textContent = '✓ Сохранено';
+        setTimeout(() => { const m = document.getElementById('v2SettingsMsg'); if (m) m.textContent = ''; }, 2500);
+        v2Render();
+      });
+      document.getElementById('v2SettingsReset').addEventListener('click', () => {
+        if (!confirm(`Сбросить настройки для месяца ${state.month}?`)) return;
+        const s = v2LoadSettings();
+        delete s[state.month];
+        v2SaveSettings(s);
+        // Восстанавливаем дефолты из констант через reload — иначе TARGETS остался с overrides
+        location.reload();
+      });
 
       // URL-навигация: ?v2=1&view=v2&v2view=table|kanban|funnel — открывает сразу v2 на нужном виде
       const urlParams = new URLSearchParams(location.search);
