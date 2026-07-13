@@ -341,23 +341,23 @@
     .v2-card-loss { border: 1px solid #e2e8f0; background: #fff; border-radius: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
     .v2-card-loss .v2-card-body { padding: 14px 20px 16px; color: #94a3b8; font-size: 12px; }
     /* Акцент на ФАКТ (скрин 14): мятная карточка с header bar + огромные числа */
-    #v2KpisCard { border: 1px solid #a7f3d0; background: #f0fdf4; box-shadow: 0 1px 3px rgba(14,124,102,0.06); border-radius: 12px; overflow: hidden; }
-    #v2KpisCard .v2-card-head { background: #ecfdf5; border-bottom: 1px solid #bbf7d0; padding: 8px 16px; }
-    #v2KpisCard #v2KpisHead { font-size: 11px; letter-spacing: 1px; color: #0e7c66; font-weight: 800; text-transform: uppercase; }
-    #v2KpisCard #v2KpisMargin { font-size: 11px; color: #64748b; font-weight: 700; text-transform: none; letter-spacing: 0.3px; }
-    #v2KpisCard .v2-card-body { padding: 12px 20px 12px; background: #fff; }
+    #v2KpisCard { border: 1px solid #0b6653; background: #0e7c66; box-shadow: 0 1px 3px rgba(14,124,102,0.15); border-radius: 12px; overflow: hidden; }
+    #v2KpisCard .v2-card-head { background: #0b6653; border-bottom: 1px solid #094f42; padding: 8px 16px; }
+    #v2KpisCard #v2KpisHead { font-size: 11px; letter-spacing: 1px; color: #fff; font-weight: 800; text-transform: uppercase; }
+    #v2KpisCard #v2KpisMargin { font-size: 11px; color: #a7f3d0; font-weight: 700; text-transform: none; letter-spacing: 0.3px; }
+    #v2KpisCard .v2-card-body { padding: 12px 20px 12px; background: #0e7c66; }
     #v2Kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
     /* KPI-колонка внутри ФАКТа */
     #v2Kpis .kpi { background: transparent; box-shadow: none; border: none; min-height: 0; padding: 0; }
-    #v2Kpis .kpi:not(:last-child) { border-right: 1px solid #f1f5f9; padding-right: 16px; }
-    #v2Kpis .label { color: #0e7c66; text-transform: uppercase; font-size: 10px; letter-spacing: 1px; font-weight: 800; }
-    #v2Kpis .kpi-pct { font-size: 11px; font-weight: 700; color: #64748b; }
+    #v2Kpis .kpi:not(:last-child) { border-right: 1px solid rgba(255,255,255,0.15); padding-right: 16px; }
+    #v2Kpis .label { color: #a7f3d0; text-transform: uppercase; font-size: 10px; letter-spacing: 1px; font-weight: 800; }
+    #v2Kpis .kpi-pct { font-size: 11px; font-weight: 700; color: #d1fae5; }
     #v2Kpis .kpi-target { display: none; }  /* target выводим отдельно, ниже value */
-    #v2Kpis .value { font-size: 26px; line-height: 1; font-weight: 800; color: #0f172a; letter-spacing: -0.8px; margin: 4px 0 2px; }
-    #v2Kpis .kpi-mini-bar { height: 3px; margin-top: 6px; background: #ecfdf5; border-radius: 2px; overflow: hidden; }
-    #v2Kpis .kpi-mini-bar span { display: block; height: 100%; background: #16a34a !important; }
+    #v2Kpis .value { font-size: 26px; line-height: 1; font-weight: 800; color: #fff; letter-spacing: -0.8px; margin: 4px 0 2px; }
+    #v2Kpis .kpi-mini-bar { height: 3px; margin-top: 6px; background: rgba(255,255,255,0.15); border-radius: 2px; overflow: hidden; }
+    #v2Kpis .kpi-mini-bar span { display: block; height: 100%; background: #fff !important; }
     #v2Kpis .kpi-top { display: flex; align-items: baseline; gap: 8px; margin-bottom: 0; flex-wrap: wrap; }
-    #v2Kpis .kpi-under { font-size: 11px; color: #94a3b8; font-weight: 500; }
+    #v2Kpis .kpi-under { font-size: 11px; color: #a7f3d0; font-weight: 500; }
 
     /* Старый оверрайд удалён — CSS для #v2Kpis теперь только в разделе «Акцент на ФАКТ» выше. */
 
@@ -416,10 +416,10 @@
     .v2-hero-aux { font-size: 12px; color:#64748b; text-align:right; }
 
     .v2-managers { margin: 12px 0 16px; }
-    .v2-managers-strip { display: flex; align-items: center; gap: 14px; padding: 10px 16px; background: #0e7c66; border: 1px solid #0b6653; border-radius: 8px; cursor: pointer; user-select: none; font-size: 13px; box-shadow: 0 1px 2px rgba(14,124,102,0.15); color: #fff; }
-    .v2-managers-strip:hover { background: #0b6653; border-color: #094f42; }
-    .v2-managers-toggle { font-weight: 700; color: #fff; }
-    .v2-managers-summary { color: #fff; flex: 1; font-weight: 500; }
+    .v2-managers-strip { display: flex; align-items: center; gap: 14px; padding: 10px 16px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; cursor: pointer; user-select: none; font-size: 13px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
+    .v2-managers-strip:hover { background: #e2e8f0; border-color: #94a3b8; }
+    .v2-managers-toggle { font-weight: 700; color: #0f172a; }
+    .v2-managers-summary { color: #1e293b; flex: 1; font-weight: 500; }
     .v2-managers-detail { margin-top: 8px; padding: 12px 14px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; }
     .v2-managers-detail .mgr-row { display: grid; grid-template-columns: 1fr 120px 120px 60px; gap: 10px; align-items: center; padding: 4px 0; font-size: 13px; border-bottom: 1px solid #f1f5f9; }
     .v2-managers-detail .mgr-row:last-child { border-bottom: none; }
