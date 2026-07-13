@@ -416,10 +416,10 @@
     .v2-hero-aux { font-size: 12px; color:#64748b; text-align:right; }
 
     .v2-managers { margin: 12px 0 16px; }
-    .v2-managers-strip { display: flex; align-items: center; gap: 14px; padding: 10px 16px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; cursor: pointer; user-select: none; font-size: 13px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
-    .v2-managers-strip:hover { background: #e2e8f0; border-color: #94a3b8; }
-    .v2-managers-toggle { font-weight: 700; color: #0f172a; }
-    .v2-managers-summary { color: #1e293b; flex: 1; font-weight: 500; }
+    .v2-managers-strip { display: flex; align-items: center; gap: 14px; padding: 10px 16px; background: #0e7c66; border: 1px solid #0b6653; border-radius: 8px; cursor: pointer; user-select: none; font-size: 13px; box-shadow: 0 1px 2px rgba(14,124,102,0.15); color: #fff; }
+    .v2-managers-strip:hover { background: #0b6653; border-color: #094f42; }
+    .v2-managers-toggle { font-weight: 700; color: #fff; }
+    .v2-managers-summary { color: #fff; flex: 1; font-weight: 500; }
     .v2-managers-detail { margin-top: 8px; padding: 12px 14px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; }
     .v2-managers-detail .mgr-row { display: grid; grid-template-columns: 1fr 120px 120px 60px; gap: 10px; align-items: center; padding: 4px 0; font-size: 13px; border-bottom: 1px solid #f1f5f9; }
     .v2-managers-detail .mgr-row:last-child { border-bottom: none; }
@@ -436,14 +436,13 @@
     .v2-view-switcher button.active { background: #0e7c66; color: #fff; box-shadow: 0 2px 8px rgba(14,124,102,0.35); }
 
     .v2-toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
-    /* ═══ Настройки (fixed слева снизу, серый) ═══ */
-    .v2-settings-block { position: fixed; left: 20px; bottom: 20px; z-index: 900; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 0; width: 320px; max-width: calc(100vw - 40px); box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-    .v2-settings-block summary { cursor: pointer; padding: 10px 14px; font-size: 12px; font-weight: 600; color: #94a3b8; letter-spacing: 0.3px; user-select: none; list-style: none; }
+    /* ═══ Настройки (в самый низ v2Report, без фона, серым) ═══ */
+    .v2-settings-block { margin: 60px 0 20px; background: transparent; border: none; border-radius: 0; padding: 0; width: 320px; max-width: calc(100vw - 40px); box-shadow: none; }
+    .v2-settings-block summary { cursor: pointer; padding: 4px 0; font-size: 12px; font-weight: 500; color: #94a3b8; letter-spacing: 0.3px; user-select: none; list-style: none; }
     .v2-settings-block summary::-webkit-details-marker { display: none; }
-    .v2-settings-block summary:hover { color: #64748b; background: #f1f5f9; border-radius: 10px; }
-    .v2-settings-block[open] summary { border-bottom: 1px solid #e2e8f0; color: #64748b; border-radius: 10px 10px 0 0; }
-    .v2-settings-block[open] summary:hover { border-radius: 10px 10px 0 0; }
-    .v2-settings-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; max-height: 60vh; overflow-y: auto; }
+    .v2-settings-block summary:hover { color: #64748b; }
+    .v2-settings-block[open] summary { color: #64748b; padding-bottom: 8px; border-bottom: 1px dashed #e2e8f0; margin-bottom: 8px; }
+    .v2-settings-body { padding: 0; display: flex; flex-direction: column; gap: 10px; }
     .v2-settings-note { font-size: 11px; color: #64748b; line-height: 1.5; }
     .v2-settings-row { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; }
     .v2-settings-row label { font-size: 12px; color: #475569; font-weight: 600; }
@@ -3646,9 +3645,15 @@
         Q.produce = Q.produceFull * realizableRate + carryQ;
         // Сохраняем carry-суммы для подсветки и tooltip
         A.carry = carryA; R.carry = carryR; Q.carry = carryQ;
+        // total = реалистичный (с воронкой) — для funnel/kpi
         A.total = A.fact + A.stock + A.produce + A.tail;
         R.total = R.fact + R.stock + R.produce + R.tail;
         Q.total = Q.fact + Q.stock + Q.produce + Q.tail;
+        // totalNominal = БЕЗ воронки, чтобы hero сходился с чипами (План/ДОПы).
+        // Иначе chip показывает 94 500 ДОПов, а в hero они входят через ×60% = 56 700 → путаница.
+        A.totalNominal = A.fact + A.stock + A.produceFull + A.tail + carryA;
+        R.totalNominal = R.fact + R.stock + R.produceFull + R.tail + carryR;
+        Q.totalNominal = Q.fact + Q.stock + Q.produceFull + Q.tail + carryQ;
         return {
           // legacy: для совместимости с уже использующим кодом hero / kpi / funnel
           factSum: A.fact, stockSum: A.stock, produceSum: A.produce, produceSumFull: A.produceFull,
@@ -3872,8 +3877,9 @@
         // Заголовок «СТМ · прогноз · {месяц}»
         document.getElementById('v2HeroTitle').textContent = `СТМ · прогноз · ${state.month}`;
 
-        // Большое число
-        const totalVal = set.total || 0;
+        // Большое число — используем номинальный total (без funnel-slider),
+        // чтобы совпадало с chips «План» + «ДОПы».
+        const totalVal = (set.totalNominal != null ? set.totalNominal : set.total) || 0;
         if (unit === 'qty') {
           document.getElementById('v2HeroAmount').innerHTML = fmtQty.format(totalVal) + ' <small>шт</small>';
         } else {
@@ -3907,8 +3913,8 @@
           ? '* итог не учитывает ВП от доп. объёма (валовка ДОПов — на доработке, нет цен в DATA)'
           : '';
 
-        // Разбивка по источникам — ВКЛАД каждого origin в hero-total (в current unit)
-        const rate = (typeof v2State.funnelRealizable === 'number' ? v2State.funnelRealizable : 60) / 100;
+        // Разбивка по источникам — ВКЛАД каждого origin в hero-total (в current unit).
+        // Считаем НОМИНАЛЬНО (без funnel-slider), чтобы бар и chips сошлись с большой цифрой.
         const tailGlobal = !!v2State.funnelTailIncluded;
         const pickRow = (r) => {
           if (r.status === 'risk' || r.status === 'moved') return 0;
@@ -3922,7 +3928,7 @@
           const t = (r.tailIncluded || tailGlobal)
             ? (unit === 'revenue' ? r.revTail : unit === 'qty' ? r.tailQty : r.moneyTail)
             : 0;
-          return f + s + p * rate + t;
+          return f + s + p + t;
         };
         const sumOrigin = (o) => rows.filter(r => r.origin === o).reduce((a, r) => a + pickRow(r), 0);
         let baseSum  = sumOrigin('base') + sumOrigin('carry');  // переносы вливаются в план
