@@ -1281,6 +1281,42 @@
       }
     }
 
+    // ─── s3-plan /plan — «Дата поставки давальцем СиМ» + № заказа для сверки ────────
+    // Тянет то, что показывается в /s3-plan колонкой «Дата прихода СиМ давальца»
+    // (это ship_date из stm_row_meta), плюс toll_order_number из 1С (Заказ давальца 2_5).
+    // Используем для колонки «Дата поставки СиМ» в v2-таблице с проверкой по номеру заказа.
+    const MONTH_TO_NUM = { 'Январь':1,'Февраль':2,'Март':3,'Апрель':4,'Май':5,'Июнь':6,'Июль':7,'Август':8,'Сентябрь':9,'Октябрь':10,'Ноябрь':11,'Декабрь':12 };
+    let s3PlanMap = new Map();     // sku -> { arrivalDate, orderNumber, month }
+    let s3PlanLoaded = false;
+    let s3PlanLoadedMonth = null;
+    async function loadS3PlanForMonth(monthName) {
+      const mn = MONTH_TO_NUM[monthName]; if (!mn) return false;
+      if (s3PlanLoadedMonth === monthName && s3PlanLoaded) return true;
+      try {
+        const r = await fetch(`/api/s3-plan/plan?year=2026&month=${mn}`, { cache: 'no-store', credentials: 'same-origin' });
+        if (!r.ok) return false;
+        const ctype = r.headers.get('content-type') || '';
+        if (!ctype.includes('application/json')) return false;
+        const data = await r.json();
+        const rows = Array.isArray(data.rows) ? data.rows : [];
+        const map = new Map();
+        rows.forEach(row => {
+          map.set(row.vendor_code, {
+            arrivalDate: row.toll_arrival_date || '',
+            orderNumber: row.toll_order_number || '',
+            month: monthName,
+          });
+        });
+        s3PlanMap = map;
+        s3PlanLoaded = true;
+        s3PlanLoadedMonth = monthName;
+        return true;
+      } catch (e) {
+        console.warn('s3-plan/plan load failed', e);
+        return false;
+      }
+    }
+
     // ─── Доп очередь (потенциал из инструмента /s3-plan/dop-queue) ──────────
     // Тянем строки заказов 1С со статусом «КОбеспечению», у которых in_plan=false
     // (нет зелёной пометки в инструменте). Это и есть «месячный потенциал».
@@ -2815,6 +2851,10 @@
           v2State.newOnly = false;
           try { localStorage.removeItem('stmV2SelectFilters'); localStorage.removeItem('stmV2SelectFilters_v2'); } catch {}
         }
+        // Подтянуть s3-plan для нового месяца (колонка «Дата поставки СиМ»)
+        if (typeof loadS3PlanForMonth === 'function') {
+          loadS3PlanForMonth(state.month).then(ok => { if (ok) render(); });
+        }
         // Спрячем меню архива после выбора
         const archMenu = document.getElementById('monthArchiveMenu');
         if (archMenu) archMenu.hidden = true;
@@ -3083,6 +3123,8 @@
     // Подтянуть «Доп очередь» (потенциал из /s3-plan/dop-queue): строки заказов без зелёной
     // пометки in_plan. Если SSO не пройден — тихо пропускаем, потенциал останется на MANUAL_POTENTIAL.
     loadDopQueueFromApi().then(ok => { if (ok) render(); });
+    // s3-plan/plan для колонки «Дата поставки СиМ» — тянем для текущего месяца
+    loadS3PlanForMonth(state.month).then(ok => { if (ok) render(); });
 
     // ─── Кнопка «Обновить данные» через локальный refresh-сервис ───
     // Сервис крутится на компе пользователя по адресу 127.0.0.1:9999 (Task Scheduler at logon).
@@ -3686,6 +3728,7 @@
         { key:'shipDatePlan',label:'Отгрузка ПЛАН',defaultVisible:true  },
         { key:'status',      label:'Статус',       defaultVisible:true },
         { key:'comment',     label:'Комментарий',  defaultVisible:true },
+        { key:'arrivalDate', label:'Дата поставки СиМ давальца', defaultVisible:true },
       ];
       const V2_DEFAULT_VISIBLE = V2_COLUMNS.filter(c => c.defaultVisible).map(c => c.key);
       const V2_DEFAULT_WIDTHS = {
@@ -3694,7 +3737,7 @@
         grossMargin: 90, revenue: 90, marginPct: 65,
         shipDateFact: 105, shipDatePlan: 130,
         status: 100,
-        name: 220, comment: 220,
+        name: 220, comment: 220, arrivalDate: 140,
       };
       const V2_COL_WIDTHS_KEY = 'stmV2ColWidths_v5';
       try { ['stmV2ColWidths','stmV2ColWidths_v2','stmV2ColWidths_v3','stmV2ColWidths_v4'].forEach(k => localStorage.removeItem(k)); } catch {}
@@ -4240,6 +4283,12 @@
         if (key === 'comment')     return rowItem.comment || '(без комментария)';
         if (key === 'shipDateFact')return (rowItem.raw && rowItem.raw.shipDate) || rowItem.shipDate || '(пусто)';
         if (key === 'shipDatePlan')return (rowItem.raw ? (getShipDate(rowItem.raw) || '(пусто)') : '(пусто)');
+        if (key === 'arrivalDate') {
+          const s3 = s3PlanMap.get(rowItem.sku);
+          if (s3 && s3.arrivalDate) return s3.arrivalDate;
+          const local = rowItem.raw ? getShipDate(rowItem.raw) : '';
+          return local || '(пусто)';
+        }
         if (key === 'marginPct') {
           if (rowItem.marginPct == null) return '(нет данных)';
           // Округление до целого процента — иначе 50+ уникальных значений
@@ -4487,6 +4536,27 @@
             return `<td><select class="v2-status-badge ${r.status}" data-v2-status-sku="${escapeHtml(r.sku)}">${opts}</select>${expandIcon}${extra}</td>`;
           }
           if (c.key === 'comment')     return `<td class="v2-comment-cell"><input type="text" data-v2-comment-sku="${escapeHtml(r.sku)}" value="${escapeHtml(r.comment||'')}" placeholder="комментарий..."></td>`;
+          if (c.key === 'arrivalDate') {
+            // «Дата поставки СиМ давальца» — тянем из /api/s3-plan/plan (там же где /s3-plan это показывает).
+            // Проверяем номер заказа: если в s3-plan tollOrderNumber отличается от order у нас в v2 →
+            // помечаем оранжевым, чтобы юзер понимала что дата, возможно, от другого заказа.
+            const s3 = s3PlanMap.get(r.sku);
+            if (!s3 || !s3.arrivalDate) {
+              // fallback — та же ship_date из shared meta (её же тянет s3-plan)
+              const localDate = r.raw ? getShipDate(r.raw) : '';
+              return `<td class="v2-arrival-cell" style="color:#94a3b8;font-size:12px">${escapeHtml(localDate || '—')}</td>`;
+            }
+            // сверка по номеру заказа: убираем сравнимые части (v2 order может быть "00ЦБ-000123; 00ЦБ-000456")
+            const rowOrders = String(r.order || '').split(/[;,]/).map(s => s.trim()).filter(Boolean);
+            const s3Order = String(s3.orderNumber || '').trim();
+            const orderMatch = !s3Order || !rowOrders.length || rowOrders.some(o => o === s3Order);
+            const style = orderMatch ? 'color:#0f172a;font-weight:600' : 'color:#d97706;font-weight:700';
+            const title = orderMatch
+              ? `Дата поставки давальцем СиМ (источник: s3-plan)`
+              : `⚠ Номер заказа в s3-plan (${escapeHtml(s3Order)}) отличается от заказа в этой строке (${escapeHtml(rowOrders.join(', '))}). Дата может относиться к другому заказу.`;
+            const warn = orderMatch ? '' : ' <span style="color:#d97706">⚠</span>';
+            return `<td class="v2-arrival-cell" style="${style};font-size:12px" title="${title}">${escapeHtml(s3.arrivalDate)}${warn}</td>`;
+          }
           return '<td></td>';
         };
         const mainRow = `<tr class="${cls}">${cols.map(cellFor).join('')}</tr>`;
@@ -4994,6 +5064,12 @@
           if (c.key === 'marginPct') return r.marginPct != null ? (r.marginPct * 100).toFixed(1).replace('.', ',') + '%' : '';
           if (c.key === 'shipDateFact') return (r.raw && r.raw.shipDate) || r.shipDate || '';
           if (c.key === 'shipDatePlan') return r.raw ? (getShipDate(r.raw) || '') : '';
+          if (c.key === 'arrivalDate') {
+            const s3 = s3PlanMap.get(r.sku);
+            if (s3 && s3.arrivalDate) return s3.arrivalDate;
+            return r.raw ? (getShipDate(r.raw) || '') : '';
+          }
+          if (c.key === 'comment') return r.comment || '';
           return r[c.key] || '';
         }));
         downloadCSV(`STM_v2_${state.month}_${new Date().toISOString().slice(0,10)}.csv`, headers, data);
