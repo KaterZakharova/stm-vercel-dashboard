@@ -3474,9 +3474,9 @@
           if (!cur || monthIdx(r.month) > monthIdx(cur.month)) dataBySku.set(r.sku, r);
         });
         const candidates = dopQueueRows.filter(r => {
-          // Фильтр in_plan УБРАН — он означает «в плане ХОТЯ БЫ в одном месяце» и режет
-          // SKU из Май/Август-плана, которые приходят как повторный заказ на Юль (не дубль).
-          // Дубли отсекаем через existingSkus (= DATA[monthName].sku ∪ carry.sku).
+          // Точная копия фильтра из /s3-plan/dop-queue → «Объём ДОП по месяцам»:
+          // строго !in_plan + ship_month = месяц-хотелка. Иначе цифры расходятся.
+          if (r.in_plan) return false;
           if (existingSkus && existingSkus.has(r.sku)) return false;
           // Артикулы начинающиеся с "raw" — это сырьё, не готовая продукция, исключаем.
           if (r.sku && /^raw/i.test(r.sku)) return false;
