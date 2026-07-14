@@ -562,16 +562,28 @@ foreach ($whKey in @($StmWhKey, $PgpWhKey)) {
     $whName = if ($whKey -eq $StmWhKey) { 'СТМ' } else { 'ПГП' }
     $target = if ($whKey -eq $StmWhKey) { $stockStmByNomRef } else { $stockPgpByNomRef }
     $filter = [uri]::EscapeDataString("Склад_Key eq guid'$whKey'")
+    # ВАЖНО: Balance() возвращает разбивку по ВСЕМ dimensions (Серия/Назначение/Помещение).
+    # Для одной пары (Номенклатура, Склад) может быть 20+ записей. Default $top=1000
+    # обрезает результат — часть SKU (например MILL003 с 22 серийными строками) выпадает.
+    # Пагинируем через $skip.
     try {
-        $r = Invoke-OData "AccumulationRegister_ТоварыНаСкладах/Balance" "`$select=Номенклатура_Key,ВНаличииBalance&`$filter=$filter" 240
-        foreach ($rec in @($r.value)) {
-            $nk = [string]$rec.Номенклатура_Key
-            if (-not $nk -or $nk -eq '00000000-0000-0000-0000-000000000000') { continue }
-            $q = To-Num $rec.ВНаличииBalance
-            if (-not $target.ContainsKey($nk)) { $target[$nk] = 0.0 }
-            $target[$nk] += $q
+        $totalRecs = 0; $skip = 0; $batchSize = 5000
+        while ($true) {
+            $r = Invoke-OData "AccumulationRegister_ТоварыНаСкладах/Balance" "`$select=Номенклатура_Key,ВНаличииBalance&`$filter=$filter&`$top=$batchSize&`$skip=$skip" 240
+            $recs = @($r.value)
+            if ($recs.Count -eq 0) { break }
+            foreach ($rec in $recs) {
+                $nk = [string]$rec.Номенклатура_Key
+                if (-not $nk -or $nk -eq '00000000-0000-0000-0000-000000000000') { continue }
+                $q = To-Num $rec.ВНаличииBalance
+                if (-not $target.ContainsKey($nk)) { $target[$nk] = 0.0 }
+                $target[$nk] += $q
+            }
+            $totalRecs += $recs.Count
+            if ($recs.Count -lt $batchSize) { break }
+            $skip += $batchSize
         }
-        Write-Host "  Склад $whName : $($target.Count) SKU с положительным остатком"
+        Write-Host "  Склад $whName : $($target.Count) SKU с положительным остатком ($totalRecs записей)"
     } catch {
         Write-Warning "Не удалось получить остатки склада $whName : $_"
     }
