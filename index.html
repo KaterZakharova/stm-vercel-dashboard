@@ -311,6 +311,9 @@
     .v2-hero-slim .v2-hero-breakdown .bd-dot { width: 6px; height: 6px; border-radius: 50%; flex: none; }
     .v2-hero-slim .v2-hero-breakdown .bd-lbl { color: #64748b; }
     .v2-hero-slim .v2-hero-breakdown .bd-val { color: #0f172a; font-weight: 700; }
+    .v2-hero-slim .v2-hero-breakdown .bd-item-out { opacity: 0.75; }
+    .v2-hero-slim .v2-hero-breakdown .bd-item-out .bd-lbl { text-decoration: line-through; color: #94a3b8; }
+    .v2-hero-slim .v2-hero-breakdown .bd-item-out .bd-val { color: #64748b; font-weight: 700; }
     .v2-hero-slim .v2-hero-bar-wrap { display: flex; flex-direction: row; gap: 10px; align-items: center; }
     .v2-hero-slim .v2-hero-goal { font-size: 11px; color: #94a3b8; text-align: right; white-space: nowrap; order: 2; }
     .v2-hero-slim .v2-hero-bar { flex: 1; height: 6px; border-radius: 3px; overflow: hidden; display: flex; background: #e5e7eb; order: 1; min-width: 100px; }
@@ -3962,11 +3965,18 @@
         if (unit !== 'qty' && svcInUnit > 0) {
           bdItems.push({ color:'#64748b', label:'Услуги', val: svcInUnit, tip:'Услуги S3 КП за месяц' });
         }
+        // Отдельный «отминусованный» сегмент — SKU с status='moved' (уходят в другой месяц)
+        // Они уже НЕ входят в hero-total, но показываем справочно чтобы юзер видел «что вычтено».
+        const movedOut = set.moved || 0;
         const bdEl = document.getElementById('v2HeroBreakdown');
         if (bdEl) {
-          bdEl.innerHTML = bdItems.filter(i => (i.val || 0) > 0.5).map(i =>
+          const positive = bdItems.filter(i => (i.val || 0) > 0.5).map(i =>
             `<span class="bd-item" title="${escapeHtml(i.tip)}"><span class="bd-dot" style="background:${i.color}"></span><span class="bd-lbl">${i.label}</span> <span class="bd-val">${fmt(i.val)}</span></span>`
           ).join('');
+          const negative = (movedOut > 0.5)
+            ? `<span class="bd-item bd-item-out" title="Перенесено в другой месяц (status=moved) — НЕ в прогнозе"><span class="bd-dot" style="background:#94a3b8"></span><span class="bd-lbl">Перенос в др. месяц</span> <span class="bd-val">−${fmt(movedOut)}</span></span>`
+            : '';
+          bdEl.innerHTML = positive + negative;
         }
 
         // Цель — над баром
