@@ -305,6 +305,12 @@
     .v2-hero-slim .v2-hero-amount { font-size: 20px; line-height: 1.1; font-weight: 700; color: #0f172a; letter-spacing: -0.3px; }
     .v2-hero-slim .v2-hero-amount small { font-size: 11px; color: #64748b; font-weight: 500; margin-left: 3px; }
     .v2-hero-slim .v2-hero-sub { font-size: 10px; color: #94a3b8; margin-top: 1px; }
+    .v2-hero-slim .v2-hero-breakdown { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 10px; color: #475569; margin-top: 4px; line-height: 1.4; }
+    .v2-hero-slim .v2-hero-breakdown:empty { display: none; }
+    .v2-hero-slim .v2-hero-breakdown .bd-item { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+    .v2-hero-slim .v2-hero-breakdown .bd-dot { width: 6px; height: 6px; border-radius: 50%; flex: none; }
+    .v2-hero-slim .v2-hero-breakdown .bd-lbl { color: #64748b; }
+    .v2-hero-slim .v2-hero-breakdown .bd-val { color: #0f172a; font-weight: 700; }
     .v2-hero-slim .v2-hero-bar-wrap { display: flex; flex-direction: row; gap: 10px; align-items: center; }
     .v2-hero-slim .v2-hero-goal { font-size: 11px; color: #94a3b8; text-align: right; white-space: nowrap; order: 2; }
     .v2-hero-slim .v2-hero-bar { flex: 1; height: 6px; border-radius: 3px; overflow: hidden; display: flex; background: #e5e7eb; order: 1; min-width: 100px; }
@@ -920,6 +926,7 @@
           <div class="v2-hero-amount-block">
             <div class="v2-hero-amount" id="v2HeroAmount">— ₽</div>
             <div class="v2-hero-sub" id="v2HeroSub"></div>
+            <div class="v2-hero-breakdown" id="v2HeroBreakdown"></div>
           </div>
           <div class="v2-hero-bar-wrap">
             <div class="v2-hero-goal" id="v2HeroGoal"></div>
@@ -3936,6 +3943,29 @@
         const pctOfTarget = target ? Math.round(totalVal/target*100) : null;
         document.getElementById('v2HeroSub').innerHTML =
           `${unitWord} · ${pctOfTarget != null ? `<strong>${pctOfTarget}%</strong> цели` : ''}`;
+
+        // Разбивка hero-total по стадиям — чтобы юзер видел из чего сложен прогноз
+        const svcGp  = fc.services ? Number(fc.services.gp      || 0) : 0;
+        const svcRev = fc.services ? Number(fc.services.revenue || 0) : 0;
+        const factRaw = unit === 'revenue' ? set.fact : unit === 'qty' ? set.fact : set.fact;
+        // fact включает услуги — вычтем чтобы показать их отдельным сегментом
+        const svcInUnit = unit === 'revenue' ? svcRev : unit === 'qty' ? 0 : svcGp;
+        const factGoods = Math.max(0, factRaw - svcInUnit);
+        const bdItems = [
+          { color:'#0e7c66', label:'Отгружено',  val: factGoods,          tip:'Уже отгружено покупателю (факт)' },
+          { color:'#3b82f6', label:'На складе',  val: set.stock || 0,     tip:'Готовая продукция на складах СТМ+ПГП' },
+          { color:'#f59e0b', label:'К выпуску',  val: set.produceFull || 0, tip:'Плановый объём − отгружено − склад' },
+          { color:'#a855f7', label:'Переносы',   val: set.carry || 0,     tip:'Carry-over из прошлых месяцев (virtual carry)' },
+        ];
+        if (unit !== 'qty' && svcInUnit > 0) {
+          bdItems.push({ color:'#64748b', label:'Услуги', val: svcInUnit, tip:'Услуги S3 КП за месяц' });
+        }
+        const bdEl = document.getElementById('v2HeroBreakdown');
+        if (bdEl) {
+          bdEl.innerHTML = bdItems.filter(i => (i.val || 0) > 0.5).map(i =>
+            `<span class="bd-item" title="${escapeHtml(i.tip)}"><span class="bd-dot" style="background:${i.color}"></span><span class="bd-lbl">${i.label}</span> <span class="bd-val">${fmt(i.val)}</span></span>`
+          ).join('');
+        }
 
         // Цель — над баром
         const goalEl = document.getElementById('v2HeroGoal');
