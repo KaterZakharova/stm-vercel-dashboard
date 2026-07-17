@@ -487,7 +487,9 @@
     .v2-source-filter button { padding: 6px 13px; border: 1.5px solid #cbd5e1; border-radius: 999px; background:#fff; font-weight: 600; }
     .v2-source-filter button.active.carry { background: #7c3aed; color: #fff; border-color: #6d28d9; }
     .v2-source-filter button.active.new { background: #0e7c66; color: #fff; border-color: #0e7c66; }
-    .v2-source-filter button.active:not(.carry):not(.new) { background: #0e7c66; color: #fff; border-color: #0e7c66; }
+    .v2-source-filter button.active:not(.carry):not(.new):not(.v2-reset-filter) { background: #0e7c66; color: #fff; border-color: #0e7c66; }
+    .v2-source-filter .v2-reset-filter { padding: 5px 11px; border: 1px dashed #cbd5e1; background: #fff; color: #64748b; font-size: 11px; font-weight: 600; border-radius: 999px; cursor: pointer; margin-left: 8px; transition: all 0.12s; }
+    .v2-source-filter .v2-reset-filter:hover { border-color: #dc2626; color: #dc2626; background: #fef2f2; }
     /* Вторая строка: status chips */
     .v2-status-chips > button { display: inline-flex; }
     .v2-status-chips > .v2-status-row { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -4265,11 +4267,17 @@
         const isFirstAll  = isSourceAll && v2State.statusFilter === 'all';
 
         // Первая полоса — фильтр «Показать источник» (все / только переносы / только новые)
+        const hasColFilters = Object.values(v2State.filters || {}).some(v => v);
+        const hasAnyFilter = !isFirstAll || hasColFilters;
+        const resetBtn = hasAnyFilter
+          ? `<button type="button" class="v2-reset-filter" data-v2-reset-filters="1" title="Сбросить все фильтры: источник, статус, колонки">✕ Сбросить фильтр</button>`
+          : '';
         const sourceChips = `<div class="v2-source-filter">
           <span class="v2-source-label">Показать:</span>
           <button class="${isSourceAll?'active':''}" data-v2-source="all" title="Показать все строки">Все <small>${counts.all}</small></button>
           <button class="${v2State.newOnly?'active new':''}" data-v2-source="new" title="Только строки основного плана (без переносов)">🆕 Новые <small>${newCount}${newSum.qty ? ` · ${fmtQty.format(newSum.qty)} шт` : ''}</small></button>
           ${carryCount > 0 ? `<button class="${v2State.carryOnly?'active carry':''}" data-v2-source="carry" title="Только переносы из предыдущего месяца">↪ Переносы <small>${carryCount}${carrySum.qty ? ` · ${fmtQty.format(carrySum.qty)} шт` : ''}${carrySum.gp ? ` · ${rub(carrySum.gp)}` : ''}</small></button>` : ''}
+          ${resetBtn}
         </div>`;
 
         // Вторая полоса — фильтр по статусу (Отгружен/На складе/…)
@@ -4748,6 +4756,16 @@
         v2State.view = b.dataset.v2View; v2Render();
       });
       document.getElementById('v2StatusChips').addEventListener('click', e => {
+        // Reset all filters (source + status + column filters)
+        const reset = e.target.closest('[data-v2-reset-filters]');
+        if (reset) {
+          v2State.carryOnly = false;
+          v2State.newOnly = false;
+          v2State.statusFilter = 'all';
+          v2State.filters = {};
+          v2Render();
+          return;
+        }
         // Source filter: all / new / carry
         const src = e.target.closest('[data-v2-source]');
         if (src) {
