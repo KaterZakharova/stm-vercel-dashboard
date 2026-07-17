@@ -502,6 +502,8 @@
     .v2-table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
     .v2-table th, .v2-table td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; text-align: left; vertical-align: middle; overflow-wrap: break-word; }
     .v2-table thead th { position: sticky; top: 0; z-index: 2; position: relative; }
+    .v2-table thead tr.v2-totals-row th.v2-totals-cell { background: #f1f5f9; border-top: 2px solid #0e7c66; border-bottom: 2px solid #cbd5e1; font-weight: 700; color: #0f172a; padding: 8px 10px; font-size: 12px; }
+    .v2-table thead tr.v2-totals-row th.v2-totals-label { color: #0e7c66; letter-spacing: 0.04em; text-transform: uppercase; }
     .v2-table th .col-resize { position: absolute; right: 0; top: 0; bottom: 0; width: 6px; cursor: col-resize; user-select: none; z-index: 3; }
     .v2-table th .col-resize:hover, .v2-table th .col-resize.dragging { background: #0e7c66; opacity: 0.5; }
     .v2-filter-row th { background: #fff; padding: 4px 6px; border-bottom: 1px solid #e2e8f0; top: 32px; }
@@ -4496,32 +4498,34 @@
           const btnTitle = selActive ? `Фильтр активен: ${sel.length} знач.` : 'Фильтр по значениям (как в Excel)';
           return `<th><div class="v2-filter-cell"><input type="text" data-v2-col-filter="${c.key}" value="${escapeHtml(v2State.filters[c.key]||'')}" placeholder="${c.num?'>500':'фильтр'}"><button type="button" class="v2-filter-btn${selActive?' active':''}" data-v2-filter-popup="${c.key}" title="${escapeHtml(btnTitle)}">▾</button></div></th>`;
         }).join('')}</tr>`;
-        document.getElementById('v2TableHead').innerHTML =
-          '<tr>' + cols.map(c => `<th class="${c.num?'num':''}" data-col="${c.key}">${escapeHtml(c.label)}<span class="col-resize" data-col="${c.key}" title="Тяни, чтобы изменить ширину"></span></th>`).join('') + '</tr>' +
-          filterRow;
-        document.getElementById('v2TableBody').innerHTML = filtered.length
-          ? filtered.map(r => v2RowHtml(r, cols)).join('')
-          : `<tr><td colspan="${cols.length}" style="text-align:center;color:#94a3b8;padding:20px">Нет строк под текущие фильтры. <button type="button" id="v2ResetFiltersBtn" style="margin-left:10px;padding:4px 12px;background:#dc2626;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:600">Сбросить все фильтры</button></td></tr>`;
-        // footer totals
+        // Totals row — считаем ИТОГО ЗДЕСЬ чтобы вставить в thead
         const tot = filtered.reduce((a, r) => ({
           plan: a.plan + r.plan, shipped: a.shipped + r.shipped, stockReady: a.stockReady + r.stockReady,
           toProduce: a.toProduce + r.toProduce, movedQty: a.movedQty + r.movedQty, tailQty: a.tailQty + r.tailQty,
           grossMargin: a.grossMargin + r.grossMargin, revenue: a.revenue + r.revenue,
         }), { plan:0,shipped:0,stockReady:0,toProduce:0,movedQty:0,tailQty:0,grossMargin:0,revenue:0 });
-        document.getElementById('v2TableFoot').innerHTML = '<tr>' +
-          cols.map((c, i) => {
-            if (i === 0) return `<td><strong>ИТОГО · ${filtered.length}</strong></td>`;
-            if (c.key === 'plan')        return `<td class="num"><strong>${fmtQty.format(tot.plan)}</strong></td>`;
-            if (c.key === 'shipped')     return `<td class="num"><strong>${fmtQty.format(tot.shipped)}</strong></td>`;
-            if (c.key === 'stockReady')  return `<td class="num"><strong>${fmtQty.format(tot.stockReady)}</strong></td>`;
-            if (c.key === 'toProduce')   return `<td class="num"><strong>${fmtQty.format(tot.toProduce)}</strong></td>`;
-            if (c.key === 'movedQty')    return `<td class="num"><strong>${fmtQty.format(tot.movedQty)}</strong></td>`;
-            if (c.key === 'tailQty')     return `<td class="num"><strong>${fmtQty.format(tot.tailQty)}</strong></td>`;
-            if (c.key === 'grossMargin') return `<td class="num"><strong>${rub(tot.grossMargin)}</strong></td>`;
-            if (c.key === 'revenue')     return `<td class="num"><strong>${rub(tot.revenue)}</strong></td>`;
-            return '<td></td>';
-          }).join('') + '</tr>';
+        const totalsRow = v2BuildTotalsRow(cols, tot, filtered.length);
+        document.getElementById('v2TableHead').innerHTML =
+          '<tr>' + cols.map(c => `<th class="${c.num?'num':''}" data-col="${c.key}">${escapeHtml(c.label)}<span class="col-resize" data-col="${c.key}" title="Тяни, чтобы изменить ширину"></span></th>`).join('') + '</tr>' +
+          totalsRow +
+          filterRow;
+        document.getElementById('v2TableBody').innerHTML = filtered.length
+          ? filtered.map(r => v2RowHtml(r, cols)).join('')
+          : `<tr><td colspan="${cols.length}" style="text-align:center;color:#94a3b8;padding:20px">Нет строк под текущие фильтры. <button type="button" id="v2ResetFiltersBtn" style="margin-left:10px;padding:4px 12px;background:#dc2626;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:600">Сбросить все фильтры</button></td></tr>`;
+        document.getElementById('v2TableFoot').innerHTML = '';  // ИТОГО перенесён в thead
         v2RenderColumnPanel();
+      }
+      // Totals row (ИТОГО) — генерируется в thead. Единая функция для полной перерисовки и quickRerender.
+      function v2BuildTotalsRow(cols, tot, count) {
+        return '<tr class="v2-totals-row">' +
+          cols.map((c, i) => {
+            if (i === 0) return `<th class="v2-totals-cell v2-totals-label"><strong>ИТОГО · ${count}</strong></th>`;
+            if (['plan','shipped','stockReady','toProduce','movedQty','tailQty'].includes(c.key))
+              return `<th class="v2-totals-cell num"><strong>${fmtQty.format(tot[c.key] || 0)}</strong></th>`;
+            if (c.key === 'grossMargin' || c.key === 'revenue')
+              return `<th class="v2-totals-cell num"><strong>${rub(tot[c.key] || 0)}</strong></th>`;
+            return '<th class="v2-totals-cell"></th>';
+          }).join('') + '</tr>';
       }
       function v2RowHtml(r, cols) {
         const cls = r.flagCostHole ? 'row-costhole' : (r.flagMarginSuspicious ? 'row-suspicious' : '');
@@ -5072,13 +5076,13 @@
           toProduce: a.toProduce + r.toProduce, movedQty: a.movedQty + r.movedQty, tailQty: a.tailQty + r.tailQty,
           grossMargin: a.grossMargin + r.grossMargin, revenue: a.revenue + r.revenue,
         }), { plan:0,shipped:0,stockReady:0,toProduce:0,movedQty:0,tailQty:0,grossMargin:0,revenue:0 });
-        document.getElementById('v2TableFoot').innerHTML = '<tr>' +
-          cols.map((c, i) => {
-            if (i === 0) return `<td><strong>ИТОГО · ${filtered.length}</strong></td>`;
-            if (['plan','shipped','stockReady','toProduce','movedQty','tailQty'].includes(c.key)) return `<td class="num"><strong>${fmtQty.format(tot[c.key])}</strong></td>`;
-            if (c.key === 'grossMargin' || c.key === 'revenue') return `<td class="num"><strong>${rub(tot[c.key])}</strong></td>`;
-            return '<td></td>';
-          }).join('') + '</tr>';
+        // Обновляем totals row в thead (не трогаем header/filter rows)
+        const totalsRow = v2BuildTotalsRow(cols, tot, filtered.length);
+        const existingTotals = document.querySelector('#v2TableHead .v2-totals-row');
+        if (existingTotals) {
+          existingTotals.outerHTML = totalsRow;
+        }
+        document.getElementById('v2TableFoot').innerHTML = '';
       }
       // Column resize
       (function v2ColResize() {
