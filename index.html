@@ -4267,10 +4267,12 @@
         const isFirstAll  = isSourceAll && v2State.statusFilter === 'all';
 
         // Первая полоса — фильтр «Показать источник» (все / только переносы / только новые)
-        const hasColFilters = Object.values(v2State.filters || {}).some(v => v);
+        const hasTextColFilters = Object.values(v2State.filters || {}).some(v => v);
+        const hasSelectColFilters = Object.values(v2State.selectFilters || {}).some(v => Array.isArray(v) && v.length > 0);
+        const hasColFilters = hasTextColFilters || hasSelectColFilters;
         const hasAnyFilter = !isFirstAll || hasColFilters;
         const resetBtn = hasAnyFilter
-          ? `<button type="button" class="v2-reset-filter" data-v2-reset-filters="1" title="Сбросить все фильтры: источник, статус, колонки">✕ Сбросить фильтр</button>`
+          ? `<button type="button" class="v2-reset-filter" data-v2-reset-filters="1" title="Сбросить все фильтры: источник, статус, колонки">✕ Сбросить фильтр${hasColFilters ? ' (есть скрытые!)' : ''}</button>`
           : '';
         const sourceChips = `<div class="v2-source-filter">
           <span class="v2-source-label">Показать:</span>
@@ -4756,13 +4758,15 @@
         v2State.view = b.dataset.v2View; v2Render();
       });
       document.getElementById('v2StatusChips').addEventListener('click', e => {
-        // Reset all filters (source + status + column filters)
+        // Reset all filters (source + status + text col-filters + Excel-style select filters)
         const reset = e.target.closest('[data-v2-reset-filters]');
         if (reset) {
           v2State.carryOnly = false;
           v2State.newOnly = false;
           v2State.statusFilter = 'all';
           v2State.filters = {};
+          v2State.selectFilters = {};
+          try { localStorage.removeItem('stmV2SelectFilters_v2'); } catch {}
           v2Render();
           return;
         }
