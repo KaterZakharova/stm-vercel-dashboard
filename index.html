@@ -1223,12 +1223,13 @@
     function commentKey(row) { return metaKey(row); }
     function ensureMeta(k) {
       if (!sharedMeta[k] || typeof sharedMeta[k] !== 'object') {
-        sharedMeta[k] = { comment: typeof sharedMeta[k] === 'string' ? sharedMeta[k] : '', shipDate: '' };
+        sharedMeta[k] = { comment: typeof sharedMeta[k] === 'string' ? sharedMeta[k] : '', shipDate: '', arrivalDate: '' };
       }
       return sharedMeta[k];
     }
     function getComment(row) { const m = sharedMeta[metaKey(row)]; if (!m) return ''; return (typeof m === 'string' ? m : m.comment) || ''; }
     function getShipDate(row) { const m = sharedMeta[metaKey(row)]; if (!m || typeof m === 'string') return ''; return m.shipDate || ''; }
+    function getArrivalDate(row) { const m = sharedMeta[metaKey(row)]; if (!m || typeof m === 'string') return ''; return m.arrivalDate || ''; }
     function persistMetaLocal() {
       try { localStorage.setItem(COMMENTS_STORAGE_KEY, JSON.stringify(sharedMeta)); } catch {}
     }
@@ -1242,6 +1243,7 @@
             sku: row.sku,
             comment: patch.comment !== undefined ? patch.comment : getComment(row),
             ship_date: patch.shipDate !== undefined ? (patch.shipDate || null) : (getShipDate(row) || null),
+            arrival_date: patch.arrivalDate !== undefined ? (patch.arrivalDate || null) : (getArrivalDate(row) || null),
           }),
         });
         if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -1265,6 +1267,14 @@
       persistMetaLocal();
       pushMeta(row, { shipDate: v });
     }
+    function setArrivalDate(row, date) {
+      const k = metaKey(row);
+      const v = (date || '').trim();
+      const m = ensureMeta(k);
+      m.arrivalDate = v;
+      persistMetaLocal();
+      pushMeta(row, { arrivalDate: v });
+    }
     async function loadSharedMetaFromApi() {
       try {
         const r = await fetch(META_API_URL, { cache: 'no-store' });
@@ -1277,6 +1287,7 @@
           sharedMeta[k] = {
             comment: it.comment || '',
             shipDate: it.ship_date || '',
+            arrivalDate: it.arrival_date || '',
             // v2 поля — иначе loss summary не видит размеченные статусы
             status: it.status || '',
             status_override: !!it.status_override,
@@ -4337,9 +4348,8 @@
         if (key === 'shipDateFact')return (rowItem.raw && rowItem.raw.shipDate) || rowItem.shipDate || '(пусто)';
         if (key === 'shipDatePlan')return (rowItem.raw ? (getShipDate(rowItem.raw) || '(пусто)') : '(пусто)');
         if (key === 'arrivalDate') {
-          const s3 = s3PlanMap.get(rowItem.sku);
-          if (s3 && s3.arrivalDate) return s3.arrivalDate;
-          return '(пусто)';
+          const local = rowItem.raw ? getArrivalDate(rowItem.raw) : '';
+          return local || '(пусто)';
         }
         if (key === 'marginPct') {
           if (rowItem.marginPct == null) return '(нет данных)';
@@ -4591,22 +4601,11 @@
           }
           if (c.key === 'comment')     return `<td class="v2-comment-cell"><input type="text" data-v2-comment-sku="${escapeHtml(r.sku)}" value="${escapeHtml(r.comment||'')}" placeholder="комментарий..."></td>`;
           if (c.key === 'arrivalDate') {
-            // «Дата поставки СиМ давальца» — только из /api/s3-plan/plan.
-            // Без fallback на shipDatePlan: это разные даты, юзер проставляет их обе вручную.
-            const s3 = s3PlanMap.get(r.sku);
-            if (!s3 || !s3.arrivalDate) {
-              return `<td class="v2-arrival-cell" style="color:#94a3b8;font-size:12px">—</td>`;
-            }
-            // сверка по номеру заказа: убираем сравнимые части (v2 order может быть "00ЦБ-000123; 00ЦБ-000456")
-            const rowOrders = String(r.order || '').split(/[;,]/).map(s => s.trim()).filter(Boolean);
-            const s3Order = String(s3.orderNumber || '').trim();
-            const orderMatch = !s3Order || !rowOrders.length || rowOrders.some(o => o === s3Order);
-            const style = orderMatch ? 'color:#0f172a;font-weight:600' : 'color:#d97706;font-weight:700';
-            const title = orderMatch
-              ? `Дата поставки давальцем СиМ (источник: s3-plan)`
-              : `⚠ Номер заказа в s3-plan (${escapeHtml(s3Order)}) отличается от заказа в этой строке (${escapeHtml(rowOrders.join(', '))}). Дата может относиться к другому заказу.`;
-            const warn = orderMatch ? '' : ' <span style="color:#d97706">⚠</span>';
-            return `<td class="v2-arrival-cell" style="${style};font-size:12px" title="${title}">${escapeHtml(s3.arrivalDate)}${warn}</td>`;
+            // «Дата поставки СиМ давальца» — отдельное поле в БД (stm_row_meta.arrival_date).
+            // Редактируется здесь и в /s3-plan, обе точки пишут в одно поле через shared meta.
+            const arrivalVal = r.raw ? getArrivalDate(r.raw) : '';
+            const monthVal = (r.raw && r.raw.month) || state.month;
+            return `<td class="v2-arrival-cell"><input type="date" class="v2-arrival-date-input" data-v2-arrivaldate-sku="${escapeHtml(r.sku)}" data-v2-arrivaldate-month="${escapeHtml(monthVal)}" value="${escapeHtml(arrivalVal)}" style="color:#334155;font-weight:600;border:1px solid #cbd5e1;border-radius:4px;padding:2px 5px;font-size:12px;width:100%;background:#f8fafc"></td>`;
           }
           return '<td></td>';
         };
@@ -4862,6 +4861,15 @@
           const row = DATA.find(r => r.month === month && r.sku === sku);
           if (!row) return;
           setShipDate(row, planDate.value || '');
+        }
+        // Дата поставки СиМ давальца — отдельное поле arrival_date (stm_row_meta.arrival_date)
+        const arrDate = e.target.closest('[data-v2-arrivaldate-sku]');
+        if (arrDate) {
+          const sku = arrDate.dataset.v2ArrivaldateSku;
+          const month = arrDate.dataset.v2ArrivaldateMonth || state.month;
+          const row = DATA.find(r => r.month === month && r.sku === sku);
+          if (!row) return;
+          setArrivalDate(row, arrDate.value || '');
         }
       });
       // ─── Автосохранение полей detail-формы (debounce 700мс) ───
@@ -5127,10 +5135,7 @@
           if (c.key === 'marginPct') return r.marginPct != null ? (r.marginPct * 100).toFixed(1).replace('.', ',') + '%' : '';
           if (c.key === 'shipDateFact') return (r.raw && r.raw.shipDate) || r.shipDate || '';
           if (c.key === 'shipDatePlan') return r.raw ? (getShipDate(r.raw) || '') : '';
-          if (c.key === 'arrivalDate') {
-            const s3 = s3PlanMap.get(r.sku);
-            return (s3 && s3.arrivalDate) ? s3.arrivalDate : '';
-          }
+          if (c.key === 'arrivalDate') return r.raw ? (getArrivalDate(r.raw) || '') : '';
           if (c.key === 'comment') return r.comment || '';
           return r[c.key] || '';
         }));
