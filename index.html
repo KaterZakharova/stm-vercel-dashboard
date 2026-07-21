@@ -4339,8 +4339,7 @@
         if (key === 'arrivalDate') {
           const s3 = s3PlanMap.get(rowItem.sku);
           if (s3 && s3.arrivalDate) return s3.arrivalDate;
-          const local = rowItem.raw ? getShipDate(rowItem.raw) : '';
-          return local || '(пусто)';
+          return '(пусто)';
         }
         if (key === 'marginPct') {
           if (rowItem.marginPct == null) return '(нет данных)';
@@ -4592,14 +4591,11 @@
           }
           if (c.key === 'comment')     return `<td class="v2-comment-cell"><input type="text" data-v2-comment-sku="${escapeHtml(r.sku)}" value="${escapeHtml(r.comment||'')}" placeholder="комментарий..."></td>`;
           if (c.key === 'arrivalDate') {
-            // «Дата поставки СиМ давальца» — тянем из /api/s3-plan/plan (там же где /s3-plan это показывает).
-            // Проверяем номер заказа: если в s3-plan tollOrderNumber отличается от order у нас в v2 →
-            // помечаем оранжевым, чтобы юзер понимала что дата, возможно, от другого заказа.
+            // «Дата поставки СиМ давальца» — только из /api/s3-plan/plan.
+            // Без fallback на shipDatePlan: это разные даты, юзер проставляет их обе вручную.
             const s3 = s3PlanMap.get(r.sku);
             if (!s3 || !s3.arrivalDate) {
-              // fallback — та же ship_date из shared meta (её же тянет s3-plan)
-              const localDate = r.raw ? getShipDate(r.raw) : '';
-              return `<td class="v2-arrival-cell" style="color:#94a3b8;font-size:12px">${escapeHtml(localDate || '—')}</td>`;
+              return `<td class="v2-arrival-cell" style="color:#94a3b8;font-size:12px">—</td>`;
             }
             // сверка по номеру заказа: убираем сравнимые части (v2 order может быть "00ЦБ-000123; 00ЦБ-000456")
             const rowOrders = String(r.order || '').split(/[;,]/).map(s => s.trim()).filter(Boolean);
@@ -5133,8 +5129,7 @@
           if (c.key === 'shipDatePlan') return r.raw ? (getShipDate(r.raw) || '') : '';
           if (c.key === 'arrivalDate') {
             const s3 = s3PlanMap.get(r.sku);
-            if (s3 && s3.arrivalDate) return s3.arrivalDate;
-            return r.raw ? (getShipDate(r.raw) || '') : '';
+            return (s3 && s3.arrivalDate) ? s3.arrivalDate : '';
           }
           if (c.key === 'comment') return r.comment || '';
           return r[c.key] || '';
