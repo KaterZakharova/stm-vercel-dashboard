@@ -1234,17 +1234,18 @@
       try { localStorage.setItem(COMMENTS_STORAGE_KEY, JSON.stringify(sharedMeta)); } catch {}
     }
     async function pushMeta(row, patch) {
+      // Отправляем ТОЛЬКО реально изменённые поля. Если в patch нет ключа,
+      // сервер (PUT /api/stm-meta) сохранит существующее значение в БД через coalesce.
+      // Иначе можно случайно затереть чужое поле пустым значением из-за race с loadSharedMetaFromApi.
+      const body = { month: row.month, sku: row.sku };
+      if (patch.comment !== undefined)     body.comment      = patch.comment;
+      if (patch.shipDate !== undefined)    body.ship_date    = patch.shipDate || null;
+      if (patch.arrivalDate !== undefined) body.arrival_date = patch.arrivalDate || null;
       try {
         const r = await fetch(META_API_URL, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            month: row.month,
-            sku: row.sku,
-            comment: patch.comment !== undefined ? patch.comment : getComment(row),
-            ship_date: patch.shipDate !== undefined ? (patch.shipDate || null) : (getShipDate(row) || null),
-            arrival_date: patch.arrivalDate !== undefined ? (patch.arrivalDate || null) : (getArrivalDate(row) || null),
-          }),
+          body: JSON.stringify(body),
         });
         if (!r.ok) throw new Error('HTTP ' + r.status);
       } catch (e) {
