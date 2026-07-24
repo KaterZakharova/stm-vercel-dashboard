@@ -1,4 +1,12 @@
-﻿$ErrorActionPreference = "Stop"
+﻿param(
+    # Месяцы, для которых реально дёргаем 1С. Остальные месяцы берём из
+    # закэшированного const DATA в index.html (см. блок «Шаг 0: кэш» ниже).
+    # По умолчанию — текущий + прошлый (продажи по ним ещё активно меняются).
+    [string[]]$ActiveMonths,
+    # Полный пересчёт всех месяцев из 1С — как раньше, без кэша.
+    [switch]$FullRefresh
+)
+$ErrorActionPreference = "Stop"
 
 $ScriptDir  = Split-Path $MyInvocation.MyCommand.Path -Parent
 $ProjectDir = Split-Path $ScriptDir -Parent
@@ -32,6 +40,90 @@ $MonthBounds = @{
     "2026-08" = @{ Start = $AugStart;  End = $AugEnd    }
 }
 function New-MonthHash { $h = @{}; foreach ($mc in $MonthCodes) { $h[$mc] = @{} }; return $h }
+
+# ─── Шаг 0: инкрементальный режим — кэш прошлого index.html ──────────────────
+# Тянуть заново всё каждый раз занимает ~45 мин (тысячи вызовов 1С OData).
+# По факту Май/Июнь уже закрыты — их продажи не меняются день ко дню.
+# Держим для них закэшированные строки из предыдущего билда, а из 1С зовём
+# только $ActiveMonths (по умолчанию — Июль + Август).
+if (-not $ActiveMonths -or $ActiveMonths.Count -eq 0) {
+    $ActiveMonths = @("2026-07", "2026-08")
+}
+if ($FullRefresh) { $ActiveMonths = $MonthCodes }
+$IsIncremental = -not $FullRefresh -and ($ActiveMonths.Count -lt $MonthCodes.Count)
+$activeSet = @{}; foreach ($m in $ActiveMonths) { $activeSet[$m] = $true }
+$modeLabel = if ($IsIncremental) { "INCREMENTAL (активны: $($ActiveMonths -join ', '); Май/Июнь из кэша)" } else { "FULL REFRESH" }
+Write-Host "=== Режим: $modeLabel ===" -ForegroundColor Yellow
+
+$monthCodeToName = @{ "2026-05" = "Май"; "2026-06" = "Июнь"; "2026-07" = "Июль"; "2026-08" = "Август" }
+$prevRowsByMonthName = @{}
+$prevPotentialRows   = [System.Collections.Generic.List[object]]::new()
+$prevServicesRows    = [System.Collections.Generic.List[object]]::new()
+$hasPrevPotential = $false
+$hasPrevServices  = $false
+if ($IsIncremental) {
+    try {
+        $htmlNow = [System.IO.File]::ReadAllText($IndexPath, [System.Text.UTF8Encoding]::new($false))
+        if ($htmlNow -match '(?s)const DATA = (\[.*?\]);') {
+            # На PS5.1 `@(pipe | ConvertFrom-Json)` схлопывает массив в 1 элемент — используем прямой вызов.
+            $prevRows = ConvertFrom-Json -InputObject $matches[1]
+            if ($null -eq $prevRows) { $prevRows = @() }
+            foreach ($r in $prevRows) {
+                $mn = [string]$r.month
+                if (-not $prevRowsByMonthName.ContainsKey($mn)) {
+                    $prevRowsByMonthName[$mn] = [System.Collections.Generic.List[object]]::new()
+                }
+                $prevRowsByMonthName[$mn].Add($r)
+            }
+            $summary = ($prevRowsByMonthName.GetEnumerator() | Sort-Object Name | ForEach-Object { "$($_.Key)=$($_.Value.Count)" }) -join ', '
+            Write-Host "  Кэш DATA из index.html: $summary" -ForegroundColor Yellow
+            # Проверим, что для каждого замороженного месяца есть кэш
+            foreach ($mc in $MonthCodes) {
+                if ($activeSet.ContainsKey($mc)) { continue }
+                $mn = $monthCodeToName[$mc]
+                if (-not $prevRowsByMonthName.ContainsKey($mn) -or $prevRowsByMonthName[$mn].Count -eq 0) {
+                    Write-Warning "  Для месяца $mn ($mc) нет кэша — форсирую FULL REFRESH"
+                    $IsIncremental = $false
+                    $ActiveMonths = $MonthCodes
+                    $activeSet = @{}; foreach ($m in $ActiveMonths) { $activeSet[$m] = $true }
+                    break
+                }
+            }
+        } else {
+            Write-Warning "Не нашёл const DATA в index.html — форсирую FULL REFRESH"
+            $IsIncremental = $false
+            $ActiveMonths = $MonthCodes
+            $activeSet = @{}; foreach ($m in $ActiveMonths) { $activeSet[$m] = $true }
+        }
+        # Прогноз (MANUAL_POTENTIAL) и услуги (SERVICES) — тоже кэшируем,
+        # чтобы не гонять Step 6 (10000 doc-fetch) в инкрементальном режиме.
+        if ($IsIncremental) {
+            if ($htmlNow -match '(?s)const MANUAL_POTENTIAL = (\[.*?\]);') {
+                try {
+                    $prevPot = ConvertFrom-Json -InputObject $matches[1]
+                    if ($null -eq $prevPot) { $prevPot = @() }
+                    foreach ($p in $prevPot) { $prevPotentialRows.Add($p) }
+                    $hasPrevPotential = $true
+                    Write-Host "  Кэш MANUAL_POTENTIAL: $($prevPotentialRows.Count) строк" -ForegroundColor Yellow
+                } catch { Write-Warning "MANUAL_POTENTIAL parse failed: $_" }
+            }
+            if ($htmlNow -match '(?s)const SERVICES = (\[.*?\]);') {
+                try {
+                    $prevSvc = ConvertFrom-Json -InputObject $matches[1]
+                    if ($null -eq $prevSvc) { $prevSvc = @() }
+                    foreach ($s in $prevSvc) { $prevServicesRows.Add($s) }
+                    $hasPrevServices = $true
+                    Write-Host "  Кэш SERVICES: $($prevServicesRows.Count) строк" -ForegroundColor Yellow
+                } catch { Write-Warning "SERVICES parse failed: $_" }
+            }
+        }
+    } catch {
+        Write-Warning "Не удалось прочесть кэш DATA: $_ — форсирую FULL REFRESH"
+        $IsIncremental = $false
+        $ActiveMonths = $MonthCodes
+        $activeSet = @{}; foreach ($m in $ActiveMonths) { $activeSet[$m] = $true }
+    }
+}
 
 # Ручные override менеджеров для SKU без активного 2_5 заказа и без карточных реквизитов.
 # Имеет наивысший приоритет в Build-MonthRows.
@@ -824,7 +916,24 @@ function Get-S3Services($monthCode, $monthStart, $monthEnd) {
 Write-Host "=== Шаг 4b: услуги S3 КП по месяцам ===" -ForegroundColor Cyan
 $monthNameMap4b = @{ "2026-05" = "Май"; "2026-06" = "Июнь"; "2026-07" = "Июль"; "2026-08" = "Август" }
 $servicesAll = [System.Collections.Generic.List[object]]::new()
+# Индекс кэша SERVICES по месяцу — для frozen месяцев дёргаем оттуда.
+$prevServicesByMonthCode = @{}
+if ($IsIncremental -and $hasPrevServices) {
+    foreach ($s in $prevServicesRows) {
+        $mc = [string]$s.month
+        if (-not $prevServicesByMonthCode.ContainsKey($mc)) {
+            $prevServicesByMonthCode[$mc] = [System.Collections.Generic.List[object]]::new()
+        }
+        $prevServicesByMonthCode[$mc].Add($s)
+    }
+}
 foreach ($mc in $MonthCodes) {
+    if ($IsIncremental -and -not $activeSet.ContainsKey($mc) -and $prevServicesByMonthCode.ContainsKey($mc)) {
+        $cached = $prevServicesByMonthCode[$mc]
+        foreach ($s in $cached) { $servicesAll.Add($s) }
+        Write-Host "  ↷ $($monthNameMap4b[$mc]): кэш SERVICES ($($cached.Count) услуг), 0 запросов в 1С" -ForegroundColor Yellow
+        continue
+    }
     $b = $MonthBounds[$mc]
     $svc = Get-S3Services $monthNameMap4b[$mc] $b.Start $b.End
     foreach ($s in $svc) { $servicesAll.Add($s) }
@@ -882,6 +991,14 @@ function Get-FactStmSkus($monthStart, $monthEnd) {
 }
 
 function Build-MonthRows($monthCode, $monthName, $priceMap) {
+    # Инкрементальный режим: если месяц не в $ActiveMonths, но у нас есть его строки
+    # из прошлого билда — используем их as-is и не дёргаем 1С совсем.
+    if ($script:IsIncremental -and -not $script:activeSet.ContainsKey($monthCode) -and $script:prevRowsByMonthName.ContainsKey($monthName)) {
+        $cached = $script:prevRowsByMonthName[$monthName]
+        foreach ($r in $cached) { $script:dataRows.Add($r) }
+        Write-Host "  ↷ $monthName ($monthCode): используем кэш — $($cached.Count) строк, 0 запросов в 1С" -ForegroundColor Yellow
+        return
+    }
     $planMonth    = $planByMonth[$monthCode]
     $releaseMonth = $releaseBySkuNorm[$monthCode]
     $mStart = $MonthBounds[$monthCode].Start
@@ -1206,6 +1323,14 @@ Write-Host "Всего строк: $($dataRows.Count)"
 Write-Host "=== Шаг 6: прогноз из ЗаказДавальца2_5 ===" -ForegroundColor Cyan
 $potentialRows = [System.Collections.Generic.List[object]]::new()
 $monthNameMap = @{ "2026-05"="Май"; "2026-06"="Июнь"; "2026-07"="Июль"; "2026-08"="Август" }
+# Инкрементальный режим: не гоняем 10000 doc-fetch к 1С, а берём предыдущий
+# MANUAL_POTENTIAL из index.html. Живой потенциал всё равно тянется дашбордом
+# на клиенте через /api/s3-plan/dop-queue — этот bake лишь fallback.
+if ($IsIncremental -and $hasPrevPotential) {
+    foreach ($p in $prevPotentialRows) { $potentialRows.Add($p) }
+    Write-Host "  ↷ INCREMENTAL: используем кэш MANUAL_POTENTIAL — $($potentialRows.Count) строк, 0 запросов в 1С" -ForegroundColor Yellow
+}
+elseif (-not $IsIncremental) {
 try {
     # список 2026-х заказов
     $f = [uri]::EscapeDataString("Posted eq true and DeletionMark eq false")
@@ -1323,6 +1448,7 @@ try {
 } catch {
     Write-Warning "Не удалось построить прогноз: $_"
 }
+} # /elseif (-not $IsIncremental)
 
 # ─── step 7: inject into index.html ──────────────────────────────────────────
 Write-Host "=== Шаг 7: обновляем index.html ===" -ForegroundColor Cyan

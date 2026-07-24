@@ -22,3 +22,13 @@ data/totals_may.txt
 data/may_top_skus.txt
 data/june_plan_lines.json
 data/valovka_kub*.csv
+
+Screenshot_*.png
+*.log
+*.err.log
+_live_*.html
+refresh_tail_check.txt
+*.xlsx
+*.docx
+*.txt
+.claude-terminal
